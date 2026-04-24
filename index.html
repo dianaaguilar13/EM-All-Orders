@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTI Cancellation Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e6edf3;font-family:"Inter",sans-serif;font-size:13px;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#161b22;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:200}
+.logo{font-size:16px;font-weight:700;letter-spacing:-0.5px}.logo span{color:#388bfd}
+.badge{background:#388bfd22;color:#388bfd;border:1px solid #388bfd44;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.dot{width:7px;height:7px;border-radius:50%;background:#3fb950;display:inline-block;margin-right:5px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding:12px 20px;background:#161b22;border-bottom:1px solid #30363d}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:10px;color:#8b949e;font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+select,input[type=date]{background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:0 10px;border-radius:6px;font-size:12px;font-family:Inter,sans-serif;cursor:pointer;outline:none;height:32px}
+select:focus,input[type=date]:focus{border-color:#388bfd}
+.sep{width:1px;height:32px;background:#30363d;flex-shrink:0}
+.btn{padding:0 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #30363d;font-family:Inter,sans-serif;height:32px;transition:all .15s}
+.btn-p{background:#238636;border-color:#238636;color:#fff}.btn-p:hover{background:#2ea043}
+.btn-g{background:transparent;color:#8b949e}.btn-g:hover{background:#21262d;color:#e6edf3}
+.ms-wrap{position:relative}
+.ms-btn{background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:0 28px 0 10px;border-radius:6px;font-size:12px;font-family:Inter,sans-serif;cursor:pointer;width:190px;text-align:left;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:32px;display:flex;align-items:center}
+.ms-btn::after{content:"v";position:absolute;right:8px;color:#8b949e;font-size:10px}
+.ms-drop{position:absolute;top:calc(100% + 4px);left:0;width:260px;background:#161b22;border:1px solid #30363d;border-radius:8px;z-index:300;max-height:300px;overflow-y:auto;box-shadow:0 8px 24px #000000aa;display:none}
+.ms-drop.open{display:block}
+.ms-sticky{position:sticky;top:0;background:#161b22;z-index:1;border-bottom:1px solid #30363d}
+.ms-search{padding:8px}
+.ms-search input{width:100%;background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:5px 8px;border-radius:5px;font-size:11px;font-family:Inter,sans-serif;outline:none}
+.ms-actions{display:flex;gap:8px;padding:4px 10px 8px}
+.ms-act{font-size:11px;color:#388bfd;cursor:pointer;background:none;border:none;font-family:Inter,sans-serif;padding:0}
+.ms-act:hover{text-decoration:underline}
+.ms-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:12px}
+.ms-item:hover{background:#21262d}
+.ms-item input{accent-color:#388bfd;cursor:pointer;width:13px;height:13px;flex-shrink:0;pointer-events:none}
+.ms-cnt{background:#388bfd;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:4px}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px;gap:12px;color:#8b949e}
+.spinner{width:32px;height:32px;border:2px solid #30363d;border-top-color:#388bfd;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.main{padding:14px 20px;display:flex;flex-direction:column;gap:14px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.kpi{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 14px;position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:2px}
+.kpi.k1::after{background:#388bfd}.kpi.k2::after{background:#58a6ff}.kpi.k3::after{background:#f85149}
+.kpi.k4::after{background:#f85149}.kpi.k5::after{background:#e3b341}.kpi.k6::after{background:#3fb950}
+.kpi.k7::after{background:#bc8cff}.kpi.k8::after{background:#39d353}
+.kl{font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.7px;font-weight:500;margin-bottom:5px}
+.kv{font-size:24px;font-weight:700;letter-spacing:-1px;line-height:1}
+.ks{font-size:11px;margin-top:4px}.ks.red{color:#f85149}.ks.green{color:#3fb950}.ks.muted{color:#8b949e}.ks.amber{color:#e3b341}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px}
+.card.full{grid-column:1/-1}
+.ct{font-size:12px;font-weight:600;margin-bottom:2px}.cs{font-size:11px;color:#8b949e;margin-bottom:10px}
+.legend{display:flex;flex-wrap:wrap;gap:8px}
+.li{display:flex;align-items:center;gap:4px;font-size:10px;color:#8b949e}
+.ld{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.tbl-wrap{overflow-x:auto;max-height:420px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;min-width:750px}
+th{padding:8px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;background:#21262d;border-bottom:1px solid #30363d;position:sticky;top:0;white-space:nowrap}
+td{padding:7px 10px;font-size:11px;border-bottom:1px solid #21262d40}
+tr:hover td{background:#21262d55}
+.tfoot td{background:#21262d;font-weight:600;font-size:11px;position:sticky;bottom:0}
+.pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;background:#388bfd22;color:#79c0ff}
+.num{font-variant-numeric:tabular-nums}
+.bw{display:flex;align-items:center;gap:5px}
+.bb{flex:1;height:4px;background:#21262d;border-radius:2px;overflow:hidden;min-width:40px}
+.bf{height:100%;border-radius:2px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="logo">BTI <span>Analytics</span></div>
+    <div class="sep"></div>
+    <span class="badge">Cancellation Report</span>
+    <span style="font-size:11px;color:#8b949e"><span class="dot"></span><span id="rcLbl">Loading...</span></span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="btn btn-p" onclick="applyFilters()">Apply</button>
+    <button class="btn btn-g" onclick="resetFilters()">Reset</button>
+  </div>
+</div>
+<div class="filters">
+  <div class="fg"><span class="fl">Date From</span><input type="date" id="df" value="2022-01-01"></div>
+  <div class="fg"><span class="fl">Date To</span><input type="date" id="dt" value="2026-04-20"></div>
+  <div class="sep"></div>
+  <div class="fg"><span class="fl">SKU</span><select id="fSku"><option value="">All SKUs</option></select></div>
+  <div class="fg">
+    <span class="fl">Partner Category</span>
+    <select id="fPcat">
+      <option value="">All Categories</option>
+      <option>Enrollment Mentor</option>
+      <option>Event</option>
+      <option>Marketing</option>
+      <option>Affiliate</option>
+    </select>
+  </div>
+  <div class="fg">
+    <span class="fl">Referral Partner <span id="msCnt" class="ms-cnt" style="display:none"></span></span>
+    <div class="ms-wrap" id="msWrap">
+      <button class="ms-btn" id="msBtn" onclick="toggleMs(event)">All Partners</button>
+      <div class="ms-drop" id="msDrop">
+        <div class="ms-sticky">
+          <div class="ms-search"><input type="text" id="msQ" placeholder="Search partners..." oninput="renderMsItems()"></div>
+          <div class="ms-actions">
+            <button class="ms-act" onclick="msAll()">Select all</button>
+            <button class="ms-act" onclick="msClear()">Clear all</button>
+          </div>
+        </div>
+        <div id="msItems"></div>
+      </div>
+    </div>
+  </div>
+  <div class="fg"><span class="fl">Active Status</span><select id="fAct"><option value="">All</option><option>Active</option><option>Inactive</option></select></div>
+  <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option></select></div>
+</div>
+<div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
+<script src="dashboard.js"></script>
+</body>
+</html>
