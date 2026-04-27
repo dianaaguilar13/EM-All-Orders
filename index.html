@@ -137,7 +137,19 @@ tr:hover td{background:#21262d55}
     <div class="fg"><span class="fl">Date From</span><input type="date" id="ldp-df" value="2022-01-01"></div>
     <div class="fg"><span class="fl">Date To</span><input type="date" id="ldp-dt" value="2026-04-26"></div>
     <div class="sep"></div>
-    <div class="fg"><span class="fl">SKU</span><select id="ldp-sku"><option value="">All SKUs</option></select></div>
+    <div class="fg">
+      <span class="fl">SKU <span id="ldp-skuCnt" class="ms-cnt" style="display:none"></span></span>
+      <div class="ms-wrap" id="ldp-skuWrap">
+        <button class="ms-btn" id="ldp-skuBtn" onclick="ldpToggleSku(event)">All SKUs</button>
+        <div class="ms-drop" id="ldp-skuDrop">
+          <div class="ms-sticky">
+            <div class="ms-search"><input type="text" id="ldp-skuQ" placeholder="Search SKU..." oninput="ldpRenderSkuItems()"></div>
+            <div class="ms-actions"><button class="ms-act" onclick="ldpSkuAll()">Select all</button><button class="ms-act" onclick="ldpSkuClear()">Clear all</button></div>
+          </div>
+          <div id="ldp-skuItems"></div>
+        </div>
+      </div>
+    </div>
     <div class="fg">
       <span class="fl">Partner Category</span>
       <select id="ldp-pcat"><option value="">All Categories</option><option>Enrollment Mentor</option><option>Event</option><option>Marketing</option><option>Affiliate</option></select>
