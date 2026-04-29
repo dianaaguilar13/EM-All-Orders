@@ -15,6 +15,7 @@ function updateMsBtn(){var btn=document.getElementById("msBtn");var cnt=document
 // ── Filters ───────────────────────────────────────────────
 function getRange(){return{df:document.getElementById("df").value.slice(0,7),dt:document.getElementById("dt").value.slice(0,7)};}
 function getPcat(){return document.getElementById("fPcat").value;}
+function getSku(){return document.getElementById("fSku").value;}
 function fmtM(m){var p=m.split("-");return new Date(parseInt(p[0]),parseInt(p[1])-1).toLocaleString("default",{month:"short",year:"2-digit"});}
 
 function myToKey(my){
@@ -80,7 +81,9 @@ var CNCL_COLORS={"Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb95
 function getLevelItems(levelIdx){
   var tree=currentTree||{};
   if(levelIdx===0){
-    return[{l:"Total Units",v:countDeep(tree,5),c:"#388bfd"}];
+    var sku0=getSku();
+    var total0=sku0?getTimeSeries().reduce(function(s,x){return s+(x.b[0]||0);},0):countDeep(tree,5);
+    return[{l:"Total Units",v:total0,c:"#388bfd"}];
   }
   if(levelIdx===1){
     var active=0,inactive=0;
@@ -247,71 +250,85 @@ function renderDecompBC(){
 
 // ── Chart data helpers ────────────────────────────────────
 function getTimeSeries(){
-  var r=getRange(),pcat=getPcat(),byM={};
-  if(selP.size>0){selP.forEach(function(p){var pm=(D.PM&&D.PM[p])||{};Object.keys(pm).forEach(function(m){if(m<r.df||m>r.dt)return;if(!byM[m])byM[m]=[0,0,0,0,0,0,0,0];var v=pm[m];for(var i=0;i<8;i++)byM[m][i]+=(v[i]||0);});});}
-  else if(pcat){var pm=D.PCM[pcat]||{};Object.keys(pm).forEach(function(m){if(m>=r.df&&m<=r.dt)byM[m]=pm[m];});}
-  else{Object.keys(D.M).forEach(function(m){if(m>=r.df&&m<=r.dt)byM[m]=D.M[m];});}
-  return Object.keys(byM).sort().map(function(m){return{m:m,b:byM[m]};});
-}
-function getSkuBuckets(){
-  var r=getRange(),pcat=getPcat();
-  var src;
-  if(selP.size>0){
-    src={};
+  var r=getRange(),pcat=getPcat(),sku=getSku(),byM={};
+  var e8=function(){return[0,0,0,0,0,0,0,0];};
+
+  function addToByM(src,skuKey){
+    Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      if(!byM[m])byM[m]=e8();
+      var v=skuKey?(src[m]&&src[m][skuKey]||null):src[m];
+      if(v)for(var i=0;i<8;i++)byM[m][i]+=(v[i]||0);
+    });
+  }
+
+  if(selP.size>0&&sku){
+    selP.forEach(function(p){addToByM((D.PMSKU&&D.PMSKU[p])||{},sku);});
+  } else if(pcat&&sku){
+    addToByM((D.PCMSKU&&D.PCMSKU[pcat])||{},sku);
+  } else if(sku){
+    addToByM(D.GMSKU||{},sku);
+  } else if(selP.size>0){
     selP.forEach(function(p){
-      var pm=(D.PMSKU&&D.PMSKU[p])||{};
+      var pm=(D.PM&&D.PM[p])||{};
       Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        Object.keys(pm[m]).forEach(function(sku){
-          if(!src[sku])src[sku]=[0,0,0,0,0,0,0,0];
-          var v=pm[m][sku];for(var i=0;i<8;i++)src[sku][i]+=(v[i]||0);
-        });
+        if(!byM[m])byM[m]=e8();var v=pm[m];for(var i=0;i<8;i++)byM[m][i]+=(v[i]||0);
       });
     });
   } else if(pcat){
-    src={};
-    var pm=(D.PCMSKU&&D.PCMSKU[pcat])||{};
-    Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-      Object.keys(pm[m]).forEach(function(sku){
-        if(!src[sku])src[sku]=[0,0,0,0,0,0,0,0];
-        var v=pm[m][sku];for(var i=0;i<8;i++)src[sku][i]+=(v[i]||0);
-      });
-    });
+    var pm=D.PCM[pcat]||{};
+    Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){byM[m]=pm[m];});
   } else {
-    src={};
-    var gm=D.GMSKU||{};
-    Object.keys(gm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-      Object.keys(gm[m]).forEach(function(sku){
-        if(!src[sku])src[sku]=[0,0,0,0,0,0,0,0];
-        var v=gm[m][sku];for(var i=0;i<8;i++)src[sku][i]+=(v[i]||0);
+    Object.keys(D.M).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){byM[m]=D.M[m];});
+  }
+  return Object.keys(byM).sort().map(function(m){return{m:m,b:byM[m]};});
+}
+function getSkuBuckets(){
+  var r=getRange(),pcat=getPcat(),sku=getSku();
+  var src={};
+
+  function addSrc(monthSkuMap){
+    Object.keys(monthSkuMap).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      var skuMap=monthSkuMap[m];
+      var keys=sku?[sku]:Object.keys(skuMap);
+      keys.forEach(function(s){
+        var v=skuMap[s];if(!v)return;
+        if(!src[s])src[s]=[0,0,0,0,0,0,0,0];
+        for(var i=0;i<8;i++)src[s][i]+=(v[i]||0);
       });
     });
+  }
+
+  if(selP.size>0){
+    selP.forEach(function(p){addSrc((D.PMSKU&&D.PMSKU[p])||{});});
+  } else if(pcat){
+    addSrc((D.PCMSKU&&D.PCMSKU[pcat])||{});
+  } else {
+    addSrc(D.GMSKU||{});
   }
   return src;
 }
 function getRdCounts(){
-  var r=getRange(),pcat=getPcat(),m={};
-  if(selP.size>0){
-    selP.forEach(function(p){
-      var pm=(D.PMRD&&D.PMRD[p])||{};
-      Object.keys(pm).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){
-        Object.keys(pm[mo]).forEach(function(k){m[k]=(m[k]||0)+pm[mo][k];});
-      });
+  var r=getRange(),pcat=getPcat(),sku=getSku(),m={};
+  function addRd(pm_obj){
+    Object.keys(pm_obj).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){
+      Object.keys(pm_obj[mo]).forEach(function(k){m[k]=(m[k]||0)+pm_obj[mo][k];});
     });
-  } else if(pcat){
-    var pm=(D.PCMRD&&D.PCMRD[pcat])||{};
-    Object.keys(pm).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){
-      Object.keys(pm[mo]).forEach(function(k){m[k]=(m[k]||0)+pm[mo][k];});
-    });
-  } else {
-    var gm=D.GMRD||{};
-    Object.keys(gm).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){
-      Object.keys(gm[mo]).forEach(function(k){m[k]=(m[k]||0)+gm[mo][k];});
-    });
+  }
+  if(selP.size>0){selP.forEach(function(p){addRd((D.PMRD&&D.PMRD[p])||{});});}
+  else if(pcat){addRd(D.PCMRD&&D.PCMRD[pcat]||{});}
+  else{addRd(D.GMRD||{});}
+  // Scale by SKU ratio if SKU filter active
+  if(sku){
+    var ts=getTimeSeries();
+    var skuTotal=ts.reduce(function(s,x){return s+(x.b[0]||0);},0);
+    var allSrc=pcat?(D.PCM[pcat]||{}):D.M;
+    var allTotal=Object.keys(allSrc).filter(function(mo){return mo>=r.df&&mo<=r.dt;})
+      .reduce(function(s,mo){return s+(allSrc[mo][0]||0);},0);
+    var ratio=allTotal>0?skuTotal/allTotal:0;
+    Object.keys(m).forEach(function(k){m[k]=Math.round(m[k]*ratio);});
   }
   return m;
 }
-
-// ── Main render ───────────────────────────────────────────
 function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy();}catch(e){}});charts={};}
 function applyFilters(){document.getElementById("msDrop").classList.remove("open");render();}
 function resetFilters(){document.getElementById("df").value="2022-01-01";document.getElementById("dt").value="2026-04-20";["fSku","fPcat","fAct","fCncl"].forEach(function(id){document.getElementById(id).value="";});selP.clear();updateMsBtn();render();}
@@ -359,40 +376,43 @@ function render(){
     charts.skuBar=new Chart(document.getElementById("skuBarChart"),{type:"bar",data:{labels:top15.map(function(s){return s.sku;}),datasets:[{data:top15.map(function(s){return +s.rate.toFixed(1);}),backgroundColor:top15.map(function(s){return s.rate>30?"rgba(248,81,73,0.85)":s.rate>15?"rgba(227,179,65,0.85)":"rgba(56,139,253,0.85)";}),borderRadius:4}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.parsed.x.toFixed(1)+"%";}}}},scales:{x:{ticks:{color:"#8b949e",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#21262d44"}},y:{ticks:{color:"#e6edf3",font:{size:10}},grid:{display:false}}}}});
     charts.skuGrp=new Chart(document.getElementById("skuGrpChart"),{type:"bar",data:{labels:top15.map(function(s){return s.sku;}),datasets:[{label:"Cancelled",data:top15.map(function(s){return s.C;}),backgroundColor:"rgba(248,81,73,0.8)",borderRadius:3},{label:"Entry Error",data:top15.map(function(s){return s.E;}),backgroundColor:"rgba(227,179,65,0.8)",borderRadius:3},{label:"Upgraded",data:top15.map(function(s){return s.U;}),backgroundColor:"rgba(63,185,80,0.8)",borderRadius:3},{label:"Downgraded",data:top15.map(function(s){return s.D;}),backgroundColor:"rgba(188,140,255,0.8)",borderRadius:3}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#e6edf3",font:{size:10}},grid:{display:false}}}}});
   }
-  // Partner category donut - fully date+filter aware
-  var r2=getRange(),pcat2=getPcat();
+  // Partner category donut - fully date+filter+sku aware
+  var r2=getRange(),pcat2=getPcat(),sku2=getSku();
   var donutData={};
+  function addDB(v){
+    var c=v[Ci]||0,e=v[Ei]||0,u=v[Ui]||0,d=v[Di]||0,t=v[Ti]||0;
+    var s=Math.max(0,t-c-e-u-d);
+    donutData["Cancelled"]=(donutData["Cancelled"]||0)+c;
+    donutData["Entry Error"]=(donutData["Entry Error"]||0)+e;
+    donutData["Upgrade"]=(donutData["Upgrade"]||0)+u;
+    donutData["Downgrade"]=(donutData["Downgrade"]||0)+d;
+    donutData["Sale"]=(donutData["Sale"]||0)+s;
+  }
   if(selP.size>0){
-    // Show CNCL status breakdown for selected partners
     selP.forEach(function(p){
       var pm=(D.PMSKU&&D.PMSKU[p])||{};
       Object.keys(pm).filter(function(m){return m>=r2.df&&m<=r2.dt;}).forEach(function(m){
-        Object.values(pm[m]).forEach(function(v){
-          var c=v[Ci]||0,e=v[Ei]||0,u=v[Ui]||0,d=v[Di]||0,t=v[Ti]||0;
-          var s=Math.max(0,t-c-e-u-d);
-          donutData["Cancelled"]=(donutData["Cancelled"]||0)+c;
-          donutData["Entry Error"]=(donutData["Entry Error"]||0)+e;
-          donutData["Upgrade"]=(donutData["Upgrade"]||0)+u;
-          donutData["Downgrade"]=(donutData["Downgrade"]||0)+d;
-          donutData["Sale"]=(donutData["Sale"]||0)+s;
-        });
+        sku2?(pm[m][sku2]&&addDB(pm[m][sku2])):Object.values(pm[m]).forEach(addDB);
       });
     });
   } else {
-    // Show partner category breakdown
-    Object.keys(D.PCMSKU||{}).forEach(function(pc){
-      var target=pcat2?[pcat2]:[pc];
-      if(pcat2&&pc!==pcat2)return;
-      var pm=D.PCMSKU[pc];
-      var tot=0;
-      Object.keys(pm).filter(function(m){return m>=r2.df&&m<=r2.dt;}).forEach(function(m){
-        Object.values(pm[m]).forEach(function(v){tot+=(v[Ci]||0)+(v[Ei]||0);});
+    var gm2=pcat2?(D.PCMSKU&&D.PCMSKU[pcat2]||{}):((selP.size===0&&!pcat2)?D.GMSKU||{}:{});
+    if(!pcat2&&selP.size===0){
+      // Show pcat breakdown
+      Object.keys(D.PCMSKU||{}).forEach(function(pc){
+        var pm=D.PCMSKU[pc];var tot=0;
+        Object.keys(pm).filter(function(m){return m>=r2.df&&m<=r2.dt;}).forEach(function(m){
+          var keys=sku2?[sku2]:Object.keys(pm[m]);
+          keys.forEach(function(s){var v=pm[m][s];if(v)tot+=(v[Ci]||0)+(v[Ei]||0);});
+        });
+        if(tot>0)donutData[pc]=(donutData[pc]||0)+tot;
       });
-      if(tot>0)donutData[pc]=(donutData[pc]||0)+tot;
-    });
+    } else {
+      Object.keys(gm2).filter(function(m){return m>=r2.df&&m<=r2.dt;}).forEach(function(m){
+        sku2?(gm2[m][sku2]&&addDB(gm2[m][sku2])):Object.values(gm2[m]).forEach(addDB);
+      });
+    }
   }
-  var donutKeys=Object.keys(donutData).filter(function(k){return donutData[k]>0;}).sort(function(a,b){return donutData[b]-donutData[a];});
-  var donutColors={"Marketing":"#388bfd","Enrollment Mentor":"#f85149","Affiliate":"#3fb950","Event":"#e3b341","Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb950","Downgrade":"#bc8cff","Sale":"#39d353"};
   charts.pcat=new Chart(document.getElementById("pcatChart"),{type:"doughnut",data:{labels:donutKeys,datasets:[{data:donutKeys.map(function(k){return donutData[k];}),backgroundColor:donutKeys.map(function(k){return donutColors[k]||"#58a6ff";}),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:"62%",plugins:{legend:{position:"right",labels:{color:"#8b949e",font:{size:11},boxWidth:10,padding:8}}}}});
     var rdCounts=getRdCounts(),rdK=["0","15","30","45","60","61"],rdL=["Same day","<=15d","<=30d","<=45d","<=60d","61+d"];
   charts.rd=new Chart(document.getElementById("rdChart"),{type:"bar",data:{labels:rdL,datasets:[{data:rdK.map(function(k){return rdCounts[k]||0;}),backgroundColor:"rgba(56,139,253,0.75)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}}}}});
