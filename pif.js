@@ -352,7 +352,8 @@ function pifRender(){
     var bg=s.pifRate>=95?"#3fb950":s.pifRate>=80?"#388bfd":"#bc8cff";
     var safeId=s.sku.replace(/[^a-zA-Z0-9]/g,"_");
     var cat=getSkuCat(s.sku);
-    tRows+="<tr style='cursor:pointer' onclick="pifToggleSkuDetail('"+s.sku.replace(/'/g,"\'")+"')">"+
+    var skuEsc=s.sku.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
+    tRows+="<tr style='cursor:pointer' data-sku='"+skuEsc+"' onclick='pifToggleSkuDetail(this.dataset.sku)'>"+
       "<td style='padding-left:8px'><span id='pif-expand-"+safeId+"' style='color:#388bfd;font-size:10px;margin-right:6px'>&#9654;</span><span class='pill'>"+s.sku+"</span></td>"+
       "<td style='font-size:11px;color:#8b949e'>"+cat+"</td>"+
       "<td class='num'>"+s.total.toLocaleString()+"</td>"+
@@ -542,51 +543,83 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
     if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
     return true;
   });
-  var cls_labels=["PIF","PP","PIF after 30d"];
-  var cls_colors=["#3fb950","#bc8cff","#e3b341"];
-  
-  // Build table HTML
-  var h='<div style="padding:10px 16px;background:#0d1117;border-top:1px solid #30363d">';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
-  h+='<span style="font-size:11px;font-weight:600;color:#8b949e">'+allRows.length.toLocaleString()+' records for '+sku+'</span>';
-  h+='<button onclick="pifDownloadSkuCsv(''+sku.replace(/'/g,"\'")+'',''+safeId+'')" style="background:#21262d;border:1px solid #30363d;color:#3fb950;padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer">&#11015; Download CSV</button>';
-  h+='</div>';
-  h+='<div style="overflow-x:auto;max-height:320px;overflow-y:auto">';
-  h+='<table style="width:100%;border-collapse:collapse;min-width:700px">';
-  h+='<thead><tr style="background:#161b22">';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">Order ID</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">Contact ID</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">SKU Category</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">Purchase Date</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">PIF / PP</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">Days to PIF</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">Partner Category</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">EM</th>';
-  h+='<th style="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22">Division</th>';
-  h+='</tr></thead><tbody>';
-  
-  allRows.forEach(function(r2){
-    var clsIdx=r2[5],c=cls_colors[clsIdx]||"#8b949e";
-    var days=r2[6]>=0?r2[6]+"d":"-";
-    var divLabel=PIF_ROWS.divs[r2[10]]||"";
-    h+='<tr style="border-bottom:1px solid #21262d40">'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e;font-variant-numeric:tabular-nums">'+r2[0]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e">'+r2[1]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e">'+PIF_ROWS.cats[r2[2]]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#e6edf3">'+r2[3]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;font-weight:600;color:'+c+'">'+cls_labels[clsIdx]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e;text-align:right">'+days+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e">'+PIF_ROWS.pcats[r2[7]]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e">'+PIF_ROWS.ems[r2[9]]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#8b949e">'+divLabel+'</td>'+
-      '</tr>';
+  var clsLabels=["PIF","PP","PIF after 30d"];
+  var clsColors=["#3fb950","#bc8cff","#e3b341"];
+
+  // Build using DOM to avoid any quote issues
+  var wrap=document.createElement("div");
+  wrap.style.cssText="padding:10px 16px;background:#0d1117;border-top:1px solid #30363d";
+
+  var header=document.createElement("div");
+  header.style.cssText="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px";
+
+  var info=document.createElement("span");
+  info.style.cssText="font-size:11px;font-weight:600;color:#8b949e";
+  info.textContent=allRows.length.toLocaleString()+" records for "+sku;
+
+  var dlBtn=document.createElement("button");
+  dlBtn.style.cssText="background:#21262d;border:1px solid #30363d;color:#3fb950;padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer";
+  dlBtn.textContent="⬇ Download CSV";
+  dlBtn.onclick=function(){pifDownloadSkuCsvRows(sku,allRows);};
+
+  header.appendChild(info);
+  header.appendChild(dlBtn);
+  wrap.appendChild(header);
+
+  var scrollDiv=document.createElement("div");
+  scrollDiv.style.cssText="overflow-x:auto;max-height:320px;overflow-y:auto";
+
+  var tbl=document.createElement("table");
+  tbl.style.cssText="width:100%;border-collapse:collapse;min-width:700px";
+
+  var cols=["Order ID","Contact ID","SKU Category","Purchase Date","PIF / PP","Days to PIF","Partner Category","EM","Division"];
+  var thead=document.createElement("thead");
+  var hrow=document.createElement("tr");
+  hrow.style.background="#161b22";
+  cols.forEach(function(c){
+    var th=document.createElement("th");
+    th.style.cssText="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22";
+    th.textContent=c;
+    hrow.appendChild(th);
   });
-  h+='</tbody></table></div></div>';
-  
-  row.querySelector("td").innerHTML=h;
+  thead.appendChild(hrow);
+  tbl.appendChild(thead);
+
+  var tbody=document.createElement("tbody");
+  allRows.forEach(function(r2){
+    var tr=document.createElement("tr");
+    tr.style.borderBottom="1px solid #21262d40";
+    var cells=[
+      r2[0],
+      r2[1],
+      PIF_ROWS.cats[r2[2]]||"",
+      r2[3],
+      clsLabels[r2[5]],
+      r2[6]>=0?r2[6]+"d":"-",
+      PIF_ROWS.pcats[r2[7]]||"",
+      PIF_ROWS.ems[r2[9]]||"",
+      PIF_ROWS.divs[r2[10]]||""
+    ];
+    cells.forEach(function(val,ci){
+      var td=document.createElement("td");
+      td.style.cssText="padding:5px 10px;font-size:11px;color:"+(ci===4?clsColors[r2[5]]:"#8b949e");
+      if(ci===4)td.style.fontWeight="600";
+      td.textContent=val;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  tbl.appendChild(tbody);
+  scrollDiv.appendChild(tbl);
+  wrap.appendChild(scrollDiv);
+
+  var td=row.querySelector("td");
+  td.innerHTML="";
+  td.appendChild(wrap);
   row.style.display="";
   if(icon)icon.innerHTML="&#9660;";
 }
+
 
 // ── CSV Downloads ──────────────────────────────────────────
 function pifRowsToCsv(rows2){
@@ -619,16 +652,10 @@ function pifDownloadCsv(csvStr, filename){
   a.click();
 }
 
-function pifDownloadSkuCsv(sku,safeId){
-  pifLoadRows(function(){
-    var r=pifRange(),pcat=pifPcat();
-    var rows2=(PIF_ROWS.rows[sku]||[]).filter(function(r2){
-      if(r2[4]<r.df||r2[4]>r.dt)return false;
-      if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
-      return true;
-    }).map(function(r2){var c=r2.slice();c._sku=sku;return c;});
-    pifDownloadCsv(pifRowsToCsv(rows2),"pif_"+sku+"_"+r.df+"_"+r.dt+".csv");
-  });
+function pifDownloadSkuCsvRows(sku,rows2){
+  var r=pifRange();
+  var tagged=rows2.map(function(r2){var c=r2.slice();c._sku=sku;return c;});
+  pifDownloadCsv(pifRowsToCsv(tagged),"pif_"+sku+"_"+r.df+"_"+r.dt+".csv");
 }
 
 function pifDownloadAllCsv(){
