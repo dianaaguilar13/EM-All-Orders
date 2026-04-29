@@ -37,7 +37,17 @@ function pifReset(){document.getElementById("pif-df").value="2026-04-01";documen
 
 // Get totals applying all filters
 function pifGetTotals(){
-  // Always derive totals by summing filtered monthly data
+  // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
+  var skuArr=pifGetSkuData();
+  if(skuArr.length>0){
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0];
+    skuArr.forEach(function(s){
+      tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
+      tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
+    });
+    return tot;
+  }
+  // Fallback: sum monthly data
   var ts=pifGetMonthly();
   var tot=[0,0,0,0,0,0,0,0,0];
   ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<9;i++)tot[i]+=(v[i]||0);});
@@ -47,7 +57,10 @@ function pifGetTotals(){
 function pifGetMonthly(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
   var empty=[0,0,0,0,0,0,0,0,0];
-  var hasSku=pifSelSku.size>0,hasPcat=!!pcat,hasP=pifSelP.size>0,hasDiv=!!div;
+  var skuArr=Array.from(pifSelSku);
+  var hasSku=skuArr.length>0;
+  var hasP=pifSelP.size>0;
+  var partArr=Array.from(pifSelP);
 
   function applyAct(b){
     if(!act||!b)return b;
@@ -58,23 +71,18 @@ function pifGetMonthly(){
       act==="Active"?n:0,act==="Inactive"?n:0];
   }
 
-  function sumBuckets(arr){
-    var out=[0,0,0,0,0.0,0.0,0.0,0,0];
-    arr.forEach(function(v){if(v)for(var i=0;i<9;i++)out[i]+=(v[i]||0);});
-    return out;
-  }
-
-  function getByMonth(src){
-    // src is {month: bucket}
-    var months=Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-    return months.map(function(m){return{m:m,b:applyAct(src[m]||empty)};}).filter(function(x){return x.b[0]>0;});
-  }
-
-  // SKU + Pcat (most specific)
-  if(hasSku&&hasPcat){
+  function buildFromSrc(srcMap){
+    // srcMap = {month: bucket}
     var byM={};
-    pifSelSku.forEach(function(sku){
-      var src=((PIF.SMNPC&&PIF.SMNPC[sku])||{})[pcat]||{};
+    Object.keys(srcMap).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      byM[m]=srcMap[m];
+    });
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
+  }
+
+  function mergeSources(sources){
+    var byM={};
+    sources.forEach(function(src){
       Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
         if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
         var v=src[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
@@ -83,68 +91,67 @@ function pifGetMonthly(){
     return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
   }
 
-  // SKU + Partner
+  // PRIORITY 1: SKU + Pcat
+  if(hasSku&&pcat){
+    var sources=[];
+    skuArr.forEach(function(sku){
+      var src=((PIF.SMNPC&&PIF.SMNPC[sku])||{})[pcat]||{};
+      sources.push(src);
+    });
+    return mergeSources(sources);
+  }
+
+  // PRIORITY 2: SKU + Partner
   if(hasSku&&hasP){
-    var byM={};
-    pifSelP.forEach(function(p){
-      pifSelSku.forEach(function(sku){
+    var sources=[];
+    partArr.forEach(function(p){
+      skuArr.forEach(function(sku){
         var src=(((PIF.PMSKU&&PIF.PMSKU[p])||{})[sku])||{};
-        Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-          if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
-          var v=src[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
-        });
+        sources.push(src);
       });
     });
-    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
+    return mergeSources(sources);
   }
 
-  // SKU only
+  // PRIORITY 3: SKU only
   if(hasSku){
-    var byM={};
-    pifSelSku.forEach(function(sku){
-      var sm=(PIF.SMN&&PIF.SMN[sku])||{};
-      Object.keys(sm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
-        var v=sm[m];for(var i=0;i<7;i++)byM[m][i]+=(v[i]||0);
-        var gv=PIF.M[m]||empty;
-        var ar=gv[0]>0?(gv[7]||0)/gv[0]:0.9;
-        byM[m][7]+=Math.round((v[0]||0)*ar);
-        byM[m][8]+=Math.round((v[0]||0)*(1-ar));
-      });
+    var sources=[];
+    skuArr.forEach(function(sku){
+      sources.push((PIF.SMN&&PIF.SMN[sku])||{});
     });
-    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
+    return mergeSources(sources);
   }
 
-  // Partner only or Partner + Pcat
+  // PRIORITY 4: Partner only
   if(hasP){
-    var byM={};
-    pifSelP.forEach(function(p){
-      var pm=(PIF.PM&&PIF.PM[p])||{};
-      Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
-        var v=pm[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
-      });
-    });
-    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
+    var sources=[];
+    partArr.forEach(function(p){sources.push((PIF.PM&&PIF.PM[p])||{});});
+    return mergeSources(sources);
   }
 
-  // Pcat only
-  if(hasPcat){
-    return getByMonth((PIF.PCM&&PIF.PCM[pcat])||{});
-  }
+  // PRIORITY 5: Pcat only
+  if(pcat) return buildFromSrc((PIF.PCM&&PIF.PCM[pcat])||{});
 
-  // Division only
-  if(hasDiv){
-    return getByMonth(PIF.MDIV[div]||{});
-  }
+  // PRIORITY 6: Division only
+  if(div) return buildFromSrc(PIF.MDIV[div]||{});
 
-  // Global
-  return getByMonth(PIF.M);
+  // PRIORITY 7: Global
+  return buildFromSrc(PIF.M);
 }
 
 
 function pifGetTotals(){
-  // Always derive totals by summing filtered monthly data
+  // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
+  var skuArr=pifGetSkuData();
+  if(skuArr.length>0){
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0];
+    skuArr.forEach(function(s){
+      tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
+      tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
+    });
+    return tot;
+  }
+  // Fallback: sum monthly data
   var ts=pifGetMonthly();
   var tot=[0,0,0,0,0,0,0,0,0];
   ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<9;i++)tot[i]+=(v[i]||0);});
@@ -766,5 +773,4 @@ function pifRenderDecompBC(){
   pifTreePath.forEach(function(lbl,i){sep();(function(ci,l){crumb(l,function(){pifTreePath=pifTreePath.slice(0,ci+1);pifRenderDecomp();pifRenderDecompBC();},i===pifTreePath.length-1);})(i,lbl);});
   if(pifTreePath.length>0){var pipe=document.createElement("span");pipe.style.cssText="color:#30363d;padding:0 4px";pipe.textContent="|";bc.appendChild(pipe);var rst=document.createElement("span");rst.style.cssText="font-size:11px;color:#f85149;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #f8514933;background:#f8514911";rst.textContent="Reset";rst.onclick=function(){pifTreePath=[];pifRenderDecomp();pifRenderDecompBC();};bc.appendChild(rst);}
 }
-
 
