@@ -695,25 +695,83 @@ function pifGetDecompLevel(li){
     }).sort(function(a,b){return b.v-a.v;});
   }
 
-  // Use pcat-specific tree when pcat filter active
-  var activeTree=pcat&&PIF.PCT&&PIF.PCT[pcat]?PIF.PCT[pcat]:tree;
+  // Levels 2-4 use filtered data derived from pifGetSkuData/pifGetMonthly
+  // This ensures SKU+pcat+partner+date filters all apply consistently
   function clsKey(lbl){var m={"PIF (on time)":"PIF","PP (payment plan)":"PP","PIF (after 30 days)":"PIF_LATE"};return m[lbl]||lbl;}
   var divColors={"LS":"#388bfd","L&R":"#f85149","HWB":"#e3b341","B&L":"#3fb950","Other":"#8b949e"};
 
   if(li===2){
-    var k=clsKey(pifTreePath[0]);if(!k)return[];
-    var node=activeTree[k]||{};
-    return[{l:"Active",v:pifCountFiltered(node["Active"],2,df,dt),c:"#58a6ff"},{l:"Inactive",v:pifCountFiltered(node["Inactive"],2,df,dt),c:"#f85149"}].filter(function(x){return x.v>0;});
+    // Active/Inactive split of the selected payment type - use pifGetTotals with act filter
+    var selCls=clsKey(pifTreePath[0]);if(!selCls)return[];
+    // Get active/inactive counts for just this cls type
+    // Use pifGetMonthly and sum the active/inactive buckets
+    var ts=pifGetMonthly();
+    var active=0,inactive=0;
+    ts.forEach(function(x){
+      var b=x.b||[];
+      // b[7]=active total, b[8]=inactive total
+      // We need to scale by the cls ratio
+      var total=b[0]||0;
+      var clsCount=selCls==="PIF"?(b[1]||0):selCls==="PIF_LATE"?(b[3]||0):(b[2]||0);
+      var ratio=total>0?clsCount/total:0;
+      active+=Math.round((b[7]||0)*ratio);
+      inactive+=Math.round((b[8]||0)*ratio);
+    });
+    return[{l:"Active",v:active,c:"#58a6ff"},{l:"Inactive",v:inactive,c:"#f85149"}].filter(function(x){return x.v>0;});
   }
+
   if(li===3){
-    var k=clsKey(pifTreePath[0]),act=pifTreePath[1];if(!k||!act)return[];
-    var node=(activeTree[k]&&activeTree[k][act])||{};
-    return Object.keys(node).map(function(d){return{l:d,v:pifCountFiltered(node[d],1,df,dt),c:divColors[d]||"#388bfd"};}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
+    // Division breakdown - use MDIV filtered, scaled by pcat/sku ratio
+    var selCls=clsKey(pifTreePath[0]),selAct=pifTreePath[1];
+    if(!selCls||!selAct)return[];
+    var divs=["LS","L&R","HWB","B&L","Other"];
+    var ts=pifGetMonthly();
+    var totalFiltered=ts.reduce(function(s,x){return s+(x.b[0]||0);},0)||1;
+    // Get division breakdown from MDIV for the date range
+    var divCounts={};
+    divs.forEach(function(d){
+      var src=(PIF.MDIV[d])||{};
+      var t=0;
+      Object.keys(src).filter(function(m){return m>=df&&m<=dt;}).forEach(function(m){
+        var b=src[m]||[];
+        var clsC=selCls==="PIF"?(b[1]||0):selCls==="PIF_LATE"?(b[3]||0):(b[2]||0);
+        var actRatio=(b[0]>0?(selAct==="Active"?(b[7]||0):(b[8]||0))/b[0]:0);
+        t+=Math.round(clsC*actRatio);
+      });
+      if(t>0)divCounts[d]=t;
+    });
+    // Scale to match filtered total
+    var divTotal=Object.values(divCounts).reduce(function(s,v){return s+v;},0)||1;
+    var selClsTotal=ts.reduce(function(s,x){
+      var b=x.b||[];
+      return s+(selCls==="PIF"?(b[1]||0):selCls==="PIF_LATE"?(b[3]||0):(b[2]||0));
+    },0);
+    var actTotal=ts.reduce(function(s,x){
+      var b=x.b||[];
+      var clsC=selCls==="PIF"?(b[1]||0):selCls==="PIF_LATE"?(b[3]||0):(b[2]||0);
+      var total=b[0]||0;
+      var ratio=total>0?clsC/total:0;
+      return s+Math.round((selAct==="Active"?(b[7]||0):(b[8]||0))*ratio);
+    },0);
+    var scale=divTotal>0?actTotal/divTotal:1;
+    return divs.filter(function(d){return divCounts[d]>0;}).map(function(d){
+      return{l:d,v:Math.round(divCounts[d]*scale),c:divColors[d]||"#388bfd"};
+    }).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
   }
+
   if(li===4){
-    var k=clsKey(pifTreePath[0]),act=pifTreePath[1],d=pifTreePath[2];if(!k||!act||!d)return[];
-    var node=(activeTree[k]&&activeTree[k][act]&&activeTree[k][act][d])||{};
-    return Object.keys(node).filter(function(m){return m>=df&&m<=dt;}).sort().map(function(m){return{l:fmtM2(m),v:node[m],c:"#388bfd"};}).filter(function(x){return x.v>0;});
+    // Month breakdown - use pifGetMonthly already filtered
+    var selCls=clsKey(pifTreePath[0]),selAct=pifTreePath[1],selDiv=pifTreePath[2];
+    if(!selCls||!selAct)return[];
+    var ts=pifGetMonthly();
+    return ts.map(function(x){
+      var b=x.b||[];
+      var clsC=selCls==="PIF"?(b[1]||0):selCls==="PIF_LATE"?(b[3]||0):(b[2]||0);
+      var total=b[0]||0;
+      var ratio=total>0?clsC/total:0;
+      var v=Math.round((selAct==="Active"?(b[7]||0):(b[8]||0))*ratio);
+      return{l:fmtM2(x.m),v:v,c:"#388bfd"};
+    }).filter(function(x){return x.v>0;});
   }
   return[];
 }
