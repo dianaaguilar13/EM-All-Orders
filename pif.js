@@ -45,6 +45,79 @@ function pifGetTotals(){
 }
 
 function pifGetMonthly(){
+  var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+  var empty=[0,0,0,0,0,0,0,0,0];
+
+  function applyActFilter(b){
+    if(!act||!b)return b;
+    var ratio=b[0]>0?(act==="Active"?b[7]:b[8])/b[0]:0;
+    var n=act==="Active"?b[7]:b[8];
+    return[n,Math.round((b[1]||0)*ratio),Math.round((b[2]||0)*ratio),
+      Math.round((b[3]||0)*ratio),
+      (b[4]||0)*ratio,(b[5]||0)*ratio,(b[6]||0)*ratio,
+      act==="Active"?n:0, act==="Inactive"?n:0];
+  }
+
+  // SKU filter - highest priority, use SMN
+  if(pifSelSku.size>0){
+    var byM={};
+    pifSelSku.forEach(function(sku){
+      var sm=(PIF.SMN&&PIF.SMN[sku])||{};
+      Object.keys(sm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
+        var v=sm[m];for(var i=0;i<7;i++)byM[m][i]+=(v[i]||0);
+        // Approximate active/inactive from global ratio
+        var gv=PIF.M[m]||empty;
+        var ar=gv[0]>0?(gv[7]||0)/gv[0]:0.9;
+        byM[m][7]+=Math.round((v[0]||0)*ar);
+        byM[m][8]+=Math.round((v[0]||0)*(1-ar));
+      });
+    });
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyActFilter(byM[m])};});
+  }
+
+  // Partner filter
+  if(pifSelP.size>0){
+    var byM={};
+    pifSelP.forEach(function(p){
+      var pm=(PIF.PM&&PIF.PM[p])||{};
+      Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
+        var v=pm[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
+      });
+    });
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyActFilter(byM[m])};});
+  }
+
+  // Division filter
+  if(div){
+    var dData=PIF.MDIV[div]||{};
+    var months=Object.keys(dData).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
+    return months.map(function(m){return{m:m,b:applyActFilter(dData[m]||empty)};});
+  }
+
+  // Pcat filter
+  if(pcat){
+    var src=(PIF.PCM&&PIF.PCM[pcat])||{};
+    var months=Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
+    return months.map(function(m){return{m:m,b:applyActFilter(src[m]||empty)};});
+  }
+
+  // Global
+  var months=Object.keys(PIF.M).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
+  return months.map(function(m){return{m:m,b:applyActFilter(PIF.M[m]||empty)};});
+}
+
+
+function pifGetTotals(){
+  // Always derive totals by summing filtered monthly data
+  var ts=pifGetMonthly();
+  var tot=[0,0,0,0,0,0,0,0,0];
+  ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<9;i++)tot[i]+=(v[i]||0);});
+  return tot;
+}
+
+function pifGetMonthly(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv();
   var empty=[0,0,0,0,0,0,0,0,0];
   if(div){
@@ -425,22 +498,38 @@ function pifDownloadAllCsv(){
 }
 
 function pifToggleSkuDetail(sku){
+  var safeId=sku.replace(/[^a-zA-Z0-9]/g,"_");
+  var row=document.getElementById("pif-detail-"+safeId);
+  var icon=document.getElementById("pif-expand-"+safeId);
+  if(!row)return;
+  // Toggle: check data attribute
+  if(row.getAttribute("data-open")==="1"){
+    row.style.display="none";
+    row.setAttribute("data-open","0");
+    if(icon)icon.innerHTML="&#9654;";
+    return;
+  }
+  // Load rows if needed, then render
   if(!PIF_ROWS){
-    // Lazy load rows
     fetch("pif_rows.json").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
-      pifRenderSkuDetail(sku,sku.replace(/[^a-zA-Z0-9]/g,"_"),document.getElementById("pif-detail-"+sku.replace(/[^a-zA-Z0-9]/g,"_")),document.getElementById("pif-expand-"+sku.replace(/[^a-zA-Z0-9]/g,"_")));
+      pifRenderSkuDetail(sku,safeId,row,icon);
     });
     return;
   }
-  pifRenderSkuDetail(sku,sku.replace(/[^a-zA-Z0-9]/g,"_"),document.getElementById("pif-detail-"+sku.replace(/[^a-zA-Z0-9]/g,"_")),document.getElementById("pif-expand-"+sku.replace(/[^a-zA-Z0-9]/g,"_")));
+  pifRenderSkuDetail(sku,safeId,row,icon);
 }
 
 function pifRenderSkuDetail(sku,safeId,row,icon){
   var r=pifRange(),pcat=pifPcat();
+  var div=pifDiv(),act=pifActFilter();
   var allRows=(PIF_ROWS.rows[sku]||[]).filter(function(r2){
     if(r2[4]<r.df||r2[4]>r.dt)return false;
     if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
+    if(div&&PIF_ROWS.divs[r2[10]]!==div)return false;
+    if(act==="Active"&&r2[12]!==0)return false;
+    if(act==="Inactive"&&r2[12]!==1)return false;
+    if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return false;
     return true;
   });
   var clsLabels=["PIF","PP","PIF after 30d"];
@@ -472,7 +561,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   var tbl=document.createElement("table");
   tbl.style.cssText="width:100%;border-collapse:collapse;min-width:700px";
 
-  var cols=["Order ID","Contact ID","SKU Category","Purchase Date","PIF / PP","Days to PIF","Partner Category","EM","Division"];
+  var cols=["Order ID","Contact ID","SKU Category","Purchase Date","PIF / PP","Days to PIF","CNCL Status","Active","Partner Category","EM","Division"];
   var thead=document.createElement("thead");
   var hrow=document.createElement("tr");
   hrow.style.background="#161b22";
@@ -489,22 +578,24 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   allRows.forEach(function(r2){
     var tr=document.createElement("tr");
     tr.style.borderBottom="1px solid #21262d40";
+    var cnclColors=["#39d353","#f85149","#e3b341","#3fb950","#bc8cff","#58a6ff"];
     var cells=[
-      r2[0],
-      r2[1],
-      PIF_ROWS.cats[r2[2]]||"",
-      r2[3],
-      clsLabels[r2[5]],
-      r2[6]>=0?r2[6]+"d":"-",
-      PIF_ROWS.pcats[r2[7]]||"",
-      PIF_ROWS.ems[r2[9]]||"",
-      PIF_ROWS.divs[r2[10]]||""
+      {v:r2[0],c:"#8b949e"},
+      {v:r2[1],c:"#8b949e"},
+      {v:PIF_ROWS.cats[r2[2]]||"",c:"#8b949e"},
+      {v:r2[3],c:"#e6edf3"},
+      {v:clsLabels[r2[5]],c:clsColors[r2[5]],bold:true},
+      {v:r2[6]>=0?r2[6]+"d":"-",c:"#8b949e"},
+      {v:PIF_ROWS.cncls[r2[11]]||"",c:cnclColors[r2[11]||0],bold:true},
+      {v:r2[12]===0?"Active":"Inactive",c:r2[12]===0?"#58a6ff":"#f85149",bold:true},
+      {v:PIF_ROWS.pcats[r2[7]]||"",c:"#8b949e"},
+      {v:PIF_ROWS.ems[r2[9]]||"",c:"#8b949e"},
+      {v:PIF_ROWS.divs[r2[10]]||"",c:"#8b949e"}
     ];
-    cells.forEach(function(val,ci){
+    cells.forEach(function(cell){
       var td=document.createElement("td");
-      td.style.cssText="padding:5px 10px;font-size:11px;color:"+(ci===4?clsColors[r2[5]]:"#8b949e");
-      if(ci===4)td.style.fontWeight="600";
-      td.textContent=val;
+      td.style.cssText="padding:5px 10px;font-size:11px;color:"+cell.c+(cell.bold?";font-weight:600":"");
+      td.textContent=cell.v;
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -517,6 +608,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   td.innerHTML="";
   td.appendChild(wrap);
   row.style.display="";
+  row.setAttribute("data-open","1");
   if(icon)icon.innerHTML="&#9660;";
 }
 
@@ -524,10 +616,12 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
 // ── CSV Downloads ──────────────────────────────────────────
 function pifRowsToCsv(rows2){
   var cls_labels=["PIF","PP","PIF after 30d"];
-  var header=["Order ID","Contact ID","SKU","SKU Category","Purchase Date","PIF/PP","Days to PIF","Partner Category","Referral Partner","Enrollment Mentor","Division"];
+  var header=["Order ID","Contact ID","SKU","SKU Category","Purchase Date","PIF/PP","Days to PIF","CNCL Status","Active Status","Partner Category","Referral Partner","Enrollment Mentor","Division"];
   var lines=[header.join(",")];
   rows2.forEach(function(r2){
     var divLabel=PIF_ROWS.divs[r2[10]]||"";
+    var cnclLabel=PIF_ROWS.cncls[r2[11]]||"";
+    var actLabel=r2[12]===0?"Active":"Inactive";
     lines.push([
       r2[0],r2[1],
       '"'+(r2._sku||"").replace(/"/g,'""')+'"',
@@ -535,6 +629,8 @@ function pifRowsToCsv(rows2){
       r2[3],
       cls_labels[r2[5]],
       r2[6]>=0?r2[6]:"",
+      '"'+cnclLabel.replace(/"/g,'""')+'"',
+      actLabel,
       '"'+(PIF_ROWS.pcats[r2[7]]||"").replace(/"/g,'""')+'"',
       '"'+(PIF_ROWS.parts[r2[8]]||"").replace(/"/g,'""')+'"',
       '"'+(PIF_ROWS.ems[r2[9]]||"").replace(/"/g,'""')+'"',
