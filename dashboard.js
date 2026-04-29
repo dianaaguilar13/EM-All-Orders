@@ -1,5 +1,5 @@
 var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7;
-var selP=new Set(),charts={},treePath=[],currentTree=null;
+var selP=new Set(),charts={};
 
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<8;j++)o[j]+=(a[j]||0);}return o;}
 
@@ -24,231 +24,227 @@ function myToKey(my){
 }
 
 // Get base tree for current partner/pcat filter
-function getBaseTree(){
-  if(selP.size===1)return(D.PT&&D.PT[Array.from(selP)[0]])||{};
-  if(selP.size>1){
-    var m={};
-    selP.forEach(function(p){mergeDeepTree(m,(D.PT&&D.PT[p])||{},5);});
-    return m;
-  }
-  if(getPcat())return(D.PCT&&D.PCT[getPcat()])||{};
-  return D.GT||{};
-}
+var CNCL_DECOMP_PATH=[]; // [{dim, label, value}]
+var CNCL_DIM_LABELS={
+  "act":"Active Status","cncl":"Cancel Status","sku":"SKU",
+  "pcat":"Partner Category","month":"Month"
+};
+var CNCL_DIM_ORDER=["act","cncl","sku","pcat","month"];
 
-function mergeDeepTree(dst,src,depth){
-  Object.keys(src).forEach(function(k){
-    if(depth<=1){dst[k]=(dst[k]||0)+(src[k]||0);}
-    else{if(!dst[k])dst[k]={};mergeDeepTree(dst[k],src[k],depth-1);}
+function cnclDecompGetItems(dim){
+  var r=getRange(),pcat=getPcat(),sku=getSku();
+  var ts=getTimeSeries();
+  var tot=sumArr(ts.map(function(x){return x.b;}));
+  var T=tot[Ti]||0,C=tot[Ci]||0,E=tot[Ei]||0,U=tot[Ui]||0,Dv=tot[Di]||0;
+  var AC=tot[Ai]||0,IN=tot[Ii]||0;
+
+  // Get path selections
+  var selAct=null,selCncl=null,selSku2=null,selPcat2=null;
+  CNCL_DECOMP_PATH.forEach(function(p){
+    if(p.dim==="act")selAct=p.value;
+    else if(p.dim==="cncl")selCncl=p.value;
+    else if(p.dim==="sku")selSku2=p.value;
+    else if(p.dim==="pcat")selPcat2=p.value;
   });
-}
 
-// Filter tree to date range - returns {my: actMap} only for months in range
-function getFilteredTree(){
-  var r=getRange();
-  var base=getBaseTree();
-  var result={};
-  Object.keys(base).forEach(function(my){
-    var key=myToKey(my);
-    if(!key||(key>=r.df&&key<=r.dt))result[my]=base[my];
-  });
-  return result;
-}
-
-function countDeep(node,depth){
-  if(!node)return 0;
-  if(depth<=0||typeof node!=="object")return(typeof node==="number")?node:0;
-  var t=0;Object.values(node).forEach(function(v){t+=countDeep(v,depth-1);});return t;
-}
-
-// ── Decomp Tree ───────────────────────────────────────────
-// treePath = array of LABELS (not indices) for each drill level
-// treePath[0] = "Active" or "Inactive"
-// treePath[1] = "Jun 2025"
-// treePath[2] = "July" (refund month)
-// treePath[3] = "Cancelled"
-// treePath[4] = "<=30 days"
-
-function buildDecompTree(){
-  treePath=[];
-  currentTree=getFilteredTree();
-  renderDecomp();
-}
-
-var LEVEL_TITLES=["Total Units","Active Status","Month Year (purchase)","Refund Month","CNCL Status","Refund Days"];
-var RD_LABELS={"0":"Same day","15":"<=15 days","30":"<=30 days","45":"<=45 days","60":"<=60 days","61":"61+ days"};
-var CNCL_COLORS={"Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb950","Downgrade":"#bc8cff","Switch":"#58a6ff","Sale":"#39d353"};
-
-function getLevelItems(levelIdx){
-  var tree=currentTree||{};
-  if(levelIdx===0){
-    var sku0=getSku();
-    var total0=sku0?getTimeSeries().reduce(function(s,x){return s+(x.b[0]||0);},0):countDeep(tree,5);
-    return[{l:"Total Units",v:total0,c:"#388bfd"}];
+  // Apply act filter ratio
+  function actRatio(b){
+    if(!selAct)return 1;
+    var t=b[Ti]||0;return t>0?(selAct==="Active"?(b[Ai]||0):(b[Ii]||0))/t:0;
   }
-  if(levelIdx===1){
-    var active=0,inactive=0;
-    Object.values(tree).forEach(function(actMap){
-      active+=countDeep(actMap["Active"]||{},3);
-      inactive+=countDeep(actMap["Inactive"]||{},3);
-    });
-    var items=[];
-    if(active>0)items.push({l:"Active",v:active,c:"#58a6ff"});
-    if(inactive>0)items.push({l:"Inactive",v:inactive,c:"#f85149"});
+  // Apply cncl filter ratio  
+  function cnclCount(b){
+    if(!selCncl)return b[Ti]||0;
+    var c=b[Ci]||0,e=b[Ei]||0,u=b[Ui]||0,d=b[Di]||0,t=b[Ti]||0;
+    if(selCncl==="Cancelled")return c;
+    if(selCncl==="Entry Error")return e;
+    if(selCncl==="Upgrade")return u;
+    if(selCncl==="Downgrade")return d;
+    if(selCncl==="Sale")return Math.max(0,t-c-e-u-d);
+    return t;
+  }
+
+  if(dim==="act"){
+    return[
+      {label:"Active",value:"Active",count:AC,color:"#58a6ff"},
+      {label:"Inactive",value:"Inactive",count:IN,color:"#f85149"}
+    ].filter(function(x){return x.count>0;});
+  }
+
+  if(dim==="cncl"){
+    var valid=T-E;
+    var sale=Math.max(0,T-C-E-U-Dv);
+    var items=[
+      {label:"Sale",value:"Sale",count:Math.round(sale*(selAct?actRatio(tot):1)),color:"#39d353"},
+      {label:"Cancelled",value:"Cancelled",count:Math.round(C*(selAct?actRatio(tot):1)),color:"#f85149"},
+      {label:"Entry Error",value:"Entry Error",count:Math.round(E*(selAct?actRatio(tot):1)),color:"#e3b341"},
+      {label:"Upgrade",value:"Upgrade",count:Math.round(U*(selAct?actRatio(tot):1)),color:"#3fb950"},
+      {label:"Downgrade",value:"Downgrade",count:Math.round(Dv*(selAct?actRatio(tot):1)),color:"#bc8cff"}
+    ].filter(function(x){return x.count>0;});
     return items;
   }
-  if(levelIdx===2){
-    var selAct=treePath[0]; // "Active" or "Inactive"
-    if(!selAct)return[];
-    var myMap={};
-    Object.keys(tree).forEach(function(my){
-      var cnt=countDeep((tree[my]&&tree[my][selAct])||{},3);
-      if(cnt>0)myMap[my]=cnt;
-    });
-    return Object.entries(myMap).sort(function(a,b){return b[1]-a[1];})
-      .map(function(e){return{l:e[0],v:e[1],c:"#388bfd"};});
+
+  if(dim==="sku"){
+    var skuBkts=getSkuBuckets();
+    return Object.entries(skuBkts).map(function(e){
+      var b=e[1],v=cnclCount(b);
+      if(selAct)v=Math.round(v*actRatio(b));
+      return{label:e[0],value:e[0],count:v,color:"#388bfd"};
+    }).filter(function(x){return x.count>0;}).sort(function(a,b){return b.count-a.count;}).slice(0,20);
   }
-  if(levelIdx===3){
-    var selAct=treePath[0],selMy=treePath[1];
-    if(!selAct||!selMy)return[];
-    var actNode=(tree[selMy]&&tree[selMy][selAct])||{};
-    var rmMap={};
-    Object.keys(actNode).forEach(function(cncl){
-      Object.keys(actNode[cncl]).forEach(function(rm){
-        if(rm==="none")return;
-        rmMap[rm]=(rmMap[rm]||0)+countDeep(actNode[cncl][rm],1);
+
+  if(dim==="pcat"){
+    var r2=getRange();
+    var pcatTotals={};
+    Object.keys(D.PCM||{}).forEach(function(pc){
+      var pm=D.PCM[pc];
+      var t=0;
+      Object.keys(pm).filter(function(m){return m>=r2.df&&m<=r2.dt;}).forEach(function(m){
+        var b=pm[m]||[];
+        var v=cnclCount(b);
+        if(selAct)v=Math.round(v*actRatio(b));
+        t+=v;
       });
+      if(t>0)pcatTotals[pc]=t;
     });
-    return Object.entries(rmMap).sort(function(a,b){return b[1]-a[1];})
-      .map(function(e){return{l:e[0],v:e[1],c:"#f85149"};});
+    var pcColors={"Marketing":"#388bfd","Enrollment Mentor":"#f85149","Event":"#e3b341","Affiliate":"#3fb950"};
+    return Object.entries(pcatTotals).map(function(e){
+      return{label:e[0],value:e[0],count:e[1],color:pcColors[e[0]]||"#8b949e"};
+    }).filter(function(x){return x.count>0;}).sort(function(a,b){return b.count-a.count;});
   }
-  if(levelIdx===4){
-    var selAct=treePath[0],selMy=treePath[1],selRm=treePath[2];
-    if(!selAct||!selMy||!selRm)return[];
-    var actNode=(tree[selMy]&&tree[selMy][selAct])||{};
-    var cnclMap={};
-    Object.keys(actNode).forEach(function(cncl){
-      var cnt=countDeep((actNode[cncl]&&actNode[cncl][selRm])||{},1);
-      if(cnt>0)cnclMap[cncl]=(cnclMap[cncl]||0)+cnt;
-    });
-    return Object.entries(cnclMap).sort(function(a,b){return b[1]-a[1];})
-      .map(function(e){return{l:e[0],v:e[1],c:CNCL_COLORS[e[0]]||"#388bfd"};});
+
+  if(dim==="month"){
+    return ts.map(function(x){
+      var b=x.b;
+      var v=cnclCount(b);
+      if(selAct)v=Math.round(v*actRatio(b));
+      return{label:fmtM(x.m),value:x.m,count:v,color:"#388bfd"};
+    }).filter(function(x){return x.count>0;});
   }
-  if(levelIdx===5){
-    var selAct=treePath[0],selMy=treePath[1],selRm=treePath[2],selCncl=treePath[3];
-    if(!selAct||!selMy||!selRm||!selCncl)return[];
-    var actNode=(tree[selMy]&&tree[selMy][selAct])||{};
-    var rdNode=(actNode[selCncl]&&actNode[selCncl][selRm])||{};
-    return Object.entries(rdNode).filter(function(e){return e[0]!=="none"&&e[1]>0;})
-      .sort(function(a,b){return +a[0]-+b[0];})
-      .map(function(e){return{l:RD_LABELS[e[0]]||e[0],v:e[1],c:"#388bfd"};});
-  }
+
   return[];
 }
 
 function renderDecomp(){
-  var showUpTo=Math.min(treePath.length+1,5);
   var container=document.getElementById("decompTree");
+  if(!container)return;
   container.innerHTML="";
 
-  for(var li=0;li<=showUpTo;li++){
-    var items=getLevelItems(li);
-    if(!items||!items.length)break;
+  var ts=getTimeSeries();
+  var tot=sumArr(ts.map(function(x){return x.b;}));
+  var T=tot[Ti]||0;
 
-    var isClickable=(li===showUpTo&&li<5);
-    var selectedLabel=treePath[li-1]||null; // label selected at this level
+  var usedDims=CNCL_DECOMP_PATH.map(function(p){return p.dim;});
+  var availDims=CNCL_DIM_ORDER.filter(function(d){return usedDims.indexOf(d)<0;});
 
-    if(li>0){
-      var conn=document.createElement("div");
-      conn.style.cssText="width:28px;align-self:stretch;display:flex;align-items:center;flex-shrink:0";
-      conn.innerHTML='<div style="width:100%;height:1px;background:'+(treePath.length>=li?"#388bfd":"#30363d")+'"></div>';
-      container.appendChild(conn);
-    }
+  // Col 0: Total
+  container.appendChild(cnclDecompCol("Total Units",[
+    {label:"Total Units",value:null,count:T,color:"#388bfd"}
+  ],null));
 
-    var col=document.createElement("div");
-    col.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:162px";
-    var hdr=document.createElement("div");
-    hdr.style.cssText="font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #30363d;margin-bottom:6px";
-    hdr.textContent=LEVEL_TITLES[li];
-    col.appendChild(hdr);
+  // Cols for each path step
+  CNCL_DECOMP_PATH.forEach(function(step,i){
+    var items=cnclDecompGetItems(step.dim);
+    var conn=document.createElement("div");
+    conn.style.cssText="width:24px;align-self:stretch;display:flex;align-items:center;flex-shrink:0";
+    conn.innerHTML='<div style="width:100%;height:1px;background:#388bfd"></div>';
+    container.appendChild(conn);
+    container.appendChild(cnclDecompCol(CNCL_DIM_LABELS[step.dim],items,step));
+  });
 
-    var wrap=document.createElement("div");
-    wrap.style.cssText="display:flex;flex-direction:column;gap:5px;max-height:420px;overflow-y:auto;padding-right:2px";
-    var maxV=Math.max.apply(null,items.map(function(x){return x.v;}).concat([1]));
-    var levelTotal=items.reduce(function(s,x){return s+x.v;},0);
+  // Add breakdown dropdown
+  if(availDims.length>0){
+    var conn=document.createElement("div");
+    conn.style.cssText="width:24px;align-self:stretch;display:flex;align-items:center;flex-shrink:0";
+    conn.innerHTML='<div style="width:100%;height:1px;background:#30363d;border-top:1px dashed #388bfd44"></div>';
+    container.appendChild(conn);
 
-    items.forEach(function(item){
-      var isSel=(selectedLabel===item.l);
-      var isDim=(selectedLabel&&!isSel);
-      var bw=(item.v/maxV*100).toFixed(0);
-      var pct=levelTotal>0?(item.v/levelTotal*100).toFixed(1):"0";
+    var addCol=document.createElement("div");
+    addCol.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px;align-items:center;justify-content:center;padding:20px 8px";
+    addCol.innerHTML=
+      '<div style="font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;text-align:center">Add breakdown</div>'+
+      '<select id="cncl-decomp-next" style="width:100%;background:#21262d;border:1px solid #388bfd44;color:#e6edf3;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;outline:none">'+
+        '<option value="">Select dimension...</option>'+
+        availDims.map(function(d){return'<option value="'+d+'">'+CNCL_DIM_LABELS[d]+'</option>';}).join("")+
+      '</select>'+
+      '<div id="cncl-decomp-items" style="margin-top:10px;width:100%;display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto"></div>';
+    container.appendChild(addCol);
 
-      var node=document.createElement("div");
-      node.style.cssText=
-        "background:"+(isSel?"#1c2128":"#161b22")+
-        ";border:1px solid "+(isSel?"#388bfd":"#30363d")+
-        ";border-radius:7px;padding:9px 11px;transition:all .15s;"+
-        "opacity:"+(isDim?"0.3":"1")+
-        ";cursor:"+(isClickable?"pointer":"default");
-
-      node.innerHTML=
-        '<div style="font-size:10px;color:#8b949e;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px" title="'+item.l+'">'+item.l+'</div>'+
-        '<div style="font-size:20px;font-weight:700;color:'+item.c+';margin-bottom:5px;letter-spacing:-0.5px">'+item.v.toLocaleString()+'</div>'+
-        '<div style="height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin-bottom:4px">'+
-          '<div style="height:100%;width:'+bw+'%;background:'+item.c+';border-radius:2px"></div>'+
-        '</div>'+
-        '<div style="font-size:10px;font-weight:500;color:'+item.c+'">'+pct+'% of level</div>'+
-        (isClickable?'<div style="font-size:9px;color:#388bfd88;margin-top:3px">click to drill down</div>':"");
-
-      if(isClickable){
-        (function(capturedLabel,capturedLi){
-          node.onclick=function(){
-            treePath=treePath.slice(0,capturedLi-1);
-            treePath.push(capturedLabel);
-            renderDecomp();
-            renderDecompBC();
+    setTimeout(function(){
+      var sel=document.getElementById("cncl-decomp-next");
+      if(!sel)return;
+      sel.onchange=function(){
+        var dim=this.value;if(!dim)return;
+        var items=cnclDecompGetItems(dim);
+        var wrap=document.getElementById("cncl-decomp-items");
+        if(!wrap)return;
+        wrap.innerHTML="";
+        var maxV=Math.max.apply(null,items.map(function(x){return x.count;}).concat([1]));
+        items.slice(0,15).forEach(function(item){
+          var btn=document.createElement("div");
+          btn.style.cssText="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 10px;cursor:pointer;transition:all .15s";
+          btn.innerHTML=
+            '<div style="font-size:10px;color:#8b949e;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+item.label+'">'+item.label+'</div>'+
+            '<div style="font-size:17px;font-weight:700;color:'+item.color+';letter-spacing:-0.5px">'+item.count.toLocaleString()+'</div>'+
+            '<div style="height:3px;background:#21262d;border-radius:2px;margin-top:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>';
+          btn.onmouseenter=function(){btn.style.borderColor=item.color+"66";btn.style.background="#1c2128";};
+          btn.onmouseleave=function(){btn.style.borderColor="#30363d";btn.style.background="#161b22";};
+          btn.onclick=function(){
+            CNCL_DECOMP_PATH.push({dim:dim,label:item.label,value:item.value});
+            renderDecomp();renderDecompBC();
           };
-          node.onmouseenter=function(){if(!isSel)node.style.borderColor="#388bfd66";};
-          node.onmouseleave=function(){if(!isSel)node.style.borderColor="#30363d";};
-        })(item.l, li);
-      }
-      wrap.appendChild(node);
-    });
-    col.appendChild(wrap);
-    container.appendChild(col);
+          wrap.appendChild(btn);
+        });
+      };
+    },50);
   }
   renderDecompBC();
 }
 
-function renderDecompBC(){
-  var bc=document.getElementById("decompBreadcrumb");
-  if(!bc)return;
-  bc.innerHTML="";
-  function crumb(text,fn,active){
-    var s=document.createElement("span");
-    s.style.cssText="font-size:11px;color:"+(active?"#388bfd":"#8b949e")+";cursor:pointer;padding:2px 6px;border-radius:4px;font-weight:"+(active?"600":"400");
-    s.textContent=text;
-    if(fn){s.onclick=fn;s.onmouseenter=function(){s.style.background="#21262d";s.style.color="#e6edf3";};s.onmouseleave=function(){s.style.background="";s.style.color=active?"#388bfd":"#8b949e";};}
-    bc.appendChild(s);
-  }
-  function sep(){var s=document.createElement("span");s.style.cssText="color:#30363d;font-size:12px";s.textContent=">";bc.appendChild(s);}
-  crumb("Total Units",function(){treePath=[];renderDecomp();renderDecompBC();},treePath.length===0);
-  treePath.forEach(function(label,i){
-    sep();
-    (function(ci,lbl){
-      crumb(lbl,function(){treePath=treePath.slice(0,ci+1);renderDecomp();renderDecompBC();},i===treePath.length-1);
-    })(i,label);
+function cnclDecompCol(title,items,currentStep){
+  var col=document.createElement("div");
+  col.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px";
+  var hdr=document.createElement("div");
+  hdr.style.cssText="font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #30363d;margin-bottom:6px";
+  hdr.textContent=title;col.appendChild(hdr);
+  var wrap=document.createElement("div");
+  wrap.style.cssText="display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;padding-right:2px";
+  var levelTotal=items.reduce(function(s,x){return s+x.count;},0);
+  var maxV=Math.max.apply(null,items.map(function(x){return x.count;}).concat([1]));
+  var selVal=currentStep?currentStep.value:null;
+  items.forEach(function(item){
+    var isSel=currentStep&&selVal===item.value;
+    var isDim=currentStep&&selVal&&!isSel;
+    var node=document.createElement("div");
+    node.style.cssText="background:"+(isSel?"#1c2128":"#161b22")+";border:1px solid "+(isSel?item.color:"#30363d")+";border-radius:7px;padding:9px 11px;transition:all .15s;opacity:"+(isDim?"0.25":"1")+";cursor:default";
+    node.innerHTML=
+      '<div style="font-size:10px;color:#8b949e;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:146px" title="'+item.label+'">'+item.label+'</div>'+
+      '<div style="font-size:20px;font-weight:700;color:'+item.color+';margin-bottom:5px;letter-spacing:-0.5px">'+item.count.toLocaleString()+'</div>'+
+      '<div style="height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>'+
+      '<div style="font-size:10px;color:'+item.color+'">'+(levelTotal>0?(item.count/levelTotal*100).toFixed(1):"0")+'% of level</div>';
+    wrap.appendChild(node);
   });
-  if(treePath.length>0){
+  col.appendChild(wrap);return col;
+}
+
+function renderDecompBC(){
+  var bc=document.getElementById("decompBC");if(!bc)return;bc.innerHTML="";
+  function crumb(text,fn,active){var s=document.createElement("span");s.style.cssText="font-size:11px;color:"+(active?"#388bfd":"#8b949e")+";cursor:pointer;padding:2px 6px;border-radius:4px;font-weight:"+(active?"600":"400");s.textContent=text;if(fn){s.onclick=fn;s.onmouseenter=function(){s.style.background="#21262d";s.style.color="#e6edf3";};s.onmouseleave=function(){s.style.background="";s.style.color=active?"#388bfd":"#8b949e";};}bc.appendChild(s);}
+  function sep(){var s=document.createElement("span");s.style.cssText="color:#30363d;font-size:12px";s.textContent=">";bc.appendChild(s);}
+  crumb("Total Units",function(){CNCL_DECOMP_PATH=[];renderDecomp();renderDecompBC();},CNCL_DECOMP_PATH.length===0);
+  CNCL_DECOMP_PATH.forEach(function(step,i){
+    sep();
+    (function(ci,s){crumb(s.label,function(){CNCL_DECOMP_PATH=CNCL_DECOMP_PATH.slice(0,ci+1);renderDecomp();renderDecompBC();},i===CNCL_DECOMP_PATH.length-1);})(i,step);
+  });
+  if(CNCL_DECOMP_PATH.length>0){
     var pipe=document.createElement("span");pipe.style.cssText="color:#30363d;padding:0 4px";pipe.textContent="|";bc.appendChild(pipe);
-    var rst=document.createElement("span");
-    rst.style.cssText="font-size:11px;color:#f85149;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #f8514933;background:#f8514911";
-    rst.textContent="Reset";
-    rst.onclick=function(){treePath=[];renderDecomp();renderDecompBC();};
+    var rst=document.createElement("span");rst.style.cssText="font-size:11px;color:#f85149;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #f8514933;background:#f8514911";rst.textContent="Reset";
+    rst.onclick=function(){CNCL_DECOMP_PATH=[];renderDecomp();renderDecompBC();};
     bc.appendChild(rst);
   }
 }
 
-// ── Chart data helpers ────────────────────────────────────
+
 function getTimeSeries(){
   var r=getRange(),pcat=getPcat(),sku=getSku(),byM={};
   var e8=function(){return[0,0,0,0,0,0,0,0];};
@@ -365,7 +361,8 @@ function render(){
     y2:{position:"right",ticks:{color:"#388bfd",font:{size:10},callback:function(v){return v+"%";}},grid:{display:false}}
   }}});
 
-  buildDecompTree();
+  CNCL_DECOMP_PATH=[];
+  renderDecomp();
 
   var skuBkts=getSkuBuckets();
   var skuArr=Object.keys(skuBkts).map(function(sku){var v=skuBkts[sku];return{sku:sku,T:v[Ti],C:v[Ci],E:v[Ei],U:v[Ui],D:v[Di],AC:v[Ai],IN:v[Ii],LR:v[CRi],sale:Math.max(0,v[Ti]-v[Ci]-v[Ei]-v[Ui]-v[Di]),rate:v[Ti]>0?((v[Ci]+v[Ei])/v[Ti]*100):0};}).filter(function(s){return s.T>0;}).sort(function(a,b){return b.C-a.C;});
@@ -433,4 +430,4 @@ function initDashboard(){
   renderMsItems();render();
 }
 
-fetch("data.json?v=1777016267").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1777494541").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
