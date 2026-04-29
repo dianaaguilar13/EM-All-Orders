@@ -392,8 +392,7 @@ function pifDownloadCsv(sku){
       var s=String(v==null?"":v);
       return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
     }).join(",");
-  })).join("
-");
+  })).join("\n");
   var blob=new Blob([csv],{type:"text/csv"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
@@ -417,8 +416,7 @@ function pifDownloadAllCsv(){
       var s=String(v==null?"":v);
       return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
     }).join(",");
-  })).join("
-");
+  })).join("\n");
   var blob=new Blob([csv],{type:"text/csv"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
@@ -431,109 +429,11 @@ function pifToggleSkuDetail(sku){
     // Lazy load rows
     fetch("pif_rows.json").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
-      pifShowSkuDetail(sku);
+      pifRenderSkuDetail(sku,sku.replace(/[^a-zA-Z0-9]/g,"_"),document.getElementById("pif-detail-"+sku.replace(/[^a-zA-Z0-9]/g,"_")),document.getElementById("pif-expand-"+sku.replace(/[^a-zA-Z0-9]/g,"_")));
     });
     return;
   }
-  pifShowSkuDetail(sku);
-}
-
-function pifShowSkuDetail(sku){
-  var detailRow=document.getElementById("pif-detail-"+sku.replace(/[^a-zA-Z0-9]/g,"_"));
-  if(!detailRow)return;
-  if(pifExpandedSku===sku){
-    detailRow.style.display="none";
-    pifExpandedSku=null;
-    // Reset chevron
-    var btn=document.getElementById("pif-expand-"+sku.replace(/[^a-zA-Z0-9]/g,"_"));
-    if(btn)btn.textContent="▶";
-    return;
-  }
-  // Close previous
-  if(pifExpandedSku){
-    var prev=document.getElementById("pif-detail-"+pifExpandedSku.replace(/[^a-zA-Z0-9]/g,"_"));
-    if(prev)prev.style.display="none";
-    var prevBtn=document.getElementById("pif-expand-"+pifExpandedSku.replace(/[^a-zA-Z0-9]/g,"_"));
-    if(prevBtn)prevBtn.textContent="▶";
-  }
-  pifExpandedSku=sku;
-  var btn=document.getElementById("pif-expand-"+sku.replace(/[^a-zA-Z0-9]/g,"_"));
-  if(btn)btn.textContent="▼";
-
-  var r=pifRange(),pcat=pifPcat();
-  var filtered=PIF_ROWS.filter(function(row){
-    if(row[2]!==sku)return false;
-    if(row[13]<r.df||row[13]>r.dt)return false;
-    if(pcat&&row[4]!==pcat)return false;
-    if(pifSelP.size>0&&!pifSelP.has(row[5]))return false;
-    return true;
-  }).slice(0,500);
-
-  var pifColors={"PIF":"#3fb950","PIF_LATE":"#e3b341","PP":"#bc8cff"};
-  var pifLabels={"PIF":"PIF","PIF_LATE":"PIF >30d","PP":"PP"};
-  var h='<td colspan="9" style="padding:0;background:#0d1117">'+
-    '<div style="padding:10px 14px">'+
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-      '<span style="font-size:11px;font-weight:600;color:#8b949e">'+filtered.length+' records for <span style="color:#e6edf3">'+sku+'</span></span>'+
-      '<button onclick="pifDownloadCsv(''+sku.replace(/'/g,"\'")+'')" style="background:#21262d;border:1px solid #30363d;color:#3fb950;padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer">⬇ Download CSV</button>'+
-    '</div>'+
-    '<div style="overflow-x:auto;max-height:320px;overflow-y:auto">'+
-    '<table style="width:100%;border-collapse:collapse;min-width:700px">'+
-    '<thead><tr style="background:#161b22">'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Order ID</th>'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Contact ID</th>'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">SKU Category</th>'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Partner Category</th>'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Purchase Date</th>'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">PIF/PP</th>'+
-      '<th style="padding:6px 10px;text-align:right;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Days to PIF</th>'+
-      '<th style="padding:6px 10px;text-align:right;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Inv Total</th>'+
-      '<th style="padding:6px 10px;text-align:left;font-size:10px;color:#8b949e;position:sticky;top:0;background:#161b22">Enrollment Mentor</th>'+
-    '</tr></thead><tbody>';
-
-  filtered.forEach(function(row){
-    var ptype=row[7],col=pifColors[ptype]||"#8b949e",lbl=pifLabels[ptype]||ptype;
-    h+='<tr style="border-bottom:1px solid #21262d40">'+
-      '<td style="padding:5px 10px;font-size:10px;color:#8b949e;font-family:monospace">'+row[0].slice(-8)+'</td>'+
-      '<td style="padding:5px 10px;font-size:10px;color:#8b949e;font-family:monospace">'+row[1].slice(-8)+'</td>'+
-      '<td style="padding:5px 10px;font-size:10px;color:#8b949e">'+row[3]+'</td>'+
-      '<td style="padding:5px 10px;font-size:10px;color:#8b949e">'+row[4]+'</td>'+
-      '<td style="padding:5px 10px;font-size:11px;color:#e6edf3">'+row[6]+'</td>'+
-      '<td style="padding:5px 10px"><span style="font-size:10px;font-weight:700;color:'+col+'">'+lbl+'</span></td>'+
-      '<td style="padding:5px 10px;text-align:right;font-size:11px;color:'+col+'">'+((row[8]!=="")?(row[8]+"d"):"-")+'</td>'+
-      '<td style="padding:5px 10px;text-align:right;font-size:11px;color:#e6edf3">$'+row[9].toLocaleString()+'</td>'+
-      '<td style="padding:5px 10px;font-size:10px;color:#8b949e">'+row[11]+'</td>'+
-    '</tr>';
-  });
-  h+='</tbody></table></div></div></td>';
-  detailRow.innerHTML=h;
-  detailRow.style.display="table-row";
-}
-
-// ── PIF Rows (detail data - lazy loaded) ───────────────────
-var PIF_ROWS=null;
-function pifLoadRows(cb){
-  if(PIF_ROWS){cb();return;}
-  fetch("pif_rows.json").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
-    .then(function(data){PIF_ROWS=data;cb();})
-    .catch(function(err){alert("Could not load detail data: "+err.message);});
-}
-
-// ── SKU Detail Toggle ──────────────────────────────────────
-function pifToggleSkuDetail(sku){
-  var safeId=sku.replace(/[^a-zA-Z0-9]/g,"_");
-  var row=document.getElementById("pif-detail-"+safeId);
-  var icon=document.getElementById("pif-expand-"+safeId);
-  if(!row)return;
-  if(row.style.display!=="none"){
-    row.style.display="none";
-    if(icon)icon.innerHTML="&#9654;";
-    return;
-  }
-  // Lazy load rows
-  pifLoadRows(function(){
-    pifRenderSkuDetail(sku,safeId,row,icon);
-  });
+  pifRenderSkuDetail(sku,sku.replace(/[^a-zA-Z0-9]/g,"_"),document.getElementById("pif-detail-"+sku.replace(/[^a-zA-Z0-9]/g,"_")),document.getElementById("pif-expand-"+sku.replace(/[^a-zA-Z0-9]/g,"_")));
 }
 
 function pifRenderSkuDetail(sku,safeId,row,icon){
