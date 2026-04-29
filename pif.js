@@ -656,7 +656,7 @@ function pifDownloadAllCsv(){
 }
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1777488693").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#f85149">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_LEVEL_TITLES=["Total Orders","Payment Type","Active Status","Division","Month"];
@@ -773,4 +773,3 @@ function pifRenderDecompBC(){
   pifTreePath.forEach(function(lbl,i){sep();(function(ci,l){crumb(l,function(){pifTreePath=pifTreePath.slice(0,ci+1);pifRenderDecomp();pifRenderDecompBC();},i===pifTreePath.length-1);})(i,lbl);});
   if(pifTreePath.length>0){var pipe=document.createElement("span");pipe.style.cssText="color:#30363d;padding:0 4px";pipe.textContent="|";bc.appendChild(pipe);var rst=document.createElement("span");rst.style.cssText="font-size:11px;color:#f85149;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #f8514933;background:#f8514911";rst.textContent="Reset";rst.onclick=function(){pifTreePath=[];pifRenderDecomp();pifRenderDecompBC();};bc.appendChild(rst);}
 }
-
