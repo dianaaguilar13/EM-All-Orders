@@ -47,37 +47,76 @@ function pifGetTotals(){
 function pifGetMonthly(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
   var empty=[0,0,0,0,0,0,0,0,0];
+  var hasSku=pifSelSku.size>0,hasPcat=!!pcat,hasP=pifSelP.size>0,hasDiv=!!div;
 
-  function applyActFilter(b){
+  function applyAct(b){
     if(!act||!b)return b;
-    var ratio=b[0]>0?(act==="Active"?b[7]:b[8])/b[0]:0;
     var n=act==="Active"?b[7]:b[8];
+    var ratio=b[0]>0?n/b[0]:0;
     return[n,Math.round((b[1]||0)*ratio),Math.round((b[2]||0)*ratio),
-      Math.round((b[3]||0)*ratio),
-      (b[4]||0)*ratio,(b[5]||0)*ratio,(b[6]||0)*ratio,
-      act==="Active"?n:0, act==="Inactive"?n:0];
+      Math.round((b[3]||0)*ratio),(b[4]||0)*ratio,(b[5]||0)*ratio,(b[6]||0)*ratio,
+      act==="Active"?n:0,act==="Inactive"?n:0];
   }
 
-  // SKU filter - highest priority, use SMN
-  if(pifSelSku.size>0){
+  function sumBuckets(arr){
+    var out=[0,0,0,0,0.0,0.0,0.0,0,0];
+    arr.forEach(function(v){if(v)for(var i=0;i<9;i++)out[i]+=(v[i]||0);});
+    return out;
+  }
+
+  function getByMonth(src){
+    // src is {month: bucket}
+    var months=Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
+    return months.map(function(m){return{m:m,b:applyAct(src[m]||empty)};}).filter(function(x){return x.b[0]>0;});
+  }
+
+  // SKU + Pcat (most specific)
+  if(hasSku&&hasPcat){
+    var byM={};
+    pifSelSku.forEach(function(sku){
+      var src=((PIF.SMNPC&&PIF.SMNPC[sku])||{})[pcat]||{};
+      Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
+        var v=src[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
+      });
+    });
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
+  }
+
+  // SKU + Partner
+  if(hasSku&&hasP){
+    var byM={};
+    pifSelP.forEach(function(p){
+      pifSelSku.forEach(function(sku){
+        var src=(((PIF.PMSKU&&PIF.PMSKU[p])||{})[sku])||{};
+        Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+          if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
+          var v=src[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
+        });
+      });
+    });
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
+  }
+
+  // SKU only
+  if(hasSku){
     var byM={};
     pifSelSku.forEach(function(sku){
       var sm=(PIF.SMN&&PIF.SMN[sku])||{};
       Object.keys(sm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
         if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
         var v=sm[m];for(var i=0;i<7;i++)byM[m][i]+=(v[i]||0);
-        // Approximate active/inactive from global ratio
         var gv=PIF.M[m]||empty;
         var ar=gv[0]>0?(gv[7]||0)/gv[0]:0.9;
         byM[m][7]+=Math.round((v[0]||0)*ar);
         byM[m][8]+=Math.round((v[0]||0)*(1-ar));
       });
     });
-    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyActFilter(byM[m])};});
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
   }
 
-  // Partner filter
-  if(pifSelP.size>0){
+  // Partner only or Partner + Pcat
+  if(hasP){
     var byM={};
     pifSelP.forEach(function(p){
       var pm=(PIF.PM&&PIF.PM[p])||{};
@@ -86,26 +125,21 @@ function pifGetMonthly(){
         var v=pm[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
       });
     });
-    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyActFilter(byM[m])};});
+    return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
   }
 
-  // Division filter
-  if(div){
-    var dData=PIF.MDIV[div]||{};
-    var months=Object.keys(dData).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-    return months.map(function(m){return{m:m,b:applyActFilter(dData[m]||empty)};});
+  // Pcat only
+  if(hasPcat){
+    return getByMonth((PIF.PCM&&PIF.PCM[pcat])||{});
   }
 
-  // Pcat filter
-  if(pcat){
-    var src=(PIF.PCM&&PIF.PCM[pcat])||{};
-    var months=Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-    return months.map(function(m){return{m:m,b:applyActFilter(src[m]||empty)};});
+  // Division only
+  if(hasDiv){
+    return getByMonth(PIF.MDIV[div]||{});
   }
 
   // Global
-  var months=Object.keys(PIF.M).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-  return months.map(function(m){return{m:m,b:applyActFilter(PIF.M[m]||empty)};});
+  return getByMonth(PIF.M);
 }
 
 
@@ -137,177 +171,53 @@ function pifGetMonthly(){
 }
 
 function pifGetSkuData(){
-  // Use PSMN (sku monthly) if available, else fallback to S
-  var r=pifRange(),pcat=pifPcat();
+  var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+
+  // Determine source
   var skuTotals={};
-  // Build from per-sku monthly data filtered by date
-  var smn=PIF.SMN||null;
-  if(smn){
-    Object.keys(smn).forEach(function(sku){
-      if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
-      var pm=smn[sku];
-      Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        var v=pm[m];
-        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0,0,0];
-        for(var i=0;i<7;i++)skuTotals[sku][i]+=(v[i]||0);
+
+  if(pcat&&PIF.SMNPC){
+    // Use SMNPC filtered by pcat
+    var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMNPC);
+    skus.forEach(function(sku){
+      var src=((PIF.SMNPC[sku])||{})[pcat]||{};
+      Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0];
+        var v=src[m];for(var i=0;i<9;i++)skuTotals[sku][i]+=(v[i]||0);
+      });
+    });
+  } else if(PIF.SMN){
+    var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMN);
+    skus.forEach(function(sku){
+      var sm=PIF.SMN[sku]||{};
+      Object.keys(sm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0];
+        var v=sm[m];for(var i=0;i<7;i++)skuTotals[sku][i]+=(v[i]||0);
+        var gv=PIF.M[m]||[0,0,0,0,0,0,0,0,0];
+        var ar=gv[0]>0?(gv[7]||0)/gv[0]:0.9;
+        skuTotals[sku][7]+=Math.round((v[0]||0)*ar);
+        skuTotals[sku][8]+=Math.round((v[0]||0)*(1-ar));
       });
     });
   } else {
-    // Fallback: use S (all time) - no date filtering
     Object.entries(PIF.S).forEach(function(e){
       if(pifSelSku.size>0&&!pifSelSku.has(e[0]))return;
       skuTotals[e[0]]=e[1];
     });
   }
+
   return Object.entries(skuTotals)
-    .filter(function(e){return e[1][0]>=1;})
+    .filter(function(e){return e[1][0]>0;})
     .map(function(e){
       var s=e[0],v=e[1];
       var total=v[0],pif=v[1],pp=v[2],late=v[3],pifInv=v[4]||0,ppInv=v[5]||0,lateInv=v[6]||0;
-      var allPif=pif+late;
-      return{sku:s,total:total,pif:pif,pp:pp,late:late,allPif:allPif,
+      return{sku:s,total:total,pif:pif,pp:pp,late:late,
         pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,
-        pifRate:total>0?(allPif/total*100):0};
+        pifRate:total>0?((pif+late)/total*100):0};
     }).sort(function(a,b){return b.total-a.total;});
 }
 
-// ── Decomp Tree ────────────────────────────────────────────
-// GT structure: cls(PIF/PP/PIF_LATE) -> act(Active/Inactive) -> div -> month -> count
-function pifCountTree(node,depth){
-  if(!node)return 0;
-  if(typeof node==="number")return node;
-  if(typeof node!=="object")return 0;
-  var t=0;Object.values(node).forEach(function(v){t+=pifCountTree(v,depth-1);});return t;
-}
 
-function pifCountFiltered(node,depth,df,dt){
-  if(!node)return 0;
-  if(typeof node==="number")return node;
-  if(depth===0)return 0;
-  if(depth===1){var t=0;Object.keys(node).forEach(function(m){if(m>=df&&m<=dt)t+=node[m];});return t;}
-  var t=0;Object.values(node).forEach(function(v){t+=pifCountFiltered(v,depth-1,df,dt);});return t;
-}
-
-function pifGetDecompLevel(li){
-  var tree=PIF.GT||{};
-  var r=pifRange(),df=r.df,dt=r.dt;
-  var pcat=pifPcat(),div=pifDiv();
-
-  // Get filtered total from monthly data (respects all filters)
-  function getFilteredTotal(){
-    var ts=pifGetMonthly();
-    return ts.reduce(function(s,x){return s+(x.b[0]||0);},0);
-  }
-
-  // Get filtered counts by cls from monthly data
-  function getFilteredByCls(){
-    var ts=pifGetMonthly();
-    var m={PIF:0,PP:0,PIF_LATE:0};
-    ts.forEach(function(x){m.PIF+=(x.b[1]||0);m.PP+=(x.b[2]||0);m.PIF_LATE+=(x.b[3]||0);});
-    return m;
-  }
-
-  if(li===0) return [{l:"Total Orders",v:getFilteredTotal(),c:"#388bfd"}];
-
-  if(li===1){
-    var cls=getFilteredByCls();
-    var clsColors={"PIF":"#3fb950","PP":"#bc8cff","PIF_LATE":"#e3b341"};
-    var clsLabels={"PIF":"PIF (on time)","PP":"PP (payment plan)","PIF_LATE":"PIF (after 30 days)"};
-    return Object.keys(cls).filter(function(k){return cls[k]>0;}).map(function(k){
-      return{l:clsLabels[k],v:cls[k],c:clsColors[k],key:k};
-    }).sort(function(a,b){return b.v-a.v;});
-  }
-
-  if(li===1){
-    // Payment type breakdown
-    var clsColors={"PIF":"#3fb950","PP":"#bc8cff","PIF_LATE":"#e3b341"};
-    var clsLabels={"PIF":"PIF (on time)","PP":"PP (payment plan)","PIF_LATE":"PIF (after 30 days)"};
-    return Object.keys(tree).map(function(cls){
-      return{l:clsLabels[cls]||cls,v:pifCountFiltered(tree[cls],3,df,dt),c:clsColors[cls]||"#388bfd",key:cls};
-    }).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
-  }
-
-    // Use pcat-specific tree when pcat filter active, else global GT
-  var activeTree=pcat&&PIF.PCT&&PIF.PCT[pcat]?PIF.PCT[pcat]:tree;
-  function clsKey(lbl){var m={"PIF (on time)":"PIF","PP (payment plan)":"PP","PIF (after 30 days)":"PIF_LATE"};return m[lbl]||lbl;}
-  var divColors={"LS":"#388bfd","L&R":"#f85149","HWB":"#e3b341","B&L":"#3fb950","Other":"#8b949e"};
-
-  if(li===2){
-    var k=clsKey(pifTreePath[0]);if(!k)return[];
-    var node=activeTree[k]||{};
-    return[{l:"Active",v:pifCountFiltered(node["Active"],2,df,dt),c:"#58a6ff"},{l:"Inactive",v:pifCountFiltered(node["Inactive"],2,df,dt),c:"#f85149"}].filter(function(x){return x.v>0;});
-  }
-  if(li===3){
-    var k=clsKey(pifTreePath[0]),act=pifTreePath[1];if(!k||!act)return[];
-    var node=(activeTree[k]&&activeTree[k][act])||{};
-    return Object.keys(node).map(function(d){return{l:d,v:pifCountFiltered(node[d],1,df,dt),c:divColors[d]||"#388bfd"};}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
-  }
-  if(li===4){
-    var k=clsKey(pifTreePath[0]),act=pifTreePath[1],d=pifTreePath[2];if(!k||!act||!d)return[];
-    var node=(activeTree[k]&&activeTree[k][act]&&activeTree[k][act][d])||{};
-    return Object.keys(node).filter(function(m){return m>=df&&m<=dt;}).sort().map(function(m){return{l:fmtM2(m),v:node[m],c:"#388bfd"};}).filter(function(x){return x.v>0;});
-  }
-  return[];
-}
-
-function pifRenderDecomp(){
-  var showUpTo=Math.min(pifTreePath.length+1,4);
-  var container=document.getElementById("pif-decompTree");
-  container.innerHTML="";
-  for(var li=0;li<=showUpTo;li++){
-    var items=pifGetDecompLevel(li);
-    if(!items||!items.length)break;
-    var selectedLabel=pifTreePath[li-1]||null;
-    var isClickable=(li===showUpTo&&li<4);
-    if(li>0){
-      var conn=document.createElement("div");
-      conn.style.cssText="width:24px;align-self:stretch;display:flex;align-items:center;flex-shrink:0";
-      conn.innerHTML='<div style="width:100%;height:1px;background:'+(pifTreePath.length>=li?"#388bfd":"#30363d")+'"></div>';
-      container.appendChild(conn);
-    }
-    var col=document.createElement("div");
-    col.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px";
-    var hdr=document.createElement("div");
-    hdr.style.cssText="font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #30363d;margin-bottom:6px";
-    hdr.textContent=PIF_LEVEL_TITLES[li];col.appendChild(hdr);
-    var wrap=document.createElement("div");
-    wrap.style.cssText="display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;padding-right:2px";
-    var levelTotal=items.reduce(function(s,x){return s+x.v;},0);
-    var maxV=Math.max.apply(null,items.map(function(x){return x.v;}).concat([1]));
-    items.forEach(function(item){
-      var isSel=(selectedLabel===item.l),isDim=(selectedLabel&&!isSel);
-      var bw=(item.v/maxV*100).toFixed(0),pct=levelTotal>0?(item.v/levelTotal*100).toFixed(1):"0";
-      var node=document.createElement("div");
-      node.style.cssText="background:"+(isSel?"#1c2128":"#161b22")+";border:1px solid "+(isSel?item.c:"#30363d")+";border-radius:7px;padding:9px 11px;transition:all .15s;opacity:"+(isDim?"0.25":"1")+";cursor:"+(isClickable?"pointer":"default");
-      node.innerHTML='<div style="font-size:10px;color:#8b949e;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:146px" title="'+item.l+'">'+item.l+'</div>'+
-        '<div style="font-size:20px;font-weight:700;color:'+item.c+';margin-bottom:5px;letter-spacing:-0.5px">'+item.v.toLocaleString()+'</div>'+
-        '<div style="height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+bw+'%;background:'+item.c+';border-radius:2px"></div></div>'+
-        '<div style="font-size:10px;color:'+item.c+'">'+pct+'% of level</div>'+
-        (isClickable?'<div style="font-size:9px;color:#388bfd88;margin-top:2px">click to drill down</div>':"");
-      if(isClickable){
-        (function(lbl,capturedLi){
-          node.onclick=function(){pifTreePath=pifTreePath.slice(0,capturedLi-1);pifTreePath.push(lbl);pifRenderDecomp();pifRenderDecompBC();};
-          node.onmouseenter=function(){if(!isSel)node.style.borderColor=item.c+"66";};
-          node.onmouseleave=function(){if(!isSel)node.style.borderColor="#30363d";};
-        })(item.l,li);
-      }
-      wrap.appendChild(node);
-    });
-    col.appendChild(wrap);container.appendChild(col);
-  }
-  pifRenderDecompBC();
-}
-
-function pifRenderDecompBC(){
-  var bc=document.getElementById("pif-decompBC");if(!bc)return;bc.innerHTML="";
-  function crumb(text,fn,active){var s=document.createElement("span");s.style.cssText="font-size:11px;color:"+(active?"#388bfd":"#8b949e")+";cursor:pointer;padding:2px 6px;border-radius:4px;font-weight:"+(active?"600":"400");s.textContent=text;if(fn){s.onclick=fn;s.onmouseenter=function(){s.style.background="#21262d";s.style.color="#e6edf3";};s.onmouseleave=function(){s.style.background="";s.style.color=active?"#388bfd":"#8b949e";};}bc.appendChild(s);}
-  function sep(){var s=document.createElement("span");s.style.cssText="color:#30363d;font-size:12px";s.textContent=">";bc.appendChild(s);}
-  crumb("Total",function(){pifTreePath=[];pifRenderDecomp();pifRenderDecompBC();},pifTreePath.length===0);
-  pifTreePath.forEach(function(lbl,i){sep();(function(ci,l){crumb(l,function(){pifTreePath=pifTreePath.slice(0,ci+1);pifRenderDecomp();pifRenderDecompBC();},i===pifTreePath.length-1);})(i,lbl);});
-  if(pifTreePath.length>0){var pipe=document.createElement("span");pipe.style.cssText="color:#30363d;padding:0 4px";pipe.textContent="|";bc.appendChild(pipe);var rst=document.createElement("span");rst.style.cssText="font-size:11px;color:#f85149;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #f8514933;background:#f8514911";rst.textContent="Reset";rst.onclick=function(){pifTreePath=[];pifRenderDecomp();pifRenderDecompBC();};bc.appendChild(rst);}
-}
-
-// ── Main render ────────────────────────────────────────────
 function pifDestroyCharts(){Object.values(pifCharts).forEach(function(c){try{c.destroy();}catch(e){}});pifCharts={};}
 
 function pifRender(){
@@ -526,6 +436,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   var allRows=(PIF_ROWS.rows[sku]||[]).filter(function(r2){
     if(r2[4]<r.df||r2[4]>r.dt)return false;
     if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
+    if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return false;
     if(div&&PIF_ROWS.divs[r2[10]]!==div)return false;
     if(act==="Active"&&r2[12]!==0)return false;
     if(act==="Inactive"&&r2[12]!==1)return false;
@@ -561,7 +472,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   var tbl=document.createElement("table");
   tbl.style.cssText="width:100%;border-collapse:collapse;min-width:700px";
 
-  var cols=["Order ID","Contact ID","SKU Category","Purchase Date","PIF / PP","Days to PIF","CNCL Status","Active","Partner Category","EM","Division"];
+  var cols=["Order ID","Contact ID","Purchase Date","PIF / PP","Days to PIF","CNCL Status","Active","Partner Category","Referral Partner","EM","Division"];
   var thead=document.createElement("thead");
   var hrow=document.createElement("tr");
   hrow.style.background="#161b22";
@@ -582,13 +493,13 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
     var cells=[
       {v:r2[0],c:"#8b949e"},
       {v:r2[1],c:"#8b949e"},
-      {v:PIF_ROWS.cats[r2[2]]||"",c:"#8b949e"},
       {v:r2[3],c:"#e6edf3"},
       {v:clsLabels[r2[5]],c:clsColors[r2[5]],bold:true},
       {v:r2[6]>=0?r2[6]+"d":"-",c:"#8b949e"},
       {v:PIF_ROWS.cncls[r2[11]]||"",c:cnclColors[r2[11]||0],bold:true},
       {v:r2[12]===0?"Active":"Inactive",c:r2[12]===0?"#58a6ff":"#f85149",bold:true},
       {v:PIF_ROWS.pcats[r2[7]]||"",c:"#8b949e"},
+      {v:PIF_ROWS.parts[r2[8]]||"",c:"#8b949e"},
       {v:PIF_ROWS.ems[r2[9]]||"",c:"#8b949e"},
       {v:PIF_ROWS.divs[r2[10]]||"",c:"#8b949e"}
     ];
