@@ -125,7 +125,7 @@ tr:hover td{background:#21262d55}
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
-<script src="dashboard.js?v=1777015328"></script>
+<script src="dashboard.js?v=1777494541"></script>
 
 <!-- LDP Tab Content -->
 <div id="ldp-panel" style="display:none">
@@ -404,51 +404,76 @@ function hideAllPanels(){
     <div class="fg"><span class="fl">Date From</span><input type="date" id="cr-df" value="2022-01-01"></div>
     <div class="fg"><span class="fl">Date To</span><input type="date" id="cr-dt" value="2026-04-29"></div>
     <div class="sep"></div>
+    <div class="fg">
+      <span class="fl">Request Type <span id="cr-reqCnt" class="ms-cnt" style="display:none"></span></span>
+      <div class="ms-wrap" id="cr-reqWrap">
+        <button class="ms-btn" id="cr-reqBtn" onclick="crToggleReq(event)">All Request Types</button>
+        <div class="ms-drop" id="cr-reqDrop" style="width:260px">
+          <div class="ms-sticky">
+            <div class="ms-search"><input type="text" id="cr-reqQ" placeholder="Search request type..." oninput="crRenderReqItems()"></div>
+            <div class="ms-actions"><button class="ms-act" onclick="crReqAll()">Select all</button><button class="ms-act" onclick="crReqClear()">Clear all</button></div>
+          </div>
+          <div id="cr-reqItems"></div>
+        </div>
+      </div>
+    </div>
     <div class="fg"><span class="fl">Status</span><select id="cr-status"><option value="">All Statuses</option></select></div>
-    <div class="fg"><span class="fl">Request Type</span><select id="cr-reqtype" style="width:220px"><option value="">All Request Types</option></select></div>
     <div class="fg"><span class="fl">Assignee</span><select id="cr-assignee"><option value="">All Assignees</option></select></div>
-    <button class="btn btn-p" onclick="crApply()">↻ Apply</button>
+    <button class="btn btn-p" onclick="crApply()">&#8635; Apply</button>
     <button class="btn btn-g" onclick="crReset()">Reset</button>
   </div>
   <div id="cr-loading" class="loading"><div class="spinner"></div><div>Loading Client Resolution data...</div></div>
   <div id="cr-main" style="display:none" class="main">
     <div class="kpi-row" id="cr-kpis"></div>
+
+    <!-- Resolution Insights -->
+    <div class="card full">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div><div class="ct">&#9201; Resolution Time Insights</div><div class="cs">Procedure = "Complete" only &middot; Target: <span style="color:#388bfd;font-weight:600">7 days</span></div></div>
+      </div>
+      <div id="cr-resPanel"></div>
+    </div>
+
+    <!-- Resolution trend -->
+    <div class="card full">
+      <div class="ct">Avg resolution time by month</div>
+      <div class="cs">Months above blue dashed line exceed 7-day target</div>
+      <div style="height:200px;position:relative"><canvas id="cr-resTrendChart"></canvas></div>
+    </div>
+
+    <!-- Cases trend -->
     <div class="card full">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-        <div><div class="ct">Cases by month</div><div class="cs" style="margin-bottom:0">Saved vs Lost with save rate trend</div></div>
+        <div><div class="ct">Cases by month</div><div class="cs" style="margin-bottom:0">Saved vs Lost with save rate</div></div>
         <div class="legend" style="margin-bottom:0">
           <div class="li"><div class="ld" style="background:#3fb950"></div>Saved</div>
           <div class="li"><div class="ld" style="background:#f85149"></div>Lost</div>
           <div class="li"><div class="ld" style="background:#3fb950;width:18px;height:2px;border-radius:0"></div>Save %</div>
         </div>
       </div>
-      <div style="height:240px;position:relative"><canvas id="cr-trendChart"></canvas></div>
+      <div style="height:220px;position:relative"><canvas id="cr-trendChart"></canvas></div>
     </div>
     <div class="card full">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-        <div><div class="ct">Revenue impact by month</div><div class="cs" style="margin-bottom:0">Revenue saved vs revenue lost</div></div>
+        <div><div class="ct">Revenue impact by month</div></div>
         <div class="legend" style="margin-bottom:0">
-          <div class="li"><div class="ld" style="background:#3fb950"></div>Revenue Saved</div>
-          <div class="li"><div class="ld" style="background:#f85149"></div>Revenue Loss</div>
+          <div class="li"><div class="ld" style="background:#3fb950"></div>Saved</div>
+          <div class="li"><div class="ld" style="background:#f85149"></div>Loss</div>
         </div>
       </div>
-      <div style="height:220px;position:relative"><canvas id="cr-revChart"></canvas></div>
+      <div style="height:200px;position:relative"><canvas id="cr-revChart"></canvas></div>
     </div>
     <div class="grid2">
       <div class="card full" style="grid-column:1/-1">
-        <div class="ct">By request type</div><div class="cs">Saved vs Lost per cancellation reason</div>
-        <div style="height:320px;position:relative"><canvas id="cr-reqChart"></canvas></div>
+        <div class="ct">By request type</div><div class="cs">Saved vs Lost per request reason</div>
+        <div style="height:300px;position:relative"><canvas id="cr-reqChart"></canvas></div>
       </div>
     </div>
     <div class="grid2">
-      <div class="card">
-        <div class="ct">Saved by</div><div class="cs">Who saved the revenue</div>
-        <div style="height:200px;position:relative"><canvas id="cr-sbChart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="ct">Case status</div><div class="cs">Current status distribution</div>
-        <div style="height:200px;position:relative"><canvas id="cr-stChart"></canvas></div>
-      </div>
+      <div class="card"><div class="ct">Saved by</div><div class="cs">Who saved the case</div>
+        <div style="height:200px;position:relative"><canvas id="cr-sbChart"></canvas></div></div>
+      <div class="card"><div class="ct">Case status</div><div class="cs">Status distribution</div>
+        <div style="height:200px;position:relative"><canvas id="cr-stChart"></canvas></div></div>
     </div>
     <div class="card full">
       <div style="display:flex;justify-content:space-between;margin-bottom:10px">
@@ -456,8 +481,8 @@ function hideAllPanels(){
       </div>
       <div class="tbl-wrap">
         <table><thead><tr>
-          <th>SKU</th><th>Total Cases</th><th>Saved</th><th>Lost</th>
-          <th>Save Rate</th><th>Revenue Saved</th><th>Revenue Lost</th>
+          <th>SKU</th><th>Total</th><th>Saved</th><th>Lost</th>
+          <th>Save Rate</th><th>Avg Resolution</th><th>Rev Saved</th><th>Rev Lost</th>
         </tr></thead><tbody id="cr-skuTbody"></tbody></table>
       </div>
     </div>
@@ -468,14 +493,11 @@ function hideAllPanels(){
       <div class="tbl-wrap" style="max-height:500px">
         <table><thead><tr>
           <th>Order ID</th><th>SKU</th><th>Date</th><th>Request Type</th>
-          <th>Outcome</th><th>Saved By</th><th>Status</th>
-          <th>Rev Loss</th><th>Rev Saved</th><th>Assignee</th>
+          <th>Outcome</th><th>Saved By</th><th>Status</th><th>Procedure</th>
+          <th>Res. Days</th><th>Rev Loss</th><th>Rev Saved</th><th>Assignee</th>
         </tr></thead><tbody id="cr-casesTbody"></tbody></table>
       </div>
     </div>
   </div>
 </div>
-<script src="pif.js?v=1777488693"></script>
-<script src="cr.js"></script>
-</body>
-</html>
+>
