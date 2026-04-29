@@ -674,15 +674,14 @@ function pifGetDecompLevel(li){
   var r=pifRange(),df=r.df,dt=r.dt;
   var pcat=pifPcat();
 
+  // Use pifGetTotals/pifGetSkuData for accurate filtered counts (same as KPIs)
   function getFilteredTotal(){
-    var ts=pifGetMonthly();
-    return ts.reduce(function(s,x){return s+(x.b[0]||0);},0);
+    var tot=pifGetTotals();
+    return tot[0]||0;
   }
   function getFilteredByCls(){
-    var ts=pifGetMonthly();
-    var m={PIF:0,PP:0,PIF_LATE:0};
-    ts.forEach(function(x){m.PIF+=(x.b[1]||0);m.PP+=(x.b[2]||0);m.PIF_LATE+=(x.b[3]||0);});
-    return m;
+    var tot=pifGetTotals();
+    return{PIF:tot[1]||0,PP:tot[2]||0,PIF_LATE:tot[3]||0};
   }
 
   if(li===0) return [{l:"Total Orders",v:getFilteredTotal(),c:"#388bfd"}];
