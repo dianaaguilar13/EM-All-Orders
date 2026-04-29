@@ -62,17 +62,37 @@ function pifGetMonthly(){
 }
 
 function pifGetSkuData(){
-  return Object.entries(PIF.S)
-    .filter(function(e){return pifSelSku.size===0||pifSelSku.has(e[0]);})
+  // Use PSMN (sku monthly) if available, else fallback to S
+  var r=pifRange(),pcat=pifPcat();
+  var skuTotals={};
+  // Build from per-sku monthly data filtered by date
+  var smn=PIF.SMN||null;
+  if(smn){
+    Object.keys(smn).forEach(function(sku){
+      if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
+      var pm=smn[sku];
+      Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        var v=pm[m];
+        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0,0,0];
+        for(var i=0;i<7;i++)skuTotals[sku][i]+=(v[i]||0);
+      });
+    });
+  } else {
+    // Fallback: use S (all time) - no date filtering
+    Object.entries(PIF.S).forEach(function(e){
+      if(pifSelSku.size>0&&!pifSelSku.has(e[0]))return;
+      skuTotals[e[0]]=e[1];
+    });
+  }
+  return Object.entries(skuTotals)
     .filter(function(e){return e[1][0]>=1;})
     .map(function(e){
       var s=e[0],v=e[1];
-      var total=v[0],pif=v[1],pp=v[2],late=v[3],pifInv=v[4],ppInv=v[5],lateInv=v[6];
+      var total=v[0],pif=v[1],pp=v[2],late=v[3],pifInv=v[4]||0,ppInv=v[5]||0,lateInv=v[6]||0;
       var allPif=pif+late;
       return{sku:s,total:total,pif:pif,pp:pp,late:late,allPif:allPif,
         pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,
-        pifRate:total>0?(allPif/total*100):0,
-        onTimeRate:total>0?(pif/total*100):0};
+        pifRate:total>0?(allPif/total*100):0};
     }).sort(function(a,b){return b.total-a.total;});
 }
 
@@ -95,9 +115,33 @@ function pifCountFiltered(node,depth,df,dt){
 
 function pifGetDecompLevel(li){
   var tree=PIF.GT||{};
-  var r=pifRange();
-  var df=r.df,dt=r.dt;
-  if(li===0) return [{l:"Total Orders",v:pifCountFiltered(tree,4,df,dt),c:"#388bfd"}];
+  var r=pifRange(),df=r.df,dt=r.dt;
+  var pcat=pifPcat(),div=pifDiv();
+
+  // Get filtered total from monthly data (respects all filters)
+  function getFilteredTotal(){
+    var ts=pifGetMonthly();
+    return ts.reduce(function(s,x){return s+(x.b[0]||0);},0);
+  }
+
+  // Get filtered counts by cls from monthly data
+  function getFilteredByCls(){
+    var ts=pifGetMonthly();
+    var m={PIF:0,PP:0,PIF_LATE:0};
+    ts.forEach(function(x){m.PIF+=(x.b[1]||0);m.PP+=(x.b[2]||0);m.PIF_LATE+=(x.b[3]||0);});
+    return m;
+  }
+
+  if(li===0) return [{l:"Total Orders",v:getFilteredTotal(),c:"#388bfd"}];
+
+  if(li===1){
+    var cls=getFilteredByCls();
+    var clsColors={"PIF":"#3fb950","PP":"#bc8cff","PIF_LATE":"#e3b341"};
+    var clsLabels={"PIF":"PIF (on time)","PP":"PP (payment plan)","PIF_LATE":"PIF (after 30 days)"};
+    return Object.keys(cls).filter(function(k){return cls[k]>0;}).map(function(k){
+      return{l:clsLabels[k],v:cls[k],c:clsColors[k],key:k};
+    }).sort(function(a,b){return b.v-a.v;});
+  }
 
   if(li===1){
     // Payment type breakdown
@@ -108,37 +152,25 @@ function pifGetDecompLevel(li){
     }).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
   }
 
+    // Use pcat-specific tree when pcat filter active, else global GT
+  var activeTree=pcat&&PIF.PCT&&PIF.PCT[pcat]?PIF.PCT[pcat]:tree;
+  function clsKey(lbl){var m={"PIF (on time)":"PIF","PP (payment plan)":"PP","PIF (after 30 days)":"PIF_LATE"};return m[lbl]||lbl;}
+  var divColors={"LS":"#388bfd","L&R":"#f85149","HWB":"#e3b341","B&L":"#3fb950","Other":"#8b949e"};
+
   if(li===2){
-    var selCls=pifTreePath[0];
-    if(!selCls)return[];
-    // Find original key from label
-    var clsLabels={"PIF":"PIF (on time)","PP":"PP (payment plan)","PIF_LATE":"PIF (after 30 days)"};
-    var clsKey=Object.keys(clsLabels).find(function(k){return clsLabels[k]===selCls;})||selCls;
-    var node=tree[clsKey]||{};
-    return[{l:"Active",v:pifCountFiltered(node['Active'],2,df,dt),c:"#58a6ff"},{l:"Inactive",v:pifCountFiltered(node['Inactive'],2,df,dt),c:"#f85149"}].filter(function(x){return x.v>0;});
+    var k=clsKey(pifTreePath[0]);if(!k)return[];
+    var node=activeTree[k]||{};
+    return[{l:"Active",v:pifCountFiltered(node["Active"],2,df,dt),c:"#58a6ff"},{l:"Inactive",v:pifCountFiltered(node["Inactive"],2,df,dt),c:"#f85149"}].filter(function(x){return x.v>0;});
   }
-
   if(li===3){
-    var selCls=pifTreePath[0],selAct=pifTreePath[1];
-    if(!selCls||!selAct)return[];
-    var clsLabels={"PIF":"PIF (on time)","PP":"PP (payment plan)","PIF_LATE":"PIF (after 30 days)"};
-    var clsKey=Object.keys(clsLabels).find(function(k){return clsLabels[k]===selCls;})||selCls;
-    var node=(tree[clsKey]&&tree[clsKey][selAct])||{};
-    var divColors={"LS":"#388bfd","L&R":"#f85149","HWB":"#e3b341","B&L":"#3fb950","Other":"#8b949e"};
-    return Object.keys(node).map(function(div){
-      return{l:div,v:pifCountFiltered(node[div],1,df,dt),c:divColors[div]||"#388bfd"};
-    }).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
+    var k=clsKey(pifTreePath[0]),act=pifTreePath[1];if(!k||!act)return[];
+    var node=(activeTree[k]&&activeTree[k][act])||{};
+    return Object.keys(node).map(function(d){return{l:d,v:pifCountFiltered(node[d],1,df,dt),c:divColors[d]||"#388bfd"};}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;});
   }
-
   if(li===4){
-    var selCls=pifTreePath[0],selAct=pifTreePath[1],selDiv=pifTreePath[2];
-    if(!selCls||!selAct||!selDiv)return[];
-    var clsLabels={"PIF":"PIF (on time)","PP":"PP (payment plan)","PIF_LATE":"PIF (after 30 days)"};
-    var clsKey=Object.keys(clsLabels).find(function(k){return clsLabels[k]===selCls;})||selCls;
-    var node=(tree[clsKey]&&tree[clsKey][selAct]&&tree[clsKey][selAct][selDiv])||{};
-    return Object.keys(node).filter(function(m){return m>=r.df&&m<=r.dt;})
-      .sort().map(function(m){return{l:fmtM2(m),v:node[m],c:"#388bfd"};})
-      .filter(function(x){return x.v>0;});
+    var k=clsKey(pifTreePath[0]),act=pifTreePath[1],d=pifTreePath[2];if(!k||!act||!d)return[];
+    var node=(activeTree[k]&&activeTree[k][act]&&activeTree[k][act][d])||{};
+    return Object.keys(node).filter(function(m){return m>=df&&m<=dt;}).sort().map(function(m){return{l:fmtM2(m),v:node[m],c:"#388bfd"};}).filter(function(x){return x.v>0;});
   }
   return[];
 }
@@ -276,8 +308,20 @@ function pifRender(){
               y:{ticks:{color:"#8b949e",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#21262d44"},max:100}}}
   });
 
-  // Partner category
-  var pcatData=Object.entries(PIF.PC).map(function(e){var v=e[1];return{pc:e[0],total:v[0],pif:v[1]+v[3],pp:v[2],rate:v[0]>0?((v[1]+v[3])/v[0]*100):0};}).filter(function(x){return x.total>0;}).sort(function(a,b){return b.total-a.total;});
+  // Partner category - use PCM filtered by date range
+  var r3=pifRange();
+  var pcatTotals={};
+  Object.keys(PIF.PCM||{}).forEach(function(pc){
+    var pm=PIF.PCM[pc];
+    Object.keys(pm).filter(function(m){return m>=r3.df&&m<=r3.dt;}).forEach(function(m){
+      var v=pm[m];
+      if(!pcatTotals[pc])pcatTotals[pc]={total:0,pif:0,pp:0};
+      pcatTotals[pc].total+=(v[0]||0);
+      pcatTotals[pc].pif+=(v[1]||0)+(v[3]||0);
+      pcatTotals[pc].pp+=(v[2]||0);
+    });
+  });
+  var pcatData=Object.entries(pcatTotals).filter(function(e){return e[1].total>0;}).map(function(e){return{pc:e[0],total:e[1].total,pif:e[1].pif,pp:e[1].pp,rate:e[1].total>0?(e[1].pif/e[1].total*100):0};}).sort(function(a,b){return b.total-a.total;});
   pifCharts.pcat=new Chart(document.getElementById("pif-pcatChart"),{
     type:"bar",
     data:{labels:pcatData.map(function(x){return x.pc;}),datasets:[
