@@ -335,6 +335,7 @@ function render(){
   var tot=sumArr(ts.map(function(x){return x.b;}));
   var T=tot[Ti],C=tot[Ci],E=tot[Ei],U=tot[Ui],Dv=tot[Di],AC=tot[Ai],IN=tot[Ii],LR=tot[CRi];
   var valid=T-E,rate=valid>0?(C/valid*100):0,net=T-C-E,sale=Math.max(0,T-C-E-U-Dv);
+  var displayTotal=T-E;
   var pcat=getPcat();
   document.getElementById("rcLbl").textContent=T.toLocaleString()+" records "+(selP.size>0?selP.size+" partner(s)":pcat||"all data");
 
