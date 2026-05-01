@@ -97,11 +97,11 @@ function ldpGetRows(){
   if(!LDP)return[];
   var r=ldpGetRange(),pcat=ldpGetPcat();
   return LDP.rows.filter(function(row){
-    var m=row[2];
+    var m=row[5]; // month
     if(m<r.df||m>r.dt)return false;
-    if(ldpSelSku.size>0&&!ldpSelSku.has(row[1]))return false;
-    if(pcat&&row[9]!==pcat)return false;
-    if(ldpSelP.size>0&&!ldpSelP.has(row[10]))return false;
+    if(ldpSelSku.size>0&&!ldpSelSku.has(row[3]))return false; // sku
+    if(pcat&&row[13]!==pcat)return false; // pcat
+    if(ldpSelP.size>0&&!ldpSelP.has(row[14]))return false; // partner
     return true;
   });
 }
@@ -239,7 +239,7 @@ function ldpRender(){
   // SKU table
   var skuMap={};
   rows.forEach(function(r){
-    var s=r[1];
+    var s=r[3];
     if(!skuMap[s])skuMap[s]={total:0,active:0,inactive:0,cancelled:0,entry_error:0,upgrade:0,inv:0,pay:0};
     skuMap[s].total++;
     if(r[11]==="Active")skuMap[s].active++;else skuMap[s].inactive++;
@@ -335,7 +335,7 @@ function ldpDownloadCsv(){
 }
 
 // Load data and init
-fetch("ldp_data.json").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("ldp_data.json?v=1777606469").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){
     LDP=data;
     // Populate SKU multi-select
