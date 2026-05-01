@@ -135,6 +135,7 @@ function ldpRender(){
   var totalPay=rows.reduce(function(s,r){return s+(r[8]||0);},0);
   var lostRev=rows.reduce(function(s,r){return s+(r[16]||0);},0);
   var displayTotal=total-entryErr;
+  var avgPmt=rows.length>0?rows.reduce(function(s,r){return s+(r[9]||0);},0)/rows.length:0;
 
   document.getElementById("ldp-rcLbl").textContent=total.toLocaleString()+" LDP records";
 
