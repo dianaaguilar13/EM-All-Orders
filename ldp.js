@@ -123,12 +123,12 @@ function ldpRender(){
   ldpDestroyCharts();
   var rows=ldpGetRows();
   var total=rows.length;
-  var cancelled=rows.filter(function(r){return r[6]==="Cancelled";}).length;
-  var entryErr=rows.filter(function(r){return r[6]==="Entry Error";}).length;
-  var upgrades=rows.filter(function(r){return r[6]==="Upgrade";}).length;
-  var downgrades=rows.filter(function(r){return r[6]==="Downgrade";}).length;
-  var active=rows.filter(function(r){return r[7]==="Active";}).length;
-  var inactive=rows.filter(function(r){return r[7]==="Inactive";}).length;
+  var cancelled=rows.filter(function(r){return r[10]==="Cancelled";}).length;
+  var entryErr=rows.filter(function(r){return r[10]==="Entry Error";}).length;
+  var upgrades=rows.filter(function(r){return r[10]==="Upgrade";}).length;
+  var downgrades=rows.filter(function(r){return r[10]==="Downgrade";}).length;
+  var active=rows.filter(function(r){return r[11]==="Active";}).length;
+  var inactive=rows.filter(function(r){return r[11]==="Inactive";}).length;
   var validUnits=total-entryErr;
   var cancelRate=validUnits>0?(cancelled/validUnits*100):0;
   var totalInv=rows.reduce(function(s,r){return s+(r[7]||0);},0);
@@ -154,13 +154,13 @@ function ldpRender(){
   // Monthly trend
   var byMonth={};
   rows.forEach(function(r){
-    var m=r[2];
+    var m=r[5]; // month at index 5
     if(!byMonth[m])byMonth[m]={total:0,cancelled:0,entry_error:0,upgrade:0,active:0,inactive:0};
     byMonth[m].total++;
-    if(r[6]==="Cancelled")byMonth[m].cancelled++;
-    else if(r[6]==="Entry Error")byMonth[m].entry_error++;
-    else if(r[6]==="Upgrade")byMonth[m].upgrade++;
-    if(r[7]==="Active")byMonth[m].active++;
+    if(r[10]==="Cancelled")byMonth[m].cancelled++;
+    else if(r[10]==="Entry Error")byMonth[m].entry_error++;
+    else if(r[10]==="Upgrade")byMonth[m].upgrade++;
+    if(r[11]==="Active")byMonth[m].active++;
     else byMonth[m].inactive++;
   });
   var months=Object.keys(byMonth).sort();
@@ -185,7 +185,7 @@ function ldpRender(){
 
   // Refund days for cancelled
   var rdMap={};
-  rows.forEach(function(r){if(r[6]==="Cancelled"&&r[8]!=="none")rdMap[r[8]]=(rdMap[r[8]]||0)+1;});
+  rows.forEach(function(r){if(r[10]==="Cancelled"&&r[12]!=="none")rdMap[r[12]]=(rdMap[r[12]]||0)+1;});
   var rdK=["0","15","30","45","60","61"],rdL=["Same day","<=15d","<=30d","<=45d","<=60d","61+d"];
   ldpCharts.rd=new Chart(document.getElementById("ldp-rdChart"),{
     type:"bar",
@@ -196,10 +196,10 @@ function ldpRender(){
 
   // Down payment % distribution
   var pctMap={};
-  rows.forEach(function(r){pctMap[Math.round(r[5])]=(pctMap[Math.round(r[5])]||0)+1;});
+  rows.forEach(function(r){pctMap[Math.round(r[9])]=(pctMap[Math.round(r[9])]||0)+1;});
   var pctBuckets={"<1%":0,"1-3%":0,"3-5%":0,"5-7%":0,"7-10%":0};
   rows.forEach(function(r){
-    var p=r[5];
+    var p=r[9];
     if(p<1)pctBuckets["<1%"]++;
     else if(p<3)pctBuckets["1-3%"]++;
     else if(p<5)pctBuckets["3-5%"]++;
@@ -215,7 +215,7 @@ function ldpRender(){
 
   // Partner category donut
   var pcatMap={};
-  rows.forEach(function(r){pcatMap[r[9]]=(pcatMap[r[9]]||0)+1;});
+  rows.forEach(function(r){pcatMap[r[13]]=(pcatMap[r[13]]||0)+1;});
   var pcatKeys=Object.keys(pcatMap).sort(function(a,b){return pcatMap[b]-pcatMap[a];});
   ldpCharts.pcat=new Chart(document.getElementById("ldp-pcatChart"),{
     type:"doughnut",
@@ -242,11 +242,11 @@ function ldpRender(){
     var s=r[1];
     if(!skuMap[s])skuMap[s]={total:0,active:0,inactive:0,cancelled:0,entry_error:0,upgrade:0,inv:0,pay:0};
     skuMap[s].total++;
-    if(r[7]==="Active")skuMap[s].active++;else skuMap[s].inactive++;
-    if(r[6]==="Cancelled")skuMap[s].cancelled++;
-    else if(r[6]==="Entry Error")skuMap[s].entry_error++;
-    else if(r[6]==="Upgrade")skuMap[s].upgrade++;
-    skuMap[s].inv+=r[3];skuMap[s].pay+=r[4];
+    if(r[11]==="Active")skuMap[s].active++;else skuMap[s].inactive++;
+    if(r[10]==="Cancelled")skuMap[s].cancelled++;
+    else if(r[10]==="Entry Error")skuMap[s].entry_error++;
+    else if(r[10]==="Upgrade")skuMap[s].upgrade++;
+    skuMap[s].inv+=r[7];skuMap[s].pay+=r[8];
   });
   var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
   var mx=Math.max.apply(null,skuArr.map(function(e){var v=e[1];var valid=v.total-v.entry_error;return valid>0?(v.cancelled/valid*100):0;}).concat([1]));
