@@ -66,8 +66,8 @@ function cnclDecompGetItems(dim){
 
   if(dim==="act"){
     return[
-      {label:"Active",value:"Active",count:AC,color:"#58a6ff"},
-      {label:"Inactive",value:"Inactive",count:IN,color:"#f85149"}
+      {label:"Active",value:"Active",count:AC,color:"#2563eb"},
+      {label:"Inactive ("+IN+")",value:"Inactive",count:IN,color:"#ef4444",note:"incl. "+E+" entry errors"}
     ].filter(function(x){return x.count>0;});
   }
 
@@ -75,7 +75,7 @@ function cnclDecompGetItems(dim){
     var valid=T-E;
     var sale=Math.max(0,T-C-E-U-Dv);
     var items=[
-      {label:"Sale",value:"Sale",count:Math.round(sale*(selAct?actRatio(tot):1)),color:"#39d353"},
+      {label:"Sale",value:"Sale",count:Math.round(sale*(selAct?actRatio(tot):1)),color:"#16a34a"},
       {label:"Cancelled",value:"Cancelled",count:Math.round(C*(selAct?actRatio(tot):1)),color:"#f85149"},
       {label:"Entry Error",value:"Entry Error",count:Math.round(E*(selAct?actRatio(tot):1)),color:"#e3b341"},
       {label:"Upgrade",value:"Upgrade",count:Math.round(U*(selAct?actRatio(tot):1)),color:"#3fb950"},
@@ -163,7 +163,7 @@ function renderDecomp(){
     addCol.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px;align-items:center;justify-content:center;padding:20px 8px";
     addCol.innerHTML=
       '<div style="font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;text-align:center">Add breakdown</div>'+
-      '<select id="cncl-decomp-next" style="width:100%;background:#21262d;border:1px solid #388bfd44;color:#e6edf3;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;outline:none">'+
+      '<select id="cncl-decomp-next" style="width:100%;background:#f1f5f9;border:1px solid #388bfd44;color:#e6edf3;padding:6px 8px;border-radius:6px;font-size:12px;cursor:pointer;outline:none">'+
         '<option value="">Select dimension...</option>'+
         availDims.map(function(d){return'<option value="'+d+'">'+CNCL_DIM_LABELS[d]+'</option>';}).join("")+
       '</select>'+
@@ -182,11 +182,11 @@ function renderDecomp(){
         var maxV=Math.max.apply(null,items.map(function(x){return x.count;}).concat([1]));
         items.slice(0,15).forEach(function(item){
           var btn=document.createElement("div");
-          btn.style.cssText="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 10px;cursor:pointer;transition:all .15s";
+          btn.style.cssText="background:#ffffff;border:1px solid #dde3ea;border-radius:6px;padding:8px 10px;cursor:pointer;transition:all .15s";
           btn.innerHTML=
             '<div style="font-size:10px;color:#8b949e;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+item.label+'">'+item.label+'</div>'+
             '<div style="font-size:17px;font-weight:700;color:'+item.color+';letter-spacing:-0.5px">'+item.count.toLocaleString()+'</div>'+
-            '<div style="height:3px;background:#21262d;border-radius:2px;margin-top:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>';
+            '<div style="height:3px;background:#f1f5f9;border-radius:2px;margin-top:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>';
           btn.onmouseenter=function(){btn.style.borderColor=item.color+"66";btn.style.background="#1c2128";};
           btn.onmouseleave=function(){btn.style.borderColor="#30363d";btn.style.background="#161b22";};
           btn.onclick=function(){
@@ -205,7 +205,7 @@ function cnclDecompCol(title,items,currentStep){
   var col=document.createElement("div");
   col.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px";
   var hdr=document.createElement("div");
-  hdr.style.cssText="font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #30363d;margin-bottom:6px";
+  hdr.style.cssText="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #dde3ea;margin-bottom:6px";
   hdr.textContent=title;col.appendChild(hdr);
   var wrap=document.createElement("div");
   wrap.style.cssText="display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;padding-right:2px";
@@ -218,9 +218,9 @@ function cnclDecompCol(title,items,currentStep){
     var node=document.createElement("div");
     node.style.cssText="background:"+(isSel?"#1c2128":"#161b22")+";border:1px solid "+(isSel?item.color:"#30363d")+";border-radius:7px;padding:9px 11px;transition:all .15s;opacity:"+(isDim?"0.25":"1")+";cursor:default";
     node.innerHTML=
-      '<div style="font-size:10px;color:#8b949e;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:146px" title="'+item.label+'">'+item.label+'</div>'+
+      '<div style="font-size:10px;color:#64748b;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:146px" title="'+item.label+'">'+item.label+'</div>'+
       '<div style="font-size:20px;font-weight:700;color:'+item.color+';margin-bottom:5px;letter-spacing:-0.5px">'+item.count.toLocaleString()+'</div>'+
-      '<div style="height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>'+
+      '<div style="height:3px;background:#f1f5f9;border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>'+
       '<div style="font-size:10px;color:'+item.color+'">'+(levelTotal>0?(item.count/levelTotal*100).toFixed(1):"0")+'% of level</div>';
     wrap.appendChild(node);
   });
@@ -230,7 +230,7 @@ function cnclDecompCol(title,items,currentStep){
 function renderDecompBC(){
   var bc=document.getElementById("decompBC");if(!bc)return;bc.innerHTML="";
   function crumb(text,fn,active){var s=document.createElement("span");s.style.cssText="font-size:11px;color:"+(active?"#388bfd":"#8b949e")+";cursor:pointer;padding:2px 6px;border-radius:4px;font-weight:"+(active?"600":"400");s.textContent=text;if(fn){s.onclick=fn;s.onmouseenter=function(){s.style.background="#21262d";s.style.color="#e6edf3";};s.onmouseleave=function(){s.style.background="";s.style.color=active?"#388bfd":"#8b949e";};}bc.appendChild(s);}
-  function sep(){var s=document.createElement("span");s.style.cssText="color:#30363d;font-size:12px";s.textContent=">";bc.appendChild(s);}
+  function sep(){var s=document.createElement("span");s.style.cssText="color:#94a3b8;font-size:12px";s.textContent=">";bc.appendChild(s);}
   crumb("Total Units",function(){CNCL_DECOMP_PATH=[];renderDecomp();renderDecompBC();},CNCL_DECOMP_PATH.length===0);
   CNCL_DECOMP_PATH.forEach(function(step,i){
     sep();
@@ -329,6 +329,20 @@ function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy
 function applyFilters(){document.getElementById("msDrop").classList.remove("open");render();}
 function resetFilters(){document.getElementById("df").value="2022-01-01";document.getElementById("dt").value="2026-04-20";["fSku","fPcat","fAct","fCncl"].forEach(function(id){document.getElementById(id).value="";});selP.clear();updateMsBtn();render();}
 
+
+function toggleSkuReasons(id){
+  var row=document.getElementById("reasons_"+id);
+  var icon=document.getElementById("icon_"+id);
+  if(!row)return;
+  if(row.style.display==="none"){
+    row.style.display="";
+    if(icon)icon.innerHTML="&#9660;";
+  } else {
+    row.style.display="none";
+    if(icon)icon.innerHTML="&#9654;";
+  }
+}
+
 function render(){
   destroyCharts();
   var ts=getTimeSeries();
@@ -412,16 +426,81 @@ function render(){
     }
   }
   var donutKeys=Object.keys(donutData).filter(function(k){return donutData[k]>0;}).sort(function(a,b){return donutData[b]-donutData[a];});
-  var donutColors={"Marketing":"#388bfd","Enrollment Mentor":"#f85149","Affiliate":"#3fb950","Event":"#e3b341","Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb950","Downgrade":"#bc8cff","Sale":"#39d353"};
-  charts.pcat=new Chart(document.getElementById("pcatChart"),{type:"doughnut",data:{labels:donutKeys,datasets:[{data:donutKeys.map(function(k){return donutData[k];}),backgroundColor:donutKeys.map(function(k){return donutColors[k]||"#58a6ff";}),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:"62%",plugins:{legend:{position:"right",labels:{color:"#8b949e",font:{size:11},boxWidth:10,padding:8}}}}});
+  var donutColors={"Marketing":"#388bfd","Enrollment Mentor":"#f85149","Affiliate":"#3fb950","Event":"#e3b341","Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb950","Downgrade":"#bc8cff","Sale":"#16a34a"};
+  charts.pcat=new Chart(document.getElementById("pcatChart"),{type:"doughnut",data:{labels:donutKeys,datasets:[{data:donutKeys.map(function(k){return donutData[k];}),backgroundColor:donutKeys.map(function(k){return donutColors[k]||"#2563eb";}),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:"62%",plugins:{legend:{position:"right",labels:{color:"#8b949e",font:{size:11},boxWidth:10,padding:8}}}}});
     var rdCounts=getRdCounts(),rdK=["0","15","30","45","60","61"],rdL=["Same day","<=15d","<=30d","<=45d","<=60d","61+d"];
   charts.rd=new Chart(document.getElementById("rdChart"),{type:"bar",data:{labels:rdL,datasets:[{data:rdK.map(function(k){return rdCounts[k]||0;}),backgroundColor:"rgba(56,139,253,0.75)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}}}}});
 
   var mx=Math.max.apply(null,skuArr.map(function(s){return s.rate;}).concat([1]));
   document.getElementById("tblInfo").textContent=skuArr.length+" SKUs "+T.toLocaleString()+" units";
+  // Build cancel reason lookup for current filters
+  function getCancelReasons(sku){
+    var r=getRange(),pcat=getPcat(),sku2=getSku();
+    var reasons={};
+    if(pcat&&D.PCMSKU_CR&&D.PCMSKU_CR[pcat]){
+      var pc=D.PCMSKU_CR[pcat];
+      Object.keys(pc).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        var v=(pc[m]&&pc[m][sku])||{};
+        Object.keys(v).forEach(function(k){reasons[k]=(reasons[k]||0)+v[k];});
+      });
+    } else if(D.GMSKU_CR){
+      Object.keys(D.GMSKU_CR).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+        var v=(D.GMSKU_CR[m]&&D.GMSKU_CR[m][sku])||{};
+        Object.keys(v).forEach(function(k){reasons[k]=(reasons[k]||0)+v[k];});
+      });
+    }
+    return reasons;
+  }
+
   var rows="";
-  for(var i=0;i<skuArr.length;i++){var s=skuArr[i];var cl=s.rate>30?"#f85149":s.rate>15?"#e3b341":"#56d364";var bg=s.rate>30?"#f85149":s.rate>15?"#e3b341":"#388bfd";rows+="<tr><td><span class='pill'>"+s.sku+"</span></td><td class='num'>"+s.T.toLocaleString()+"</td><td class='num' style='color:#58a6ff'>"+s.AC.toLocaleString()+"</td><td class='num' style='color:#f85149'>"+s.IN.toLocaleString()+"</td><td class='num'>"+s.sale.toLocaleString()+"</td><td class='num' style='color:#ff7b72'>"+s.C.toLocaleString()+"</td><td class='num' style='color:#e3b341'>"+s.E.toLocaleString()+"</td><td class='num' style='color:#56d364'>"+s.U.toLocaleString()+"</td><td class='num' style='color:#bc8cff'>"+s.D.toLocaleString()+"</td><td class='num'>"+(s.T-s.C-s.E).toLocaleString()+"</td><td><div class='bw'><div class='bb'><div class='bf' style='width:"+(s.rate/mx*100).toFixed(0)+"%;background:"+bg+"'></div></div><span class='num' style='min-width:38px;font-size:11px;color:"+cl+"'>"+s.rate.toFixed(2)+"%</span></div></td><td class='num' style='color:#ff7b72'>$"+Math.round(s.LR).toLocaleString()+"</td></tr>";}
-  document.getElementById("skuTbody").innerHTML=rows;
+  for(var i=0;i<skuArr.length;i++){
+    var s=skuArr[i];
+    var displayT=s.T-s.E;
+    var cl=s.rate>30?"#ef4444":s.rate>15?"#f59e0b":"#16a34a";
+    var bg=s.rate>30?"#ef4444":s.rate>15?"#f59e0b":"#2563eb";
+    var safeId="sku_"+s.sku.replace(/[^a-zA-Z0-9]/g,"_");
+    rows+="<tr style='cursor:pointer' data-sid='"+safeId+"' onclick='toggleSkuReasons(this.dataset.sid)'>"+
+      "<td><span style='font-size:10px;color:#2563eb;margin-right:4px' id='icon_"+safeId+"'>&#9654;</span><span class='pill'>"+s.sku+"</span></td>"+
+      "<td class='num'>"+displayT.toLocaleString()+"</td>"+
+      "<td class='num' style='color:#2563eb'>"+s.AC.toLocaleString()+"</td>"+
+      "<td class='num' style='color:#ef4444'>"+s.IN.toLocaleString()+"</td>"+
+      "<td class='num'>"+s.sale.toLocaleString()+"</td>"+
+      "<td class='num' style='color:#ef4444'>"+s.C.toLocaleString()+"</td>"+
+      "<td class='num' style='color:#f59e0b'>"+s.E.toLocaleString()+"</td>"+
+      "<td class='num' style='color:#16a34a'>"+s.U.toLocaleString()+"</td>"+
+      "<td class='num' style='color:#7c3aed'>"+s.D.toLocaleString()+"</td>"+
+      "<td class='num'>"+Math.max(0,displayT-s.C).toLocaleString()+"</td>"+
+      "<td><div class='bw'><div class='bb'><div class='bf' style='width:"+(mx>0?(s.rate/mx*100).toFixed(0):0)+"%;background:"+bg+"'></div></div>"+
+      "<span class='num' style='min-width:38px;font-size:11px;color:"+cl+"'>"+s.rate.toFixed(2)+"%</span></div></td>"+
+      "<td class='num' style='color:#ef4444'>$"+Math.round(s.LR).toLocaleString()+"</td>"+
+      "</tr>";
+    // Hidden cancel reasons row
+    var reasons=getCancelReasons(s.sku);
+    var reasonEntries=Object.entries(reasons).filter(function(e){return e[1]>0;}).sort(function(a,b){return b[1]-a[1];});
+    if(reasonEntries.length>0){
+      var reasonHtml='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="12" style="padding:0;background:#f8fafc">'+
+        '<div style="padding:10px 16px 10px 32px;border-top:1px solid #dde3ea">'+
+        '<div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cancel Reason Breakdown for '+s.sku+'</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+      var maxR=Math.max.apply(null,reasonEntries.map(function(e){return e[1];}));
+      reasonEntries.forEach(function(e){
+        var isEE=e[0].indexOf('EntryError')>=0||e[0].indexOf('Error')>=0;
+        var color=isEE?"#f59e0b":"#ef4444";
+        var pct=s.C>0?(e[1]/s.C*100).toFixed(1):0;
+        reasonHtml+='<div style="background:#fff;border:1px solid #dde3ea;border-radius:6px;padding:8px 12px;min-width:160px">'+
+          '<div style="font-size:10px;color:#64748b;margin-bottom:2px">'+e[0]+'</div>'+
+          '<div style="font-size:16px;font-weight:700;color:'+color+'">'+e[1]+'</div>'+
+          '<div style="height:3px;background:#e2e8f0;border-radius:2px;margin-top:4px;overflow:hidden">'+
+          '<div style="height:100%;width:'+(e[1]/maxR*100).toFixed(0)+'%;background:'+color+'"></div></div>'+
+          '<div style="font-size:10px;color:'+color+';margin-top:2px">'+pct+'% of cancels</div>'+
+          '</div>';
+      });
+      reasonHtml+='</div></div></td></tr>';
+      rows+=reasonHtml;
+    }
+  }
+  
+document.getElementById("skuTbody").innerHTML=rows;
   document.getElementById("skuTfoot").innerHTML="<td>Total</td><td class='num'>"+T.toLocaleString()+"</td><td class='num' style='color:#58a6ff'>"+AC.toLocaleString()+"</td><td class='num' style='color:#f85149'>"+IN.toLocaleString()+"</td><td class='num'>"+sale.toLocaleString()+"</td><td class='num' style='color:#ff7b72'>"+C.toLocaleString()+"</td><td class='num' style='color:#e3b341'>"+E.toLocaleString()+"</td><td class='num' style='color:#56d364'>"+U.toLocaleString()+"</td><td class='num' style='color:#bc8cff'>"+Dv.toLocaleString()+"</td><td class='num'>"+net.toLocaleString()+"</td><td class='num'>"+rate.toFixed(2)+"%</td><td class='num' style='color:#ff7b72'>$"+Math.round(LR).toLocaleString()+"</td>";
 }
 
