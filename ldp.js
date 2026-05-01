@@ -141,11 +141,11 @@ function ldpRender(){
 
   // KPIs
   document.getElementById("ldp-kpis").innerHTML=
-    '<div class="kpi k1"><div class="kl">Total LDP</div><div class="kv">'+displayTotal.toLocaleString()+'</div><div class="ks muted">excl. entry errors</div></div>'+
+    '<div class="kpi k1"><div class="kl">Total LDP</div><div class="kv" style="color:#1a2332">'+displayTotal.toLocaleString()+'</div><div class="ks muted">excl. entry errors</div></div>'+
     '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+active.toLocaleString()+'</div><div class="ks muted">'+(displayTotal>0?(active/displayTotal*100).toFixed(1):0)+'% continuing</div></div>'+
     '<div class="kpi k3"><div class="kl">Inactive</div><div class="kv" style="color:#ef4444">'+inactive.toLocaleString()+'</div><div class="ks red">'+(displayTotal>0?(inactive/displayTotal*100).toFixed(1):0)+'% of total</div></div>'+
-    '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+cancelled.toLocaleString()+'</div><div class="ks red">'+cancelRate.toFixed(1)+'% cancel rate</div></div>'+
-    '<div class="kpi k8"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444;font-size:28px">'+cancelRate.toFixed(1)+'%</div><div class="ks red">excl. entry errors</div></div>'+
+    '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+cancelled.toLocaleString()+'</div><div class="ks red" style="color:#ef4444">'+cancelRate.toFixed(1)+'% cancel rate</div></div>'+
+    '<div class="kpi k4"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444;font-size:28px">'+cancelRate.toFixed(1)+'%</div><div class="ks red" style="color:#ef4444">excl. entry errors</div></div>'+
     '<div class="kpi k6"><div class="kl">Upgrades</div><div class="kv" style="color:#16a34a">'+upgrades.toLocaleString()+'</div><div class="ks green">upgrade events</div></div>'+
     '<div class="kpi k3"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:18px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks red">on cancellations</div></div>'+
     '<div class="kpi k7"><div class="kl">Avg Down Pmt</div><div class="kv" style="color:#7c3aed">'+avgPmt.toFixed(1)+'%</div><div class="ks muted">avg % of program price</div></div>'+
