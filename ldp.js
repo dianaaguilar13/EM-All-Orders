@@ -183,10 +183,16 @@ function ldpRender(){
       }}
   });
 
-  // Refund days for cancelled
-  var rdMap={};
-  rows.forEach(function(r){if(r[10]==="Cancelled"&&r[12]!=="none")rdMap[r[12]]=(rdMap[r[12]]||0)+1;});
-  var rdK=["0","15","30","45","60","61"],rdL=["Same day","<=15d","<=30d","<=45d","<=60d","61+d"];
+  // Refund days for cancelled - map actual rd values to chart buckets
+  var rdMap={"Same day":0,"<=30d":0,"<=45d":0,"<=60d":0,"<=90d":0,">90d":0};
+  rows.forEach(function(r){
+    if(r[10]!=="Cancelled")return;
+    var rd=r[12]||"N/A";
+    if(rd==="N/A"||rd==="none")return;
+    if(rdMap[rd]!==undefined)rdMap[rd]++;
+    else rdMap[">90d"]++;
+  });
+  var rdK=["Same day","<=30d","<=45d","<=60d","<=90d",">90d"],rdL=["Same day","<=30d","<=45d","<=60d","<=90d",">90d"];
   ldpCharts.rd=new Chart(document.getElementById("ldp-rdChart"),{
     type:"bar",
     data:{labels:rdL,datasets:[{data:rdK.map(function(k){return rdMap[k]||0;}),backgroundColor:"rgba(248,81,73,0.75)",borderRadius:4}]},
