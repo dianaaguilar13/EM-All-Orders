@@ -40,7 +40,7 @@ function pifGetTotals(){
   // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
   var skuArr=pifGetSkuData();
   if(skuArr.length>0){
-    var tot=[0,0,0,0,0.0,0.0,0.0,0,0];
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
     skuArr.forEach(function(s){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
@@ -49,14 +49,14 @@ function pifGetTotals(){
   }
   // Fallback: sum monthly data
   var ts=pifGetMonthly();
-  var tot=[0,0,0,0,0,0,0,0,0];
-  ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<9;i++)tot[i]+=(v[i]||0);});
+  var tot=[0,0,0,0,0,0,0,0,0,0,0,0,0];
+  ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<13;i++)tot[i]+=(v[i]||0);});
   return tot;
 }
 
 function pifGetMonthly(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
-  var empty=[0,0,0,0,0,0,0,0,0];
+  var empty=[0,0,0,0,0,0,0,0,0,0,0,0,0];
   var skuArr=Array.from(pifSelSku);
   var hasSku=skuArr.length>0;
   var hasP=pifSelP.size>0;
@@ -150,7 +150,7 @@ function pifGetTotals(){
   // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
   var skuArr=pifGetSkuData();
   if(skuArr.length>0){
-    var tot=[0,0,0,0,0.0,0.0,0.0,0,0];
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
     skuArr.forEach(function(s){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
@@ -159,14 +159,14 @@ function pifGetTotals(){
   }
   // Fallback: sum monthly data
   var ts=pifGetMonthly();
-  var tot=[0,0,0,0,0,0,0,0,0];
-  ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<9;i++)tot[i]+=(v[i]||0);});
+  var tot=[0,0,0,0,0,0,0,0,0,0,0,0,0];
+  ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<13;i++)tot[i]+=(v[i]||0);});
   return tot;
 }
 
 function pifGetMonthly(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv();
-  var empty=[0,0,0,0,0,0,0,0,0];
+  var empty=[0,0,0,0,0,0,0,0,0,0,0,0,0];
   if(div){
     var dData=PIF.MDIV[div]||{};
     var months=Object.keys(dData).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
@@ -195,8 +195,8 @@ function pifGetSkuData(){
     skus.forEach(function(sku){
       var src=((PIF.SMNPC[sku])||{})[pcat]||{};
       Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0];
-        var v=src[m];for(var i=0;i<9;i++)skuTotals[sku][i]+=(v[i]||0);
+        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
+        var v=src[m];for(var i=0;i<13;i++)skuTotals[sku][i]+=(v[i]||0);
       });
     });
   } else if(PIF.SMN){
@@ -204,9 +204,9 @@ function pifGetSkuData(){
     skus.forEach(function(sku){
       var sm=PIF.SMN[sku]||{};
       Object.keys(sm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0];
+        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
         var v=sm[m];for(var i=0;i<7;i++)skuTotals[sku][i]+=(v[i]||0);
-        var gv=PIF.M[m]||[0,0,0,0,0,0,0,0,0];
+        var gv=PIF.M[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0];
         var ar=gv[0]>0?(gv[7]||0)/gv[0]:0.9;
         skuTotals[sku][7]+=Math.round((v[0]||0)*ar);
         skuTotals[sku][8]+=Math.round((v[0]||0)*(1-ar));
@@ -315,7 +315,7 @@ function pifRender(){
         // Get months in range for this combo
         Object.keys(smnpcSrc).filter(function(m){return m>=r_div.df&&m<=r_div.dt;}).forEach(function(m){
           var v=smnpcSrc[m];
-          var dv=mdivSrc[m]||[0,0,0,0,0,0,0,0,0];
+          var dv=mdivSrc[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0];
           var ratio=dv[0]>0?(dv[0]/((PIF.M[m]||[1])[0]||1)):0;
           if(!divTotals[d])divTotals[d]={total:0,pif:0,pp:0};
           var approx=Math.round((v[0]||0)*ratio);
@@ -705,7 +705,7 @@ function pifDecompGetItems(dim){
   // Helper: apply path filters to monthly series
   function getFilteredSeries(extraClsFilter, extraActFilter){
     return ts.map(function(x){
-      var b=x.b||[0,0,0,0,0,0,0,0,0];
+      var b=x.b||[0,0,0,0,0,0,0,0,0,0,0,0,0];
       var total=b[0]||0;
       if(total===0)return null;
       // Apply cls filter from path
