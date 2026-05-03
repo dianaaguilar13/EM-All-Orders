@@ -64,11 +64,17 @@ function pifGetMonthly(){
 
   function applyAct(b){
     if(!act||!b)return b;
-    var n=act==="Active"?b[7]:b[8];
-    var ratio=b[0]>0?n/b[0]:0;
-    return[n,Math.round((b[1]||0)*ratio),Math.round((b[2]||0)*ratio),
-      Math.round((b[3]||0)*ratio),(b[4]||0)*ratio,(b[5]||0)*ratio,(b[6]||0)*ratio,
-      act==="Active"?n:0,act==="Inactive"?n:0];
+    if(act==="Active"){
+      // Use exact active breakdowns: b[7]=active_total, b[9]=active_pif, b[10]=active_pp
+      var n=b[7]||0,apif=b[9]||0,app=b[10]||0,alate=Math.max(0,n-apif-app);
+      var ratio=b[0]>0?n/b[0]:0;
+      return[n,apif,app,alate,(b[4]||0)*ratio,(b[5]||0)*ratio,(b[6]||0)*ratio,n,0];
+    } else {
+      // Inactive: b[8]=inactive_total, b[11]=inactive_pif, b[12]=inactive_pp
+      var n=b[8]||0,ipif=b[11]||0,ipp=b[12]||0,ilate=Math.max(0,n-ipif-ipp);
+      var ratio=b[0]>0?n/b[0]:0;
+      return[n,ipif,ipp,ilate,(b[4]||0)*ratio,(b[5]||0)*ratio,(b[6]||0)*ratio,0,n];
+    }
   }
 
   function buildFromSrc(srcMap){
@@ -213,15 +219,26 @@ function pifGetSkuData(){
     });
   }
 
+  var act2=pifActFilter();
   return Object.entries(skuTotals)
     .filter(function(e){return e[1][0]>0;})
     .map(function(e){
       var s=e[0],v=e[1];
-      var total=v[0],pif=v[1],pp=v[2],late=v[3],pifInv=v[4]||0,ppInv=v[5]||0,lateInv=v[6]||0;
+      // Apply active filter using exact counts (indices 7-12)
+      var total,pif,pp,late,pifInv,ppInv,lateInv;
+      if(act2==="Active"){
+        total=v[7]||0; pif=v[9]||0; pp=v[10]||0; late=Math.max(0,total-pif-pp);
+      } else if(act2==="Inactive"){
+        total=v[8]||0; pif=v[11]||0; pp=v[12]||0; late=Math.max(0,total-pif-pp);
+      } else {
+        total=v[0]; pif=v[1]; pp=v[2]; late=v[3];
+      }
+      var ratio=v[0]>0?total/v[0]:0;
+      pifInv=(v[4]||0)*ratio; ppInv=(v[5]||0)*ratio; lateInv=(v[6]||0)*ratio;
       return{sku:s,total:total,pif:pif,pp:pp,late:late,
         pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,
         pifRate:total>0?((pif+late)/total*100):0};
-    }).sort(function(a,b){return b.total-a.total;});
+    }).filter(function(e){return e.total>0;}).sort(function(a,b){return b.total-a.total;});
 }
 
 
