@@ -90,8 +90,8 @@ function pifGetMonthly(){
     var byM={};
     sources.forEach(function(src){
       Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0];
-        var v=src[m];for(var i=0;i<9;i++)byM[m][i]+=(v[i]||0);
+        if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
+        var v=src[m];for(var i=0;i<13;i++)byM[m][i]+=(v[i]||0);
       });
     });
     return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
