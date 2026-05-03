@@ -220,7 +220,7 @@ function pifGetSkuData(){
       pifInv=(v[4]||0)*ratio; ppInv=(v[5]||0)*ratio; lateInv=(v[6]||0)*ratio;
       return{sku:s,total:total,pif:pif,pp:pp,late:late,
         pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,
-        pifRate:total>0?((pif+late)/total*100):0};
+        pifRate:total>0?(pif/total*100):0,pifRateAll:total>0?((pif+late)/total*100):0};
     }).filter(function(e){return e.total>0;}).sort(function(a,b){return b.total-a.total;});
 }
 
@@ -235,7 +235,8 @@ function pifRender(){
   // Bucket: [total, pif, pp, pif_late, pif_inv, pp_inv, pif_late_inv, active, inactive]
   var T=tot[0],P=tot[1],PP=tot[2],PL=tot[3],PI=tot[4]||0,PPI=tot[5]||0,PLI=tot[6]||0;
   var allPif=P+PL;
-  var pifRate=T>0?(allPif/T*100):0;
+  var pifRate=T>0?(P/T*100):0;
+  var pifRateAll=T>0?(allPif/T*100):0;
   var ppRate=T>0?(PP/T*100):0;
   var lateRate=T>0?(PL/T*100):0;
 
@@ -246,7 +247,7 @@ function pifRender(){
     '<div class="kpi k6"><div class="kl">PIF (on time)</div><div class="kv" style="color:#3fb950">'+P.toLocaleString()+'</div><div class="ks green">'+(T>0?(P/T*100).toFixed(1):0)+'% same day</div></div>'+
     '<div class="kpi k5"><div class="kl">PIF (after 30d)</div><div class="kv" style="color:#e3b341">'+PL.toLocaleString()+'</div><div class="ks amber">'+lateRate.toFixed(1)+'% late PIF</div></div>'+
     '<div class="kpi k7"><div class="kl">PP</div><div class="kv" style="color:#bc8cff">'+PP.toLocaleString()+'</div><div class="ks muted">'+ppRate.toFixed(1)+'% payment plan</div></div>'+
-    '<div class="kpi k2"><div class="kl">Total PIF Rate</div><div class="kv" style="color:#3fb950;font-size:28px">'+pifRate.toFixed(1)+'%</div><div class="ks muted">incl. late PIF</div></div>'+
+    '<div class="kpi k2"><div class="kl">Total PIF Rate</div><div class="kv" style="color:#3fb950;font-size:28px">'+pifRate.toFixed(1)+'%</div><div class="ks muted">'+(T>0?(PL/T*100).toFixed(1):0)+'% after 30d</div></div>'+
     '<div class="kpi k8"><div class="kl">PIF Revenue</div><div class="kv" style="color:#39d353;font-size:17px">$'+Math.round(PI+PLI).toLocaleString()+'</div><div class="ks muted">total PIF inv value</div></div>';
 
   // Monthly trend
