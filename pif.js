@@ -164,24 +164,7 @@ function pifGetTotals(){
   return tot;
 }
 
-function pifGetMonthly(){
-  var r=pifRange(),pcat=pifPcat(),div=pifDiv();
-  var empty=[0,0,0,0,0,0,0,0,0,0,0,0,0];
-  if(div){
-    var dData=PIF.MDIV[div]||{};
-    var months=Object.keys(dData).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-    return months.map(function(m){return{m:m,b:dData[m]||empty};});
-  }
-  if(pcat){
-    var pcData=(PIF.PCM&&PIF.PCM[pcat])||{};
-    if(Object.keys(pcData).length>0){
-      var months=Object.keys(pcData).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-      return months.map(function(m){return{m:m,b:pcData[m]||empty};});
-    }
-  }
-  var months=Object.keys(PIF.M).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
-  return months.map(function(m){return{m:m,b:PIF.M[m]||empty};});
-}
+
 
 function pifGetSkuData(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
