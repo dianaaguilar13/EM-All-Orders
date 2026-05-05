@@ -951,5 +951,3 @@ function pifRenderDecompBC(){
     bc.appendChild(rst);
   }
 }
-
-
