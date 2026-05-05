@@ -168,19 +168,30 @@ function pifGetTotals(){
 
 function pifGetSkuData(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+  var hasP=pifSelP.size>0,partArr=Array.from(pifSelP);
 
-  // Determine source
+  // Determine source - priority: partner > pcat > global
   var skuTotals={};
 
-  if(pcat&&PIF.SMNPC){
-    // Use SMNPC filtered by pcat
+  function addSkuMonths(sku, src){
+    Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
+      var v=src[m];for(var i=0;i<13;i++)skuTotals[sku][i]+=(v[i]||0);
+    });
+  }
+
+  if(hasP&&PIF.PMSKU){
+    // Partner filter: use PMSKU[partner][sku][month]
+    partArr.forEach(function(p){
+      var pm=PIF.PMSKU[p]||{};
+      var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(pm);
+      skus.forEach(function(sku){ addSkuMonths(sku, pm[sku]||{}); });
+    });
+  } else if(pcat&&PIF.SMNPC){
+    // Pcat filter: use SMNPC[sku][pcat][month]
     var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMNPC);
     skus.forEach(function(sku){
-      var src=((PIF.SMNPC[sku])||{})[pcat]||{};
-      Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
-        var v=src[m];for(var i=0;i<13;i++)skuTotals[sku][i]+=(v[i]||0);
-      });
+      addSkuMonths(sku, ((PIF.SMNPC[sku])||{})[pcat]||{});
     });
   } else if(PIF.SMN){
     var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMN);
@@ -244,9 +255,9 @@ function pifRender(){
 
   document.getElementById("pif-kpis").innerHTML=
     '<div class="kpi k1"><div class="kl">Total Orders</div><div class="kv">'+T.toLocaleString()+'</div><div class="ks muted">PAYMENTS_TOTAL &gt; 0</div></div>'+
-    '<div class="kpi k6"><div class="kl">PIF (on time)</div><div class="kv" style="color:#3fb950">'+P.toLocaleString()+'</div><div class="ks green">'+(T>0?(P/T*100).toFixed(1):0)+'% same day</div></div>'+
-    '<div class="kpi k5"><div class="kl">PIF (after 30d)</div><div class="kv" style="color:#e3b341">'+PL.toLocaleString()+'</div><div class="ks amber">'+lateRate.toFixed(1)+'% late PIF</div></div>'+
-    '<div class="kpi k7"><div class="kl">PP</div><div class="kv" style="color:#bc8cff">'+PP.toLocaleString()+'</div><div class="ks muted">'+ppRate.toFixed(1)+'% payment plan</div></div>'+
+    '<div class="kpi k6"><div class="kl">PIF (on time)</div><div class="kv" style="color:#16a34a">'+P.toLocaleString()+'</div><div class="ks green">'+(T>0?(P/T*100).toFixed(1):0)+'% same day</div></div>'+
+    '<div class="kpi k5"><div class="kl">PIF (after 30d)</div><div class="kv" style="color:#f59e0b">'+PL.toLocaleString()+'</div><div class="ks amber">'+lateRate.toFixed(1)+'% late PIF</div></div>'+
+    '<div class="kpi k7"><div class="kl">PP</div><div class="kv" style="color:#7c3aed">'+PP.toLocaleString()+'</div><div class="ks muted">'+ppRate.toFixed(1)+'% payment plan</div></div>'+
     '<div class="kpi k2"><div class="kl">Total PIF Rate</div><div class="kv" style="color:#3fb950;font-size:28px">'+pifRate.toFixed(1)+'%</div><div class="ks muted">'+(T>0?(PL/T*100).toFixed(1):0)+'% after 30d</div></div>'+
     '<div class="kpi k8"><div class="kl">PIF Revenue</div><div class="kv" style="color:#39d353;font-size:17px">$'+Math.round(PI+PLI).toLocaleString()+'</div><div class="ks muted">total PIF inv value</div></div>';
 
@@ -413,21 +424,21 @@ function pifRender(){
     var skuEsc=s.sku.replace(/&/g,"&amp;").replace(/"/g,"&quot;");
     tRows+="<tr style='cursor:pointer' data-sku='"+skuEsc+"' onclick='pifToggleSkuDetail(this.dataset.sku)'>"+
       "<td style='padding-left:8px'><span id='pif-expand-"+safeId+"' style='color:#388bfd;font-size:10px;margin-right:6px'>&#9654;</span><span class='pill'>"+s.sku+"</span></td>"+
-      "<td style='font-size:11px;color:#8b949e'>"+cat+"</td>"+
+      "<td style='font-size:11px;color:#64748b'>"+cat+"</td>"+
       "<td class='num'>"+s.total.toLocaleString()+"</td>"+
       "<td class='num' style='color:#3fb950'>"+s.pif.toLocaleString()+"</td>"+
       "<td class='num' style='color:#e3b341'>"+s.late.toLocaleString()+"</td>"+
       "<td class='num' style='color:#bc8cff'>"+s.pp.toLocaleString()+"</td>"+
       "<td><div class='bw'><div class='bb'><div class='bf' style='width:"+s.pifRate.toFixed(0)+"%;background:"+bg+"'></div></div>"+
       "<span class='num' style='min-width:42px;font-size:11px;color:"+cl+"'>"+s.pifRate.toFixed(1)+"%</span></div></td>"+
-      "<td class='num' style='color:#8b949e'>$"+Math.round(s.pifInv+s.lateInv).toLocaleString()+"</td>"+
-      "<td class='num' style='color:#8b949e'>$"+Math.round(s.ppInv).toLocaleString()+"</td></tr>"+
+      "<td class='num' style='color:#64748b'>$"+Math.round(s.pifInv+s.lateInv).toLocaleString()+"</td>"+
+      "<td class='num' style='color:#64748b'>$"+Math.round(s.ppInv).toLocaleString()+"</td></tr>"+
       "<tr id='pif-detail-"+safeId+"' style='display:none'><td colspan='9' style='padding:0'></td></tr>";
   });
   document.getElementById("pif-skuTbody").innerHTML=tRows;
   document.getElementById("pif-tblInfo").innerHTML=
     skuArr.length+" SKUs &middot; "+T.toLocaleString()+" orders &nbsp;"+
-    "<button onclick='pifDownloadAllCsv()' style='background:#21262d;border:1px solid #30363d;color:#3fb950;padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer'>&#11015; Download All CSV</button>";
+    "<button onclick='pifLoadAndDownloadAll()' style='border:1px solid #16a34a33;color:#16a34a;padding:3px 10px;border-radius:5px;font-size:11px;cursor:pointer;background:transparent'>&#11015; Download All CSV</button>";
 
 document.getElementById("pif-loading").style.display="none";
   document.getElementById("pif-main").style.display="block";
@@ -523,13 +534,13 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
 
   // Build using DOM to avoid any quote issues
   var wrap=document.createElement("div");
-  wrap.style.cssText="padding:10px 16px;background:#0d1117;border-top:1px solid #30363d";
+  wrap.style.cssText="padding:10px 16px;background:#f8fafc;border-top:1px solid #dde3ea";
 
   var header=document.createElement("div");
   header.style.cssText="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px";
 
   var info=document.createElement("span");
-  info.style.cssText="font-size:11px;font-weight:600;color:#8b949e";
+  info.style.cssText="font-size:11px;font-weight:600;color:#64748b";
   info.textContent=allRows.length.toLocaleString()+" records for "+sku;
 
   var dlBtn=document.createElement("button");
@@ -553,7 +564,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   hrow.style.background="#161b22";
   cols.forEach(function(c){
     var th=document.createElement("th");
-    th.style.cssText="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22";
+    th.style.cssText="padding:6px 10px;text-align:left;font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;white-space:nowrap;position:sticky;top:0;background:#161b22";
     th.textContent=c;
     hrow.appendChild(th);
   });
@@ -599,6 +610,15 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
 }
 
 
+
+function pifLoadAndDownloadAll(){
+  if(PIF_ROWS){pifDownloadAllCsv();return;}
+  fetch("pif_rows.json").then(function(r){return r.json();}).then(function(data){
+    PIF_ROWS=data;
+    pifDownloadAllCsv();
+  });
+}
+
 // ── CSV Downloads ──────────────────────────────────────────
 function pifRowsToCsv(rows2){
   var cls_labels=["PIF","PP","PIF after 30d"];
@@ -640,26 +660,12 @@ function pifDownloadSkuCsvRows(sku,rows2){
   pifDownloadCsv(pifRowsToCsv(tagged),"pif_"+sku+"_"+r.df+"_"+r.dt+".csv");
 }
 
-function pifDownloadAllCsv(){
-  pifLoadRows(function(){
-    var r=pifRange(),pcat=pifPcat();
-    var allRows=[];
-    Object.keys(PIF_ROWS.rows).forEach(function(sku){
-      (PIF_ROWS.rows[sku]||[]).filter(function(r2){
-        if(r2[4]<r.df||r2[4]>r.dt)return false;
-        if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
-        return true;
-      }).forEach(function(r2){var c=r2.slice();c._sku=sku;allRows.push(c);});
-    });
-    allRows.sort(function(a,b){return a[3]>b[3]?-1:1;});
-    pifDownloadCsv(pifRowsToCsv(allRows),"pif_all_"+r.df+"_"+r.dt+".csv");
-  });
-}
+
 
 // ── Load ───────────────────────────────────────────────────
 fetch("pif_data.json?v=1777488693").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
-  .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#f85149">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
+  .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
 // dim options: "cls", "act", "div", "sku", "pcat", "month"
 var PIF_DIM_LABELS = {
@@ -841,14 +847,14 @@ function pifRenderDecomp(){
   if(availDims.length>0){
     if(PIF_DECOMP_PATH.length>0){
       var conn=document.createElement("div");conn.style.cssText="width:24px;align-self:stretch;display:flex;align-items:center;flex-shrink:0";
-      conn.innerHTML='<div style="width:100%;height:1px;background:#30363d;border-top:1px dashed #388bfd44"></div>';
+      conn.innerHTML='<div style="width:100%;height:1px;background:#f1f5f9;border-top:1px dashed #388bfd44"></div>';
       container.appendChild(conn);
     }
     var addCol=document.createElement("div");
     addCol.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px;align-items:center;justify-content:center;padding:20px 8px";
     addCol.innerHTML=
-      '<div style="font-size:10px;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;text-align:center">Add breakdown</div>'+
-      '<select id="pif-decomp-next" style="width:100%;background:#21262d;border:1px solid #388bfd44;color:#e6edf3;padding:6px 8px;border-radius:6px;font-size:12px;font-family:Inter,sans-serif;cursor:pointer;outline:none">'+
+      '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;text-align:center">Add breakdown</div>'+
+      '<select id="pif-decomp-next" style="width:100%;background:#21262d;border:1px solid #388bfd44;color:#1a2332;padding:6px 8px;border-radius:6px;font-size:12px;font-family:Inter,sans-serif;cursor:pointer;outline:none">'+
         '<option value="">Select dimension...</option>'+
         availDims.map(function(d){return'<option value="'+d+'">'+PIF_DIM_LABELS[d]+'</option>';}).join("")+
       '</select>'+
@@ -870,7 +876,7 @@ function pifRenderDecomp(){
           var btn=document.createElement("div");
           btn.style.cssText="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 10px;cursor:pointer;transition:all .15s";
           btn.innerHTML=
-            '<div style="font-size:10px;color:#8b949e;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+item.label+'">'+item.label+'</div>'+
+            '<div style="font-size:10px;color:#64748b;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+item.label+'">'+item.label+'</div>'+
             '<div style="font-size:17px;font-weight:700;color:'+item.color+';letter-spacing:-0.5px">'+item.count.toLocaleString()+'</div>'+
             '<div style="height:3px;background:#21262d;border-radius:2px;margin-top:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>';
           btn.onmouseenter=function(){btn.style.borderColor=item.color+"66";btn.style.background="#1c2128";};
@@ -892,7 +898,7 @@ function pifDecompCol(title,items,currentStep,stepIdx){
   var col=document.createElement("div");
   col.style.cssText="display:flex;flex-direction:column;flex-shrink:0;width:168px";
   var hdr=document.createElement("div");
-  hdr.style.cssText="font-size:10px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #30363d;margin-bottom:6px";
+  hdr.style.cssText="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.6px;text-align:center;padding:5px 8px 8px;border-bottom:1px solid #30363d;margin-bottom:6px";
   hdr.textContent=title;col.appendChild(hdr);
   var wrap=document.createElement("div");wrap.style.cssText="display:flex;flex-direction:column;gap:5px;max-height:380px;overflow-y:auto;padding-right:2px";
   var levelTotal=items.reduce(function(s,x){return s+x.count;},0);
@@ -904,7 +910,7 @@ function pifDecompCol(title,items,currentStep,stepIdx){
     var node=document.createElement("div");
     node.style.cssText="background:"+(isSel?"#1c2128":"#161b22")+";border:1px solid "+(isSel?item.color:"#30363d")+";border-radius:7px;padding:9px 11px;transition:all .15s;opacity:"+(isDim?"0.25":"1")+";cursor:default";
     node.innerHTML=
-      '<div style="font-size:10px;color:#8b949e;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:146px" title="'+item.label+'">'+item.label+'</div>'+
+      '<div style="font-size:10px;color:#64748b;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:146px" title="'+item.label+'">'+item.label+'</div>'+
       '<div style="font-size:20px;font-weight:700;color:'+item.color+';margin-bottom:5px;letter-spacing:-0.5px">'+item.count.toLocaleString()+'</div>'+
       '<div style="height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+(item.count/maxV*100).toFixed(0)+'%;background:'+item.color+';border-radius:2px"></div></div>'+
       '<div style="font-size:10px;color:'+item.color+'">'+( levelTotal>0?(item.count/levelTotal*100).toFixed(1):"0")+'% of level</div>';
@@ -932,3 +938,5 @@ function pifRenderDecompBC(){
     bc.appendChild(rst);
   }
 }
+
+
