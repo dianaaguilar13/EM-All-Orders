@@ -446,52 +446,34 @@ document.getElementById("pif-loading").style.display="none";
 
 // ── CSV Download ──────────────────────────────────────────
 function pifDownloadCsv(sku){
-  if(!PIF_ROWS)return;
-  var r=pifRange(),pcat=pifPcat();
-  var filtered=PIF_ROWS.filter(function(row){
-    if(row[2]!==sku)return false;
-    if(row[13]<r.df||row[13]>r.dt)return false;
-    if(pcat&&row[4]!==pcat)return false;
-    if(pifSelP.size>0&&!pifSelP.has(row[5]))return false;
+  if(!PIF_ROWS||!PIF_ROWS.rows[sku])return;
+  var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+  var clsLabels=["PIF","PP","PIF_LATE"];
+  var filtered=(PIF_ROWS.rows[sku]||[]).filter(function(r2){
+    if(r2[4]<r.df||r2[4]>r.dt)return false;
+    if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
+    if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return false;
+    if(div&&PIF_ROWS.divs[r2[10]]!==div)return false;
+    if(act==="Active"&&r2[12]!==0)return false;
+    if(act==="Inactive"&&r2[12]!==1)return false;
     return true;
   });
-  var headers=["Order ID","Contact ID","SKU","SKU Category","Partner Category","Referral Partner","Purchase Date","PIF/PP","Days to PIF","Inv Total","Payment","Enrollment Mentor","Division"];
-  var csv=[headers.join(",")].concat(filtered.map(function(row){
-    return row.slice(0,13).map(function(v){
-      var s=String(v==null?"":v);
-      return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
-    }).join(",");
-  })).join("\n");
+  function esc(v){var s=String(v==null?"":v);return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;}
+  var headers=["Order ID","SKU","SKU Category","Partner Category","Referral Partner","Purchase Date","PIF/PP","Days to PIF","Enrollment Mentor","Division","Active Status"];
+  var lines=[headers.join(",")];
+  filtered.forEach(function(r2){
+    lines.push([esc(r2[1]),esc(sku),esc(PIF_ROWS.cats[r2[2]]||""),esc(PIF_ROWS.pcats[r2[7]]||""),
+      esc(PIF_ROWS.parts[r2[8]]||""),esc(r2[3]),esc(clsLabels[r2[5]]||""),
+      esc(r2[6]>=0?r2[6]:""),esc(PIF_ROWS.ems[r2[9]]||""),esc(PIF_ROWS.divs[r2[10]]||""),
+      esc(r2[12]===0?"Active":"Inactive")].join(","));
+  });
+  pifDownloadCsv2(lines.join("\n"),"pif_"+sku.replace(/[^a-zA-Z0-9]/g,"_")+"_"+r.df+"_"+r.dt+".csv");
+}
+function pifDownloadCsv2(csv,filename){
   var blob=new Blob([csv],{type:"text/csv"});
-  var a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="PIF_"+sku+"_"+r.df+"_"+r.dt+".csv";
-  a.click();
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
 
-function pifDownloadAllCsv(){
-  if(!PIF_ROWS)return;
-  var r=pifRange(),pcat=pifPcat();
-  var filtered=PIF_ROWS.filter(function(row){
-    if(row[13]<r.df||row[13]>r.dt)return false;
-    if(pifSelSku.size>0&&!pifSelSku.has(row[2]))return false;
-    if(pcat&&row[4]!==pcat)return false;
-    if(pifSelP.size>0&&!pifSelP.has(row[5]))return false;
-    return true;
-  });
-  var headers=["Order ID","Contact ID","SKU","SKU Category","Partner Category","Referral Partner","Purchase Date","PIF/PP","Days to PIF","Inv Total","Payment","Enrollment Mentor","Division"];
-  var csv=[headers.join(",")].concat(filtered.map(function(row){
-    return row.slice(0,13).map(function(v){
-      var s=String(v==null?"":v);
-      return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
-    }).join(",");
-  })).join("\n");
-  var blob=new Blob([csv],{type:"text/csv"});
-  var a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="PIF_all_"+r.df+"_"+r.dt+".csv";
-  a.click();
-}
 
 function pifToggleSkuDetail(sku){
   var safeId=sku.replace(/[^a-zA-Z0-9]/g,"_");
@@ -507,7 +489,7 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778007584").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -611,9 +593,40 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
 
 
 
+
+function pifDownloadAllCsv(){
+  if(!PIF_ROWS)return;
+  var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+  var clsLabels=["PIF","PP","PIF_LATE"];
+  var filtered=[];
+  Object.keys(PIF_ROWS.rows).forEach(function(sku){
+    if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
+    (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
+      if(r2[4]<r.df||r2[4]>r.dt)return;
+      if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return;
+      if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return;
+      if(div&&PIF_ROWS.divs[r2[10]]!==div)return;
+      if(act==="Active"&&r2[12]!==0)return;
+      if(act==="Inactive"&&r2[12]!==1)return;
+      filtered.push([sku,r2]);
+    });
+  });
+  function esc(v){var s=String(v==null?"":v);return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;}
+  var headers=["Order ID","SKU","SKU Category","Partner Category","Referral Partner","Purchase Date","PIF/PP","Days to PIF","Enrollment Mentor","Division","Active Status"];
+  var lines=[headers.join(",")];
+  filtered.forEach(function(pair){
+    var sku=pair[0],r2=pair[1];
+    lines.push([esc(r2[1]),esc(sku),esc(PIF_ROWS.cats[r2[2]]||""),esc(PIF_ROWS.pcats[r2[7]]||""),
+      esc(PIF_ROWS.parts[r2[8]]||""),esc(r2[3]),esc(clsLabels[r2[5]]||""),
+      esc(r2[6]>=0?r2[6]:""),esc(PIF_ROWS.ems[r2[9]]||""),esc(PIF_ROWS.divs[r2[10]]||""),
+      esc(r2[12]===0?"Active":"Inactive")].join(","));
+  });
+  pifDownloadCsv2(lines.join("\n"),"PIF_all_"+r.df+"_"+r.dt+".csv");
+}
+
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778007584").then(function(r){return r.json();}).then(function(data){
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
