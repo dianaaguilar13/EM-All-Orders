@@ -39,10 +39,11 @@ function pifGetTotals(){
   // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
   var skuArr=pifGetSkuData();
   if(skuArr.length>0){
-    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
     skuArr.forEach(function(s){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
+      tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
     });
     return tot;
   }
@@ -79,7 +80,7 @@ function pifGetMonthly(){
   function buildFromSrc(srcMap){
     // srcMap = {month: bucket}
     var byM={};
-    Object.keys(srcMap).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+    Object.keys(srcMap).filter(function(m){return m>=r.df.slice(0,7)&&m<=r.dt.slice(0,7);}).forEach(function(m){
       byM[m]=srcMap[m];
     });
     return Object.keys(byM).sort().map(function(m){return{m:m,b:applyAct(byM[m])};}).filter(function(x){return x.b[0]>0;});
@@ -88,7 +89,7 @@ function pifGetMonthly(){
   function mergeSources(sources){
     var byM={};
     sources.forEach(function(src){
-      Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      Object.keys(src).filter(function(m){return m>=r.df.slice(0,7)&&m<=r.dt.slice(0,7);}).forEach(function(m){
         if(!byM[m])byM[m]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
         var v=src[m];for(var i=0;i<15;i++)byM[m][i]+=(v[i]||0);
       });
@@ -149,10 +150,11 @@ function pifGetTotals(){
   // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
   var skuArr=pifGetSkuData();
   if(skuArr.length>0){
-    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0];
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
     skuArr.forEach(function(s){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
+      tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
     });
     return tot;
   }
@@ -173,7 +175,7 @@ function pifGetSkuData(){
   var skuTotals={};
 
   function addSkuMonths(sku, src){
-    Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+    Object.keys(src).filter(function(m){return m>=r.df.slice(0,7)&&m<=r.dt.slice(0,7);}).forEach(function(m){
       if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
       var v=src[m];for(var i=0;i<15;i++)skuTotals[sku][i]+=(v[i]||0);
     });
@@ -196,7 +198,7 @@ function pifGetSkuData(){
     var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMN);
     skus.forEach(function(sku){
       var sm=PIF.SMN[sku]||{};
-      Object.keys(sm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      Object.keys(sm).filter(function(m){return m>=r.df.slice(0,7)&&m<=r.dt.slice(0,7);}).forEach(function(m){
         if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
         var v=sm[m];for(var i=0;i<7;i++)skuTotals[sku][i]+=(v[i]||0);
         var gv=PIF.M[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0];
@@ -228,8 +230,11 @@ function pifGetSkuData(){
       }
       var ratio=v[0]>0?total/v[0]:0;
       pifInv=(v[4]||0)*ratio; ppInv=(v[5]||0)*ratio; lateInv=(v[6]||0)*ratio;
+      var ratio2=v[0]>0?total/v[0]:0;
+      var ee2=Math.round((v[13]||0)*ratio2);
+      var cncl2=Math.round((v[14]||0)*ratio2);
       return{sku:s,total:total,pif:pif,pp:pp,late:late,
-        pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,
+        pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,ee:ee2,cncl:cncl2,
         pifRate:total>0?(pif/total*100):0,pifRateAll:total>0?((pif+late)/total*100):0};
     }).filter(function(e){return e.total>0;}).sort(function(a,b){return b.total-a.total;});
 }
@@ -308,7 +313,7 @@ function pifRender(){
         var mdivSrc=(PIF.MDIV[d]&&PIF.MDIV[d])||{};
         var smnpcSrc=((PIF.SMNPC&&PIF.SMNPC[sku])||{})[pcat_div]||{};
         // Get months in range for this combo
-        Object.keys(smnpcSrc).filter(function(m){return m>=r_div.df&&m<=r_div.dt;}).forEach(function(m){
+        Object.keys(smnpcSrc).filter(function(m){return m>=r_div.df.slice(0,7)&&m<=r_div.dt.slice(0,7);}).forEach(function(m){
           var v=smnpcSrc[m];
           var dv=mdivSrc[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0];
           var ratio=dv[0]>0?(dv[0]/((PIF.M[m]||[1])[0]||1)):0;
@@ -325,7 +330,7 @@ function pifRender(){
     divs.forEach(function(d){
       var src=(PIF.MDIV[d])||{};
       var t=0,p=0,pp=0;
-      Object.keys(src).filter(function(m){return m>=r_div.df&&m<=r_div.dt;}).forEach(function(m){
+      Object.keys(src).filter(function(m){return m>=r_div.df.slice(0,7)&&m<=r_div.dt.slice(0,7);}).forEach(function(m){
         var v=src[m]||[0,0,0,0];t+=(v[0]||0);p+=(v[1]||0)+(v[3]||0);pp+=(v[2]||0);
       });
       if(t>0)divTotals[d]={total:t,pif:p,pp:pp};
@@ -335,7 +340,7 @@ function pifRender(){
       var pcm=PIF.PCM&&PIF.PCM[pcat_div]||{};
       var pcTotal={};
       var gTotal={};
-      Object.keys(pcm).filter(function(m){return m>=r_div.df&&m<=r_div.dt;}).forEach(function(m){
+      Object.keys(pcm).filter(function(m){return m>=r_div.df.slice(0,7)&&m<=r_div.dt.slice(0,7);}).forEach(function(m){
         pcTotal[m]=(pcm[m]||[0])[0]||0;
         gTotal[m]=(PIF.M[m]||[1])[0]||1;
       });
@@ -450,7 +455,7 @@ function pifDownloadCsv(sku){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
   var clsLabels=["PIF","PP","PIF_LATE"];
   var filtered=(PIF_ROWS.rows[sku]||[]).filter(function(r2){
-    if(r2[4]<r.df||r2[4]>r.dt)return false;
+    if(r2[3]<r.df||r2[3]>r.dt)return false;
     if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
     if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return false;
     if(div&&PIF_ROWS.divs[r2[10]]!==div)return false;
@@ -489,7 +494,7 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778024001").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778033189").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -502,7 +507,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   var r=pifRange(),pcat=pifPcat();
   var div=pifDiv(),act=pifActFilter();
   var allRows=(PIF_ROWS.rows[sku]||[]).filter(function(r2){
-    if(r2[4]<r.df||r2[4]>r.dt)return false;
+    if(r2[3]<r.df||r2[3]>r.dt)return false;
     if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return false;
     if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return false;
     if(div&&PIF_ROWS.divs[r2[10]]!==div)return false;
@@ -602,7 +607,7 @@ function pifDownloadAllCsv(){
   Object.keys(PIF_ROWS.rows).forEach(function(sku){
     if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
     (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
-      if(r2[4]<r.df||r2[4]>r.dt)return;
+      if(r2[3]<r.df||r2[3]>r.dt)return;
       if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return;
       if(pifSelP.size>0&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return;
       if(div&&PIF_ROWS.divs[r2[10]]!==div)return;
@@ -626,7 +631,7 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778024001").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778033189").then(function(r){return r.json();}).then(function(data){
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
@@ -676,7 +681,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778024001").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778033189").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
@@ -700,6 +705,3 @@ function pifCountFiltered(node,depth,df,dt){
 }
 
 // Get items for a given dimension, filtered by current path selections
-
-
-
