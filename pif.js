@@ -36,7 +36,35 @@ function pifReset(){document.getElementById("pif-df").value="2026-04-01";documen
 
 // Get totals applying all filters
 function pifGetTotals(){
-  // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
+  // Use PIF_ROWS for exact date filtering (same source as SKU table)
+  if(PIF_ROWS&&PIF_ROWS.rows){
+    var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+    var hasP=pifSelP.size>0;
+    var clsN=["PIF","PP","PIF_LATE"];
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
+    Object.keys(PIF_ROWS.rows).forEach(function(sku){
+      if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
+      (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
+        if(r2[3]<r.df||r2[3]>r.dt)return;
+        if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return;
+        if(hasP&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return;
+        if(div&&PIF_ROWS.divs[r2[10]]!==div)return;
+        if(act==="Active"&&r2[12]!==0)return;
+        if(act==="Inactive"&&r2[12]!==1)return;
+        tot[0]++;
+        var cls=clsN[r2[5]];
+        if(cls==="PIF")tot[1]++;
+        else if(cls==="PP")tot[2]++;
+        else if(cls==="PIF_LATE")tot[3]++;
+        var cn=PIF_ROWS.cncls[r2[11]]||"";
+        if(cn==="Entry Error")tot[13]++;
+        else if(cn==="Cancelled")tot[14]++;
+        if(r2[12]===0)tot[7]++; else tot[8]++;
+      });
+    });
+    return tot;
+  }
+  // Fallback: sum from pifGetSkuData (monthly aggregates)
   var skuArr=pifGetSkuData();
   if(skuArr.length>0){
     var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
@@ -44,11 +72,9 @@ function pifGetTotals(){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
       tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
-      tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
     });
     return tot;
   }
-  // Fallback: sum monthly data
   var ts=pifGetMonthly();
   var tot=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
   ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<15;i++)tot[i]+=(v[i]||0);});
@@ -148,7 +174,35 @@ function pifGetMonthly(){
 
 
 function pifGetTotals(){
-  // Derive totals by summing pifGetSkuData (ensures KPIs match SKU table)
+  // Use PIF_ROWS for exact date filtering (same source as SKU table)
+  if(PIF_ROWS&&PIF_ROWS.rows){
+    var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+    var hasP=pifSelP.size>0;
+    var clsN=["PIF","PP","PIF_LATE"];
+    var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
+    Object.keys(PIF_ROWS.rows).forEach(function(sku){
+      if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
+      (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
+        if(r2[3]<r.df||r2[3]>r.dt)return;
+        if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return;
+        if(hasP&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return;
+        if(div&&PIF_ROWS.divs[r2[10]]!==div)return;
+        if(act==="Active"&&r2[12]!==0)return;
+        if(act==="Inactive"&&r2[12]!==1)return;
+        tot[0]++;
+        var cls=clsN[r2[5]];
+        if(cls==="PIF")tot[1]++;
+        else if(cls==="PP")tot[2]++;
+        else if(cls==="PIF_LATE")tot[3]++;
+        var cn=PIF_ROWS.cncls[r2[11]]||"";
+        if(cn==="Entry Error")tot[13]++;
+        else if(cn==="Cancelled")tot[14]++;
+        if(r2[12]===0)tot[7]++; else tot[8]++;
+      });
+    });
+    return tot;
+  }
+  // Fallback: sum from pifGetSkuData (monthly aggregates)
   var skuArr=pifGetSkuData();
   if(skuArr.length>0){
     var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
@@ -156,11 +210,9 @@ function pifGetTotals(){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
       tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
-      tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
     });
     return tot;
   }
-  // Fallback: sum monthly data
   var ts=pifGetMonthly();
   var tot=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
   ts.forEach(function(x){var v=x.b;if(v)for(var i=0;i<15;i++)tot[i]+=(v[i]||0);});
@@ -526,7 +578,7 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778034937").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778043694").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -663,7 +715,7 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778034937").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778043694").then(function(r){return r.json();}).then(function(data){
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
@@ -713,7 +765,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778034937").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778043694").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
