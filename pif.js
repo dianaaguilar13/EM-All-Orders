@@ -522,7 +522,7 @@ function pifRender(){
       "<span class='num' style='min-width:42px;font-size:11px;color:"+cl+"'>"+s.pifRate.toFixed(1)+"%</span></div></td>"+
       "<td class='num' style='color:#64748b'>$"+Math.round(s.pifInv+s.lateInv).toLocaleString()+"</td>"+
       "<td class='num' style='color:#64748b'>$"+Math.round(s.ppInv).toLocaleString()+"</td></tr>"+
-      "<tr id='pif-detail-"+safeId+"' style='display:none'><td colspan='9' style='padding:0'></td></tr>";
+      "<tr id='pif-detail-"+safeId+"' style='display:none'><td colspan='11' style='padding:0'></td></tr>";
   });
   document.getElementById("pif-skuTbody").innerHTML=tRows;
   document.getElementById("pif-tblInfo").innerHTML=
@@ -578,7 +578,7 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778043694").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778045936").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -629,7 +629,7 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
   var tbl=document.createElement("table");
   tbl.style.cssText="width:100%;border-collapse:collapse;min-width:700px";
 
-  var cols=["Order ID","Contact ID","Purchase Date","PIF / PP","Days to PIF","CNCL Status","Active","Partner Category","Referral Partner","EM","Division"];
+  var cols=["Order ID","Contact ID","Product","Purchase Date","PIF / PP","Days to PIF","CNCL Status","Active","Partner Category","Referral Partner","EM","Division"];
   var thead=document.createElement("thead");
   var hrow=document.createElement("tr");
   hrow.style.background="#f8fafc";
@@ -650,7 +650,8 @@ function pifRenderSkuDetail(sku,safeId,row,icon){
     var cells=[
       {v:r2[1],c:"#2563eb"},
       {v:r2[13]||"",c:"#64748b"},
-      {v:r2[3],c:"#1a2332"},
+      {v:r2[14]||sku,c:"#1a2332"},
+      {v:r2[3],c:"#64748b"},
       {v:clsLabels[r2[5]],c:clsColors[r2[5]],bold:true},
       {v:r2[6]>=0?r2[6]+"d":"-",c:"#64748b"},
       {v:PIF_ROWS.cncls[r2[11]]||"",c:cnclColors[r2[11]||0],bold:true},
@@ -715,7 +716,7 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778043694").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778045936").then(function(r){return r.json();}).then(function(data){
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
@@ -765,7 +766,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778043694").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778045936").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
