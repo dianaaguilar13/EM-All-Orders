@@ -535,7 +535,9 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778047877").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778048303").then(function(r){return r.json();}).then(function(data){
+      // Normalize: support both "rows" and "rows_by_sku" keys
+      if(!data.rows&&data.rows_by_sku){data.rows=data.rows_by_sku;}
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -673,7 +675,8 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778047877").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778048303").then(function(r){return r.json();}).then(function(data){
+    if(!data.rows&&data.rows_by_sku){data.rows=data.rows_by_sku;}
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
@@ -723,7 +726,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778047877").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778048303").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
