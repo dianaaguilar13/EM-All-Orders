@@ -228,6 +228,7 @@ function pifGetSkuData(){
     var hasP=pifSelP.size>0;var clsN=["PIF","PP","PIF_LATE"];
     var skuMap={};
     Object.keys(PIF_ROWS.rows).forEach(function(sku){
+      if(sku==="Unknown")return; // hide records with no SKU from breakdown
       if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
       (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
         if(r2[3]<r.df||r2[3]>r.dt)return;
@@ -578,7 +579,7 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778045936").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778046917").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -716,7 +717,7 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778045936").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778046917").then(function(r){return r.json();}).then(function(data){
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
@@ -766,7 +767,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778045936").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778046917").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
