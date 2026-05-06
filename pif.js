@@ -25,7 +25,7 @@ document.addEventListener("click",function(e){
 });
 
 // ── Filter helpers ─────────────────────────────────────────
-function pifRange(){return{df:document.getElementById("pif-df").value.slice(0,7),dt:document.getElementById("pif-dt").value.slice(0,7)};}
+function pifRange(){return{df:document.getElementById("pif-df").value.slice(0,10),dt:document.getElementById("pif-dt").value.slice(0,10)};}
 function pifPcat(){return document.getElementById("pif-pcat").value;}
 function pifDiv(){return document.getElementById("pif-div").value;}
 function pifActFilter(){return document.getElementById("pif-act").value;}
@@ -44,6 +44,7 @@ function pifGetTotals(){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
       tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
+      tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
     });
     return tot;
   }
@@ -56,7 +57,7 @@ function pifGetTotals(){
 
 function pifGetMonthly(){
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
-  var empty=[0,0,0,0,0,0,0,0,0,0,0,0,0];
+  var empty=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
   var skuArr=Array.from(pifSelSku);
   var hasSku=skuArr.length>0;
   var hasP=pifSelP.size>0;
@@ -155,6 +156,7 @@ function pifGetTotals(){
       tot[0]+=s.total; tot[1]+=s.pif; tot[2]+=s.pp; tot[3]+=s.late;
       tot[4]+=s.pifInv; tot[5]+=s.ppInv; tot[6]+=s.lateInv;
       tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
+      tot[13]+=(s.ee||0); tot[14]+=(s.cncl||0);
     });
     return tot;
   }
@@ -168,6 +170,37 @@ function pifGetTotals(){
 
 
 function pifGetSkuData(){
+  // Use PIF_ROWS for exact date filtering if loaded
+  if(PIF_ROWS&&PIF_ROWS.rows){
+    var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
+    var hasP=pifSelP.size>0;var clsN=["PIF","PP","PIF_LATE"];
+    var skuMap={};
+    Object.keys(PIF_ROWS.rows).forEach(function(sku){
+      if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
+      (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
+        if(r2[3]<r.df||r2[3]>r.dt)return;
+        if(pcat&&PIF_ROWS.pcats[r2[7]]!==pcat)return;
+        if(hasP&&!pifSelP.has(PIF_ROWS.parts[r2[8]]))return;
+        if(div&&PIF_ROWS.divs[r2[10]]!==div)return;
+        if(act==="Active"&&r2[12]!==0)return;
+        if(act==="Inactive"&&r2[12]!==1)return;
+        if(!skuMap[sku])skuMap[sku]={total:0,pif:0,pp:0,late:0,ee:0,cncl:0};
+        var s=skuMap[sku];s.total++;
+        var cls=clsN[r2[5]];
+        if(cls==="PIF")s.pif++;else if(cls==="PP")s.pp++;else if(cls==="PIF_LATE")s.late++;
+        var cn=PIF_ROWS.cncls[r2[11]]||"";
+        if(cn==="Entry Error")s.ee++;else if(cn==="Cancelled")s.cncl++;
+      });
+    });
+    return Object.entries(skuMap)
+      .map(function(e){
+        var sk=e[0],v=e[1];var tot2=v.total;
+        return{sku:sk,total:tot2,pif:v.pif,pp:v.pp,late:v.late,
+          pifInv:0,ppInv:0,lateInv:0,ee:v.ee,cncl:v.cncl,
+          pifRate:tot2>0?(v.pif/tot2*100):0,pifRateAll:tot2>0?((v.pif+v.late)/tot2*100):0};
+      }).filter(function(x){return x.total>0;}).sort(function(a,b){return b.total-a.total;});
+  }
+
   var r=pifRange(),pcat=pifPcat(),div=pifDiv(),act=pifActFilter();
   var hasP=pifSelP.size>0,partArr=Array.from(pifSelP);
 
@@ -201,7 +234,7 @@ function pifGetSkuData(){
       Object.keys(sm).filter(function(m){return m>=r.df.slice(0,7)&&m<=r.dt.slice(0,7);}).forEach(function(m){
         if(!skuTotals[sku])skuTotals[sku]=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
         var v=sm[m];for(var i=0;i<7;i++)skuTotals[sku][i]+=(v[i]||0);
-        var gv=PIF.M[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0];
+        var gv=PIF.M[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
         var ar=gv[0]>0?(gv[7]||0)/gv[0]:0.9;
         skuTotals[sku][7]+=Math.round((v[0]||0)*ar);
         skuTotals[sku][8]+=Math.round((v[0]||0)*(1-ar));
@@ -233,9 +266,8 @@ function pifGetSkuData(){
       var ratio2=v[0]>0?total/v[0]:0;
       var ee2=Math.round((v[13]||0)*ratio2);
       var cncl2=Math.round((v[14]||0)*ratio2);
-      return{sku:s,total:total,pif:pif,pp:pp,late:late,
-        pifInv:pifInv,ppInv:ppInv,lateInv:lateInv,ee:ee2,cncl:cncl2,
-        pifRate:total>0?(pif/total*100):0,pifRateAll:total>0?((pif+late)/total*100):0};
+      var ratio2=v[0]>0?total/v[0]:0;var ee2=Math.round((v[13]||0)*ratio2);var cncl2=Math.round((v[14]||0)*ratio2);
+      return{sku:s,total:total,pif:pif,pp:pp,late:late,pifInv:(v[4]||0)*ratio2,ppInv:(v[5]||0)*ratio2,lateInv:(v[6]||0)*ratio2,ee:ee2,cncl:cncl2,pifRate:total>0?(pif/total*100):0,pifRateAll:total>0?((pif+late)/total*100):0};
     }).filter(function(e){return e.total>0;}).sort(function(a,b){return b.total-a.total;});
 }
 
@@ -315,7 +347,7 @@ function pifRender(){
         // Get months in range for this combo
         Object.keys(smnpcSrc).filter(function(m){return m>=r_div.df.slice(0,7)&&m<=r_div.dt.slice(0,7);}).forEach(function(m){
           var v=smnpcSrc[m];
-          var dv=mdivSrc[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0];
+          var dv=mdivSrc[m]||[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
           var ratio=dv[0]>0?(dv[0]/((PIF.M[m]||[1])[0]||1)):0;
           if(!divTotals[d])divTotals[d]={total:0,pif:0,pp:0};
           var approx=Math.round((v[0]||0)*ratio);
@@ -494,7 +526,7 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778033189").then(function(r){return r.json();}).then(function(data){
+    fetch("pif_rows.json?v=1778034937").then(function(r){return r.json();}).then(function(data){
       PIF_ROWS=data;
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
@@ -631,7 +663,7 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778033189").then(function(r){return r.json();}).then(function(data){
+  fetch("pif_rows.json?v=1778034937").then(function(r){return r.json();}).then(function(data){
     PIF_ROWS=data;
     pifDownloadAllCsv();
   });
@@ -681,7 +713,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778033189").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778034937").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
