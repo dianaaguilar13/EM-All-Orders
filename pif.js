@@ -521,6 +521,48 @@ function pifDownloadCsv2(csv,filename){
 }
 
 
+
+// Normalize pif_rows.json to consistent format regardless of which version generated it
+function pifNormalizeRows(data){
+  // Handle both key formats: rows_by_sku (old) and rows (new)
+  var rows = data.rows || data.rows_by_sku || {};
+  // Handle both lookup formats: idx.pcats (old) and pcats (new)
+  var idx = data.idx || {};
+  var pcats  = data.pcats  || idx.pcats    || [];
+  var parts  = data.parts  || idx.partners || [];
+  var ems    = data.ems    || idx.ems      || [];
+  var cats   = data.cats   || idx.skus     || [];
+  var divs   = data.divs   || idx.divs     || [];
+  var cncls  = data.cncls  || [];
+
+  // Detect row format by checking if r[2] is a string (old: contactid at [2])
+  // vs number (new: cat_idx at [2])
+  var needsRemap = false;
+  var sample = null;
+  Object.keys(rows).some(function(sku){
+    if(rows[sku]&&rows[sku].length){sample=rows[sku][0];return true;}
+  });
+  // Old format: [uid, id, contactid(str), cat_idx, date, month, cls, days, pcat, part, em, div, cncl, act]
+  // New format: [uid, id, cat_idx(num),   date,    month,cls,   days,pcat,  part, em,  div, cncl,act, contactid, product]
+  if(sample && typeof sample[2]==="string" && typeof sample[3]==="number"){
+    needsRemap = true;
+  }
+
+  if(needsRemap){
+    var remapped = {};
+    Object.keys(rows).forEach(function(sku){
+      remapped[sku] = rows[sku].map(function(r){
+        // old: [uid,id,contactid,cat_idx,date,month,cls,days,pcat,part,em,div,cncl,act]
+        // new: [uid,id,cat_idx,  date,  month,cls,  days,pcat,part,em, div,cncl,act,contactid,product]
+        return [r[0],r[1],r[3],r[4],r[5],r[6],r[7],r[8],r[9],r[10],r[11],r[12],r[13],r[2],""];
+      });
+    });
+    rows = remapped;
+  }
+
+  return {rows:rows, pcats:pcats, parts:parts, ems:ems, cats:cats, divs:divs, cncls:cncls};
+}
+
 function pifToggleSkuDetail(sku){
   var safeId=sku.replace(/[^a-zA-Z0-9]/g,"_");
   var row=document.getElementById("pif-detail-"+safeId);
@@ -535,10 +577,8 @@ function pifToggleSkuDetail(sku){
   }
   // Load rows if needed, then render
   if(!PIF_ROWS){
-    fetch("pif_rows.json?v=1778048303").then(function(r){return r.json();}).then(function(data){
-      // Normalize: support both "rows" and "rows_by_sku" keys
-      if(!data.rows&&data.rows_by_sku){data.rows=data.rows_by_sku;}
-      PIF_ROWS=data;
+    fetch("pif_rows.json?v=1778048708").then(function(r){return r.json();}).then(function(data){
+      PIF_ROWS=pifNormalizeRows(data);
       pifRenderSkuDetail(sku,safeId,row,icon);
     });
     return;
@@ -675,9 +715,8 @@ function pifDownloadAllCsv(){
 
 function pifLoadAndDownloadAll(){
   if(PIF_ROWS){pifDownloadAllCsv();return;}
-  fetch("pif_rows.json?v=1778048303").then(function(r){return r.json();}).then(function(data){
-    if(!data.rows&&data.rows_by_sku){data.rows=data.rows_by_sku;}
-    PIF_ROWS=data;
+  fetch("pif_rows.json?v=1778048708").then(function(r){return r.json();}).then(function(data){
+    PIF_ROWS=pifNormalizeRows(data);
     pifDownloadAllCsv();
   });
 }
@@ -726,7 +765,7 @@ function pifDownloadSkuCsvRows(sku,rows2){
 
 
 // ── Load ───────────────────────────────────────────────────
-fetch("pif_data.json?v=1778048303").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+fetch("pif_data.json?v=1778048708").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){PIF=data;pifRenderSkuItems();pifRenderMsItems();pifRender();})
   .catch(function(err){document.getElementById("pif-loading").innerHTML='<div style="color:#ef4444">Failed to load pif_data.json: '+err.message+"</div>";});// ── Decomp Tree ────────────────────────────────────────────
 var PIF_DECOMP_PATH = []; // [{dim, label, value}]
