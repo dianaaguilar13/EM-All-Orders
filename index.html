@@ -127,7 +127,7 @@ tr:hover td{background:#f8fafc}
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
-<script src="dashboard.js?v=1778637014"></script>
+<script src="dashboard.js?v=1778712227"></script>
 
 <!-- LDP Tab Content -->
 <div id="ldp-panel" style="display:none">
@@ -354,7 +354,7 @@ tr:hover td{background:#f8fafc}
   </div>
 </div>
 
-<script src="ldp.js?v=1778637014"></script>
+<script src="ldp.js?v=1778712227"></script>
 <script>
 function showLdpTab(){
   hideAllPanels();
@@ -499,8 +499,8 @@ function hideAllPanels(){
     </div>
   </div>
 </div>
-<script src="pif.js?v=1778637014"></script>
-<script src="cr.js?v=1778637014"></script>
+<script src="pif.js?v=1778712227"></script>
+<script src="cr.js?v=1778712227"></script>
 
 <div id="ar-panel" style="display:none">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid #dde3ea;background:#fff">
@@ -549,12 +549,15 @@ function hideAllPanels(){
 </div>
 <script>
 function showArTab(){
-  ["cancel-panel","ldp-panel","pif-panel","cr-panel"].forEach(function(id){
+  var mc=document.getElementById("mainContent");if(mc)mc.style.display="none";
+  var fi=document.querySelector(".filters");if(fi)fi.style.display="none";
+  ["ldp-panel","pif-panel","cr-panel"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
   document.getElementById("ar-panel").style.display="block";
+  var cb=document.getElementById("cancel-tab-btn");if(cb)cb.style.display="inline";
 }
 </script>
-<script src="ar.js?v=1778637014"></script>
+<script src="ar.js?v=1778712227"></script>
 </body>
 </html>
