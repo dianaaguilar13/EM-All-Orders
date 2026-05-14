@@ -1,21 +1,40 @@
 var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7;
-var selP=new Set(),charts={};
+var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<8;j++)o[j]+=(a[j]||0);}return o;}
 
 // ── Multi-select ──────────────────────────────────────────
 function toggleMs(e){e.stopPropagation();var dr=document.getElementById("msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msQ").focus();renderMsItems();}}
 document.addEventListener("click",function(e){if(!document.getElementById("msWrap").contains(e.target))document.getElementById("msDrop").classList.remove("open");});
+document.addEventListener("click",function(e){if(!document.getElementById("msSkuWrap").contains(e.target))document.getElementById("msSkuDrop").classList.remove("open");});
+document.addEventListener("click",function(e){if(!document.getElementById("msPcatWrap").contains(e.target))document.getElementById("msPcatDrop").classList.remove("open");});
 function renderMsItems(){if(!D)return;var q=document.getElementById("msQ").value.toLowerCase();var vis=D.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var p=vis[i];var ck=selP.has(p)?"checked":"";var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+e+'" onclick="togP(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";}document.getElementById("msItems").innerHTML=h;}
 function togP(el){var p=el.getAttribute("data-p");if(selP.has(p))selP.delete(p);else selP.add(p);updateMsBtn();renderMsItems();}
 function msAll(){var q=document.getElementById("msQ").value.toLowerCase();D.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;}).forEach(function(p){selP.add(p);});updateMsBtn();renderMsItems();}
 function msClear(){selP.clear();updateMsBtn();renderMsItems();}
 function updateMsBtn(){var btn=document.getElementById("msBtn");var cnt=document.getElementById("msCnt");if(selP.size===0){btn.textContent="All Partners";cnt.style.display="none";}else{btn.textContent=selP.size===1?Array.from(selP)[0].slice(0,22):selP.size+" partners selected";cnt.textContent=selP.size;cnt.style.display="inline";}}
 
+// ── SKU Multi-select ──────────────────────────────────────────
+function toggleMsSku(e){e.stopPropagation();var dr=document.getElementById("msSkuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msSkuQ").focus();renderMsSkuItems();}}
+function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ").value.toLowerCase();var vis=D.FL.skus.filter(function(s){return s.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var s=vis[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";}document.getElementById("msSkuItems").innerHTML=h;}
+function togSku(el){var s=el.getAttribute("data-p");if(selSku.has(s))selSku.delete(s);else selSku.add(s);updateMsSkuBtn();renderMsSkuItems();}
+function skuAll(){var q=document.getElementById("msSkuQ").value.toLowerCase();D.FL.skus.filter(function(s){return s.toLowerCase().indexOf(q)>=0;}).forEach(function(s){selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
+function skuClear(){selSku.clear();updateMsSkuBtn();renderMsSkuItems();}
+function updateMsSkuBtn(){var btn=document.getElementById("msSkuBtn");var cnt=document.getElementById("msSkuCnt");if(selSku.size===0){btn.textContent="All SKUs";cnt.style.display="none";}else{btn.textContent=selSku.size===1?Array.from(selSku)[0].slice(0,22):selSku.size+" SKUs selected";cnt.textContent=selSku.size;cnt.style.display="inline";}}
+
+// ── PCat Multi-select ──────────────────────────────────────────
+var PCAT_OPTS=["Enrollment Mentor","Event","Marketing","Affiliate"];
+function toggleMsPcat(e){e.stopPropagation();var dr=document.getElementById("msPcatDrop");dr.classList.toggle("open");if(dr.classList.contains("open"))renderMsPcatItems();}
+function renderMsPcatItems(){var h="";for(var i=0;i<PCAT_OPTS.length;i++){var p=PCAT_OPTS[i];var ck=selPcat.has(p)?"checked":"";h+='<div class="ms-item" data-p="'+p+'" onclick="togPcat(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+p+"</span></div>";}document.getElementById("msPcatItems").innerHTML=h;}
+function togPcat(el){var p=el.getAttribute("data-p");if(selPcat.has(p))selPcat.delete(p);else selPcat.add(p);updateMsPcatBtn();renderMsPcatItems();}
+function pcatAll(){PCAT_OPTS.forEach(function(p){selPcat.add(p);});updateMsPcatBtn();renderMsPcatItems();}
+function pcatClear(){selPcat.clear();updateMsPcatBtn();renderMsPcatItems();}
+function updateMsPcatBtn(){var btn=document.getElementById("msPcatBtn");var cnt=document.getElementById("msPcatCnt");if(selPcat.size===0){btn.textContent="All Categories";cnt.style.display="none";}else{btn.textContent=selPcat.size===1?Array.from(selPcat)[0]:selPcat.size+" categories";cnt.textContent=selPcat.size;cnt.style.display="inline";}}
+
 // ── Filters ───────────────────────────────────────────────
 function getRange(){return{df:document.getElementById("df").value.slice(0,7),dt:document.getElementById("dt").value.slice(0,7)};}
-function getPcat(){return document.getElementById("fPcat").value;}
-function getSku(){return document.getElementById("fSku").value;}
+function getPcat(){return selPcat.size>0?Array.from(selPcat)[0]:"";}
+function getSku(){return selSku.size>0?Array.from(selSku)[0]:"";}
 function fmtM(m){var p=m.split("-");return new Date(parseInt(p[0]),parseInt(p[1])-1).toLocaleString("default",{month:"short",year:"2-digit"});}
 
 function myToKey(my){
@@ -246,8 +265,10 @@ function renderDecompBC(){
 
 
 function getTimeSeries(){
-  var r=getRange(),pcat=getPcat(),sku=getSku(),byM={};
+  var r=getRange(),byM={};
   var e8=function(){return[0,0,0,0,0,0,0,0];};
+  var skus=selSku.size>0?Array.from(selSku):null;
+  var pcats=selPcat.size>0?Array.from(selPcat):null;
 
   function addToByM(src,skuKey){
     Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
@@ -257,35 +278,32 @@ function getTimeSeries(){
     });
   }
 
-  if(selP.size>0&&sku){
-    selP.forEach(function(p){addToByM((D.PMSKU&&D.PMSKU[p])||{},sku);});
-  } else if(pcat&&sku){
-    addToByM((D.PCMSKU&&D.PCMSKU[pcat])||{},sku);
-  } else if(sku){
-    addToByM(D.GMSKU||{},sku);
-  } else if(selP.size>0){
+  if(selP.size>0){
     selP.forEach(function(p){
-      var pm=(D.PM&&D.PM[p])||{};
-      Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        if(!byM[m])byM[m]=e8();var v=pm[m];for(var i=0;i<8;i++)byM[m][i]+=(v[i]||0);
-      });
+      if(skus){skus.forEach(function(s){addToByM((D.PMSKU&&D.PMSKU[p])||{},s);});}
+      else{addToByM((D.PM&&D.PM[p])||{},null);}
     });
-  } else if(pcat){
-    var pm=D.PCM[pcat]||{};
-    Object.keys(pm).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){byM[m]=pm[m];});
+  } else if(pcats){
+    pcats.forEach(function(pcat){
+      if(skus){skus.forEach(function(s){addToByM((D.PCMSKU&&D.PCMSKU[pcat])||{},s);});}
+      else{addToByM((D.PCM&&D.PCM[pcat])||{},null);}
+    });
+  } else if(skus){
+    skus.forEach(function(s){addToByM(D.GMSKU||{},s);});
   } else {
     Object.keys(D.M).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){byM[m]=D.M[m];});
   }
   return Object.keys(byM).sort().map(function(m){return{m:m,b:byM[m]};});
 }
 function getSkuBuckets(){
-  var r=getRange(),pcat=getPcat(),sku=getSku();
-  var src={};
+  var r=getRange(),src={};
+  var skus=selSku.size>0?Array.from(selSku):null;
+  var pcats=selPcat.size>0?Array.from(selPcat):null;
 
   function addSrc(monthSkuMap){
     Object.keys(monthSkuMap).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
       var skuMap=monthSkuMap[m];
-      var keys=sku?[sku]:Object.keys(skuMap);
+      var keys=skus?skus:Object.keys(skuMap);
       keys.forEach(function(s){
         var v=skuMap[s];if(!v)return;
         if(!src[s])src[s]=[0,0,0,0,0,0,0,0];
@@ -296,38 +314,39 @@ function getSkuBuckets(){
 
   if(selP.size>0){
     selP.forEach(function(p){addSrc((D.PMSKU&&D.PMSKU[p])||{});});
-  } else if(pcat){
-    addSrc((D.PCMSKU&&D.PCMSKU[pcat])||{});
+  } else if(pcats){
+    pcats.forEach(function(pcat){addSrc((D.PCMSKU&&D.PCMSKU[pcat])||{});});
   } else {
     addSrc(D.GMSKU||{});
   }
   return src;
 }
 function getRdCounts(){
-  var r=getRange(),pcat=getPcat(),sku=getSku(),m={};
+  var r=getRange(),m={};
+  var skus=selSku.size>0?Array.from(selSku):null;
+  var pcats=selPcat.size>0?Array.from(selPcat):null;
   function addRd(pm_obj){
     Object.keys(pm_obj).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){
       Object.keys(pm_obj[mo]).forEach(function(k){m[k]=(m[k]||0)+pm_obj[mo][k];});
     });
   }
   if(selP.size>0){selP.forEach(function(p){addRd((D.PMRD&&D.PMRD[p])||{});});}
-  else if(pcat){addRd(D.PCMRD&&D.PCMRD[pcat]||{});}
+  else if(pcats){pcats.forEach(function(pcat){addRd((D.PCMRD&&D.PCMRD[pcat])||{});});}
   else{addRd(D.GMRD||{});}
-  // Scale by SKU ratio if SKU filter active
-  if(sku){
+  if(skus){
     var ts=getTimeSeries();
     var skuTotal=ts.reduce(function(s,x){return s+(x.b[0]||0);},0);
-    var allSrc=pcat?(D.PCM[pcat]||{}):D.M;
-    var allTotal=Object.keys(allSrc).filter(function(mo){return mo>=r.df&&mo<=r.dt;})
-      .reduce(function(s,mo){return s+(allSrc[mo][0]||0);},0);
+    var allTotal=0;
+    if(pcats){pcats.forEach(function(pcat){var src=D.PCM[pcat]||{};Object.keys(src).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){allTotal+=(src[mo][0]||0);});});}
+    else{Object.keys(D.M).filter(function(mo){return mo>=r.df&&mo<=r.dt;}).forEach(function(mo){allTotal+=(D.M[mo][0]||0);});}
     var ratio=allTotal>0?skuTotal/allTotal:0;
     Object.keys(m).forEach(function(k){m[k]=Math.round(m[k]*ratio);});
   }
   return m;
 }
 function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy();}catch(e){}});charts={};}
-function applyFilters(){document.getElementById("msDrop").classList.remove("open");render();}
-function resetFilters(){document.getElementById("df").value="2022-01-01";document.getElementById("dt").value="2026-04-20";["fSku","fPcat","fAct","fCncl"].forEach(function(id){document.getElementById(id).value="";});selP.clear();updateMsBtn();render();}
+function applyFilters(){["msDrop","msSkuDrop","msPcatDrop"].forEach(function(id){document.getElementById(id).classList.remove("open");});render();}
+function resetFilters(){document.getElementById("df").value="2022-01-01";document.getElementById("dt").value="2026-04-20";["fAct","fCncl"].forEach(function(id){document.getElementById(id).value="";});selP.clear();updateMsBtn();selSku.clear();updateMsSkuBtn();selPcat.clear();updateMsPcatBtn();render();}
 
 
 function toggleSkuReasons(id){
@@ -540,8 +559,7 @@ function downloadCancelCsv(){
 
 function initDashboard(){
   document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="card full"><div class="ct">Decomposition tree</div><div class="cs">Click any node to drill down. Numbers decrease as you narrow down.</div><div id="decompBreadcrumb" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:10px;min-height:24px"></div><div style="overflow-x:auto;padding-bottom:8px"><div id="decompTree" style="display:flex;align-items:flex-start;gap:0;min-width:max-content;padding:2px"></div></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Refund days</div><div class="cs">Days between order and refund</div><div style="height:200px;position:relative"><canvas id="rdChart"></canvas></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Total</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Net Orders</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div></div>';
-  var sk=document.getElementById("fSku");D.FL.skus.forEach(function(s){var o=document.createElement("option");o.value=o.textContent=s;sk.appendChild(o);});
-  renderMsItems();render();
+  renderMsItems();renderMsSkuItems();render();
 }
 
 fetch("data.json?v=1777494541").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});

@@ -96,16 +96,36 @@ tr:hover td{background:#f8fafc}
   <div class="fg"><span class="fl">Date From</span><input type="date" id="df" value="2022-01-01"></div>
   <div class="fg"><span class="fl">Date To</span><input type="date" id="dt" value="2026-04-20"></div>
   <div class="sep"></div>
-  <div class="fg"><span class="fl">SKU</span><select id="fSku"><option value="">All SKUs</option></select></div>
   <div class="fg">
-    <span class="fl">Partner Category</span>
-    <select id="fPcat">
-      <option value="">All Categories</option>
-      <option>Enrollment Mentor</option>
-      <option>Event</option>
-      <option>Marketing</option>
-      <option>Affiliate</option>
-    </select>
+    <span class="fl">SKU <span id="msSkuCnt" class="ms-cnt" style="display:none"></span></span>
+    <div class="ms-wrap" id="msSkuWrap">
+      <button class="ms-btn" id="msSkuBtn" onclick="toggleMsSku(event)">All SKUs</button>
+      <div class="ms-drop" id="msSkuDrop">
+        <div class="ms-sticky">
+          <div class="ms-search"><input type="text" id="msSkuQ" placeholder="Search SKUs..." oninput="renderMsSkuItems()"></div>
+          <div class="ms-actions">
+            <button class="ms-act" onclick="skuAll()">Select all</button>
+            <button class="ms-act" onclick="skuClear()">Clear all</button>
+          </div>
+        </div>
+        <div id="msSkuItems"></div>
+      </div>
+    </div>
+  </div>
+  <div class="fg">
+    <span class="fl">Partner Category <span id="msPcatCnt" class="ms-cnt" style="display:none"></span></span>
+    <div class="ms-wrap" id="msPcatWrap">
+      <button class="ms-btn" id="msPcatBtn" onclick="toggleMsPcat(event)">All Categories</button>
+      <div class="ms-drop" id="msPcatDrop">
+        <div class="ms-sticky">
+          <div class="ms-actions">
+            <button class="ms-act" onclick="pcatAll()">Select all</button>
+            <button class="ms-act" onclick="pcatClear()">Clear all</button>
+          </div>
+        </div>
+        <div id="msPcatItems"></div>
+      </div>
+    </div>
   </div>
   <div class="fg">
     <span class="fl">Referral Partner <span id="msCnt" class="ms-cnt" style="display:none"></span></span>
