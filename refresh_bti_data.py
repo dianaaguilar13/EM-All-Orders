@@ -15,6 +15,7 @@ import os
 import json
 import csv
 import re
+import urllib.request
 from datetime import datetime
 from collections import defaultdict
 
@@ -40,8 +41,9 @@ CONFIG = {
     # Optional: fallback payments CSV if Snowflake payments table is unavailable
     # "payments_csv": "Payments_report.csv",  # not needed if Snowflake is connected
 
-    # Path to your Asana Client Resolution CSV (still needs manual export)
-    "asana_csv": "Client_Resolution.csv",
+    # Asana API — Client Resolution project
+    # Token is loaded from secrets.json (see fetch_asana_tasks)
+    "asana_project_id": "1199886669661274",
 
     # Date range for data pull
     "start_date": "2022-01-01",
@@ -625,14 +627,135 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
 
 
 # ─────────────────────────────────────────────
+#  FETCH ASANA TASKS via API
+# ─────────────────────────────────────────────
+
+def fetch_asana_tasks():
+    print("⏳ Fetching Asana tasks from API...")
+    secrets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "secrets.json")
+    if not os.path.exists(secrets_path):
+        print("   ⚠️  secrets.json not found — skipping CRS (see README for setup)")
+        return []
+    with open(secrets_path) as f:
+        secrets = json.load(f)
+    token      = secrets["asana_token"]
+    project_id = CONFIG["asana_project_id"]
+
+    fields = ",".join([
+        "gid", "name", "created_at", "completed_at", "modified_at",
+        "assignee", "assignee.name", "assignee.email",
+        "start_on", "due_on", "tags", "tags.name", "notes",
+        "memberships.section.name",
+        "dependencies", "dependents",
+        "parent", "parent.name",
+        "custom_fields",
+    ])
+    base_url = (
+        f"https://app.asana.com/api/1.0/tasks"
+        f"?project={project_id}&opt_fields={fields}&limit=100"
+    )
+
+    all_tasks = []
+    url = base_url
+    while url:
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read())
+        all_tasks.extend(data["data"])
+        nxt = data.get("next_page")
+        url = (base_url + "&offset=" + nxt["offset"]) if nxt else None
+
+    # Email field has an emoji in its name — match by gid to be safe
+    EMAIL_GID = "1199715132261643"
+
+    rows = []
+    for t in all_tasks:
+        cf = {}
+        email_val = ""
+        for field in t.get("custom_fields", []):
+            name  = field.get("name", "")
+            ftype = field.get("type", "")
+            if field.get("gid") == EMAIL_GID:
+                email_val = field.get("text_value") or ""
+            if ftype == "enum":
+                ev = field.get("enum_value") or {}
+                cf[name] = ev.get("name", "") or ""
+            elif ftype == "number":
+                cf[name] = field.get("number_value") if field.get("number_value") is not None else ""
+            elif ftype == "date":
+                dv = field.get("date_value") or {}
+                cf[name] = dv.get("date", "") or ""
+            else:
+                cf[name] = field.get("text_value") or ""
+
+        assignee    = t.get("assignee") or {}
+        memberships = t.get("memberships") or []
+        section     = memberships[0]["section"]["name"] if memberships else ""
+        parent      = t.get("parent") or {}
+        deps        = t.get("dependencies") or []
+        dependents  = t.get("dependents") or []
+
+        rows.append({
+            "Task ID":                          t.get("gid", ""),
+            "Created At":                       t.get("created_at", "") or "",
+            "Completed At":                     t.get("completed_at", "") or "",
+            "Last Modified":                    t.get("modified_at", "") or "",
+            "Name":                             t.get("name", "") or "",
+            "Section/Column":                   section,
+            "Assignee":                         assignee.get("name", "") or "",
+            "Assignee Email":                   assignee.get("email", "") or "",
+            "Start Date":                       t.get("start_on", "") or "",
+            "Due Date":                         t.get("due_on", "") or "",
+            "Tags":                             ", ".join(tag.get("name","") for tag in (t.get("tags") or [])),
+            "Notes":                            t.get("notes", "") or "",
+            "Parent task":                      parent.get("name", "") if parent else "",
+            "Blocked By (Dependencies)":        ", ".join(d.get("gid","") for d in deps),
+            "Blocking (Dependencies)":          ", ".join(d.get("gid","") for d in dependents),
+            "Order ID":                         cf.get("Order ID", ""),
+            "Invoice ID":                       cf.get("Invoice ID", ""),
+            "Status":                           cf.get("Status", ""),
+            "Request for Change in Programs":   cf.get("Request for Change in Programs", ""),
+            "Program/Product":                  cf.get("Program/Product", ""),
+            "INF Link":                         cf.get("INF Link", ""),
+            "Reopened Case":                    cf.get("Reopened Case", ""),
+            "Procedure":                        cf.get("Procedure", ""),
+            "Requested Date mm/dd/yy":          cf.get("Requested Date mm/dd/yy", ""),
+            "Program Usage":                    cf.get("Program Usage", ""),
+            "Program End Date":                 cf.get("Program End Date", ""),
+            "Date Sold":                        cf.get("Date Sold", ""),
+            "Sold by":                          cf.get("Sold by", ""),
+            "Email":                            email_val,
+            "Contract Amount (after discounts)":cf.get("Contract Amount (after discounts)", ""),
+            "Discount":                         cf.get("Discount", ""),
+            "Contract Amt (pre disc)":          cf.get("Contract Amt (pre disc)", ""),
+            "Amount Paid":                      cf.get("Amount Paid", ""),
+            "Client ID":                        cf.get("Client ID", ""),
+            "Phone":                            cf.get("Phone", ""),
+            "PE Reason/Codes":                  cf.get("PE Reason/Codes", ""),
+            "Admin Only":                       cf.get("Admin Only", ""),
+            "Saved by":                         cf.get("Saved by", ""),
+            "Total Revenue Saved":              cf.get("Total Revenue Saved", ""),
+            "Future Balance with Comm":         cf.get("Future Balance with Comm", ""),
+            "Future Rev start date":            cf.get("Future Rev start date", ""),
+            "Future Rev Last due date":         cf.get("Future Rev Last due date", ""),
+            "Revenue Loss":                     cf.get("Revenue Loss", ""),
+            "Refund Amount":                    cf.get("Refund Amount", ""),
+            "Past Due Date":                    cf.get("Past Due Date", ""),
+        })
+
+    print(f"   → {len(rows):,} Asana tasks fetched")
+    return rows
+
+
+# ─────────────────────────────────────────────
 #  BUILD cr_data.json  (Client Resolution)
 # ─────────────────────────────────────────────
 
-def build_cr_data(orders, asana_csv_path):
+def build_cr_data(orders, asana_rows):
     print("⏳ Building cr_data.json (Client Resolution)...")
 
-    if not os.path.exists(asana_csv_path):
-        print(f"   ⚠️  Asana CSV not found at '{asana_csv_path}' — skipping CRS")
+    if not asana_rows:
+        print("   ⚠️  No Asana tasks — skipping CRS")
         return None
 
     order_to_sku = {r.get("ID","").strip(): r.get("SKU","").strip() for r in orders}
@@ -656,9 +779,6 @@ def build_cr_data(orders, asana_csv_path):
             try: return datetime.strptime(v[:10], fmt[:10]).strftime("%Y-%m-%d")
             except: pass
         return v[:10]
-
-    with open(asana_csv_path, encoding='utf-8-sig') as f:
-        asana_rows = list(csv.DictReader(f))
 
     excluded = 0
     enriched = []
@@ -967,7 +1087,8 @@ def main():
     save_json(ldp_data, "ldp_data.json")
 
     print()
-    cr_data = build_cr_data(orders, CONFIG["asana_csv"])
+    asana_rows = fetch_asana_tasks()
+    cr_data = build_cr_data(orders, asana_rows)
     if cr_data:
         save_json(cr_data, "cr_data.json")
 
