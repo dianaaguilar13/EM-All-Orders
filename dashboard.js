@@ -381,10 +381,10 @@ function getSkuDetailRows(sku){
 
 function downloadSkuDetailCsv(){
   var skuBkts=getSkuBuckets();
-  var csvRows=[["SKU","Order ID","Contact ID","Date","Status","Cancel Status","Invoice Total","Refunds","Partner Category","Referral Partner"]];
+  var csvRows=[["SKU","Order ID","Contact ID","Date","Product Name","Status","Cancel Status","Invoice Total","Refunds","Partner Category","Referral Partner"]];
   Object.keys(skuBkts).sort().forEach(function(sku){
     getSkuDetailRows(sku).forEach(function(row){
-      csvRows.push([sku,row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7],row[8]]);
+      csvRows.push([sku,row[0],row[1],row[2],row[9]||"",row[3],row[4],row[5],row[6],row[7],row[8]]);
     });
   });
   var csv=csvRows.map(function(r){return r.map(function(v){
@@ -519,7 +519,7 @@ function render(){
     detailHtml+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+s.sku+' — '+detailRows.length.toLocaleString()+' orders'+(detailRows.length>500?' (showing first 500)':'')+'</div>';
     detailHtml+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
     detailHtml+='<thead><tr style="background:#f1f5f9">';
-    ['Order ID','Contact ID','Date','Status','Cancel Status','Invoice Total','Refunds'].forEach(function(h){
+    ['Order ID','Contact ID','Date','Product Name','Status','Cancel Status','Invoice Total','Refunds'].forEach(function(h){
       detailHtml+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
     });
     detailHtml+='</tr></thead><tbody>';
@@ -535,6 +535,7 @@ function render(){
       detailHtml+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+dr[0]+'</td>';
       detailHtml+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+dr[1]+'</td>';
       detailHtml+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+dr[2]+'</td>';
+      detailHtml+='<td style="padding:5px 10px;color:#374151;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(dr[9]||'')+'">'+( dr[9]||'—')+'</td>';
       detailHtml+='<td style="padding:5px 10px"><span style="color:'+actColor+';font-weight:600;font-size:11px">'+dr[3]+'</span></td>';
       detailHtml+='<td style="padding:5px 10px"><span style="color:'+cnclColor+';font-weight:600;font-size:11px">'+dr[4]+'</span></td>';
       detailHtml+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(dr[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';

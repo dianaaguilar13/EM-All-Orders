@@ -310,7 +310,7 @@ def build_cancellation_data(orders):
                 PCMRD[pcat][month][rd] += 1
                 PMRD[part][month][rd]  += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner]
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product]
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
@@ -321,6 +321,7 @@ def build_cancellation_data(orders):
             round(float(r.get("REFUNDS",0) or 0), 2),
             pcat,
             part,
+            r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT",""),
         ])
 
         # Cancel reasons
