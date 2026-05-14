@@ -79,6 +79,8 @@ def connect_snowflake():
         "warehouse":  CONFIG["warehouse"],
         "database":   CONFIG["database"],
         "schema":     CONFIG["schema"],
+        # Force JSON result format — avoids Arrow/nanoarrow bug on Python 3.13
+        "session_parameters": {"PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON"},
     }
     if CONFIG.get("role"):
         conn_params["role"] = CONFIG["role"]
