@@ -801,25 +801,31 @@ def build_cr_data(orders, asana_rows):
             if 0 <= diff <= 365:
                 res_days = diff
 
+        # Days from original sale to CRS case being opened
+        date_sold = parse_dt(r.get("Date Sold",""))
+        days_to_cancel = (created - date_sold).days if created and date_sold else None
+
+        created_at_str = r.get("Created At","")
         enriched.append({
-            "id":            oid,
-            "sku":           sku,
-            "date":          clean_date(r.get("Date Sold","")),
-            "month":         clean_date(r.get("Date Sold",""))[:7] if r.get("Date Sold","") else "",
-            "status":        r.get("Status","") or "",
-            "request_type":  r.get("Request for Change in Programs","") or "",
-            "procedure":     procedure,
-            "requested_date":clean_date(r.get("Requested Date mm/dd/yy","")),
-            "saved_by":      r.get("Saved by","") or "",
-            "rev_loss":      clean_money(r.get("Revenue Loss","")),
-            "rev_saved":     clean_money(r.get("Total Revenue Saved","")),
-            "refund_amt":    clean_money(r.get("Refund Amount","")),
-            "contract_amt":  amt,
-            "assignee":      r.get("Assignee","") or "",
-            "client_id":     r.get("Client ID","") or "",
-            "res_days":      res_days,
-            "created_at":    r.get("Created At","")[:10] if r.get("Created At","") else "",
-            "completed_at":  r.get("Completed At","")[:10] if r.get("Completed At","") else "",
+            "id":             oid,
+            "sku":            sku,
+            "date":           clean_date(r.get("Date Sold","")),
+            "month":          created_at_str[:7] if created_at_str else "",
+            "status":         r.get("Status","") or "",
+            "request_type":   r.get("Request for Change in Programs","") or "",
+            "procedure":      procedure,
+            "requested_date": clean_date(r.get("Requested Date mm/dd/yy","")),
+            "saved_by":       r.get("Saved by","") or "",
+            "rev_loss":       clean_money(r.get("Revenue Loss","")),
+            "rev_saved":      clean_money(r.get("Total Revenue Saved","")),
+            "refund_amt":     clean_money(r.get("Refund Amount","")),
+            "contract_amt":   amt,
+            "assignee":       r.get("Assignee","") or "",
+            "client_id":      r.get("Client ID","") or "",
+            "res_days":       res_days,
+            "days_to_cancel": days_to_cancel,
+            "created_at":     created_at_str[:10] if created_at_str else "",
+            "completed_at":   r.get("Completed At","")[:10] if r.get("Completed At","") else "",
         })
 
     matched = [e for e in enriched if e["id"] and e["id"] in order_to_sku]
@@ -838,7 +844,7 @@ def build_cr_data(orders, asana_rows):
     req_days  = defaultdict(list)
 
     for e in matched:
-        m = e["month"] or (e["created_at"][:7] if e["created_at"] else "")
+        m = e["month"]
         if not m: continue
         by_month[m]["total"] += 1
         if e["saved_by"]: by_month[m]["saved"] += 1
