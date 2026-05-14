@@ -452,23 +452,22 @@ function render(){
 
   var mx=Math.max.apply(null,skuArr.map(function(s){return s.rate;}).concat([1]));
   document.getElementById("tblInfo").textContent=skuArr.length+" SKUs "+T.toLocaleString()+" units";
-  // Build cancel reason lookup for current filters
-  function getCancelReasons(sku){
-    var r=getRange(),pcat=getPcat(),sku2=getSku();
-    var reasons={};
-    if(pcat&&D.PCMSKU_CR&&D.PCMSKU_CR[pcat]){
-      var pc=D.PCMSKU_CR[pcat];
-      Object.keys(pc).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        var v=(pc[m]&&pc[m][sku])||{};
-        Object.keys(v).forEach(function(k){reasons[k]=(reasons[k]||0)+v[k];});
-      });
-    } else if(D.GMSKU_CR){
-      Object.keys(D.GMSKU_CR).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-        var v=(D.GMSKU_CR[m]&&D.GMSKU_CR[m][sku])||{};
-        Object.keys(v).forEach(function(k){reasons[k]=(reasons[k]||0)+v[k];});
-      });
-    }
-    return reasons;
+  // Build filtered detail rows for a SKU
+  function getSkuDetailRows(sku){
+    var r=getRange();
+    var fAct=document.getElementById("fAct").value;
+    var fCncl=document.getElementById("fCncl").value;
+    var allRows=(D.order_rows&&D.order_rows[sku])||[];
+    return allRows.filter(function(row){
+      // row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner]
+      var dateM=row[2].slice(0,7);
+      if(dateM<r.df||dateM>r.dt)return false;
+      if(fAct&&row[3]!==fAct)return false;
+      if(fCncl&&row[4]!==fCncl)return false;
+      if(selPcat.size>0&&!selPcat.has(row[7]))return false;
+      if(selP.size>0&&!selP.has(row[8]))return false;
+      return true;
+    });
   }
 
   var rows="";
@@ -493,30 +492,37 @@ function render(){
       "<span class='num' style='min-width:38px;font-size:11px;color:"+cl+"'>"+s.rate.toFixed(2)+"%</span></div></td>"+
       "<td class='num' style='color:#ef4444'>$"+Math.round(s.LR).toLocaleString()+"</td>"+
       "</tr>";
-    // Hidden cancel reasons row
-    var reasons=getCancelReasons(s.sku);
-    var reasonEntries=Object.entries(reasons).filter(function(e){return e[1]>0;}).sort(function(a,b){return b[1]-a[1];});
-    if(reasonEntries.length>0){
-      var reasonHtml='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="12" style="padding:0;background:#f8fafc">'+
-        '<div style="padding:10px 16px 10px 32px;border-top:1px solid #dde3ea">'+
-        '<div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Cancel Reason Breakdown for '+s.sku+'</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:8px">';
-      var maxR=Math.max.apply(null,reasonEntries.map(function(e){return e[1];}));
-      reasonEntries.forEach(function(e){
-        var isEE=e[0].indexOf('EntryError')>=0||e[0].indexOf('Error')>=0;
-        var color=isEE?"#f59e0b":"#ef4444";
-        var pct=s.C>0?(e[1]/s.C*100).toFixed(1):0;
-        reasonHtml+='<div style="background:#fff;border:1px solid #dde3ea;border-radius:6px;padding:8px 12px;min-width:160px">'+
-          '<div style="font-size:10px;color:#64748b;margin-bottom:2px">'+e[0]+'</div>'+
-          '<div style="font-size:16px;font-weight:700;color:'+color+'">'+e[1]+'</div>'+
-          '<div style="height:3px;background:#e2e8f0;border-radius:2px;margin-top:4px;overflow:hidden">'+
-          '<div style="height:100%;width:'+(e[1]/maxR*100).toFixed(0)+'%;background:'+color+'"></div></div>'+
-          '<div style="font-size:10px;color:'+color+';margin-top:2px">'+pct+'% of cancels</div>'+
-          '</div>';
-      });
-      reasonHtml+='</div></div></td></tr>';
-      rows+=reasonHtml;
+    // Hidden detail rows table
+    var detailRows=getSkuDetailRows(s.sku);
+    var detailHtml='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="12" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
+    detailHtml+='<div style="padding:10px 16px 12px 24px">';
+    detailHtml+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+s.sku+' — '+detailRows.length.toLocaleString()+' orders'+(detailRows.length>500?' (showing first 500)':'')+'</div>';
+    detailHtml+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    detailHtml+='<thead><tr style="background:#f1f5f9">';
+    ['Order ID','Contact ID','Date','Status','Cancel Status','Invoice Total','Refunds'].forEach(function(h){
+      detailHtml+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
+    });
+    detailHtml+='</tr></thead><tbody>';
+    var cncl_colors={"Sale":"#16a34a","Cancelled":"#ef4444","Entry Error":"#f59e0b","Upgrade":"#2563eb","Downgrade":"#7c3aed"};
+    var limit=Math.min(detailRows.length,500);
+    for(var di=0;di<limit;di++){
+      var dr=detailRows[di];
+      // dr: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner]
+      var actColor=dr[3]==="Active"?"#16a34a":"#ef4444";
+      var cnclColor=cncl_colors[dr[4]]||"#64748b";
+      var bg=di%2===0?"#ffffff":"#f8fafc";
+      detailHtml+='<tr style="background:'+bg+'">';
+      detailHtml+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+dr[0]+'</td>';
+      detailHtml+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+dr[1]+'</td>';
+      detailHtml+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+dr[2]+'</td>';
+      detailHtml+='<td style="padding:5px 10px"><span style="color:'+actColor+';font-weight:600;font-size:11px">'+dr[3]+'</span></td>';
+      detailHtml+='<td style="padding:5px 10px"><span style="color:'+cnclColor+';font-weight:600;font-size:11px">'+dr[4]+'</span></td>';
+      detailHtml+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(dr[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
+      detailHtml+='<td style="padding:5px 10px;text-align:right;color:'+(dr[6]>0?"#ef4444":"#374151")+'">'+((dr[6]||0)>0?'$'+(dr[6]).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
+      detailHtml+='</tr>';
     }
+    detailHtml+='</tbody></table></div></div></td></tr>';
+    rows+=detailHtml;
   }
   
 document.getElementById("skuTbody").innerHTML=rows;

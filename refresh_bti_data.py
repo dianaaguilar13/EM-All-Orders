@@ -249,6 +249,7 @@ def build_cancellation_data(orders):
 
     Ti,Ci,Ei,Ui,Di,Ai,Ii,CRi = 0,1,2,3,4,5,6,7
     def make_b(): return [0,0,0,0,0,0,0,0.0]
+    rows_by_sku = defaultdict(list)
     def upd(b, cncl, active, lr):
         b[0] += 1
         if   cncl == "Cancelled":   b[1] += 1
@@ -309,6 +310,19 @@ def build_cancellation_data(orders):
                 PCMRD[pcat][month][rd] += 1
                 PMRD[part][month][rd]  += 1
 
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner]
+        rows_by_sku[sku].append([
+            r.get("ID",""),
+            r.get("CONTACTID",""),
+            str(r.get("DATE",""))[:10],
+            active,
+            cncl,
+            round(float(r.get("INV_TOTAL",0) or 0), 2),
+            round(float(r.get("REFUNDS",0) or 0), 2),
+            pcat,
+            part,
+        ])
+
         # Cancel reasons
         if cncl in ("Cancelled","Entry Error") and cs_raw:
             GMSKU_CR[month][sku][cs_raw]          += 1
@@ -336,6 +350,8 @@ def build_cancellation_data(orders):
         },
         # Keep RM, RD, CR, PT, PCT, GT stubs (rebuilt by pif/ldp builders)
         "RD": {}, "RM": {}, "CR": {}, "PT": {}, "PCT": {}, "GT": {},
+        # Order-level rows grouped by SKU for drill-down table
+        "order_rows": {s: v for s, v in rows_by_sku.items()},
     }
     print(f"   → {sum(v[0] for v in M.values()):,} total records")
     return data
