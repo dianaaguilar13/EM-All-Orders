@@ -362,6 +362,43 @@ function toggleSkuReasons(id){
   }
 }
 
+// row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner]
+function getSkuDetailRows(sku){
+  var r=getRange();
+  var fAct=document.getElementById("fAct").value;
+  var fCncl=document.getElementById("fCncl").value;
+  var allRows=(D.order_rows&&D.order_rows[sku])||[];
+  return allRows.filter(function(row){
+    var dateM=row[2].slice(0,7);
+    if(dateM<r.df||dateM>r.dt)return false;
+    if(fAct&&row[3]!==fAct)return false;
+    if(fCncl&&row[4]!==fCncl)return false;
+    if(selPcat.size>0&&!selPcat.has(row[7]))return false;
+    if(selP.size>0&&!selP.has(row[8]))return false;
+    return true;
+  });
+}
+
+function downloadSkuDetailCsv(){
+  var skuBkts=getSkuBuckets();
+  var csvRows=[["SKU","Order ID","Contact ID","Date","Status","Cancel Status","Invoice Total","Refunds","Partner Category","Referral Partner"]];
+  Object.keys(skuBkts).sort().forEach(function(sku){
+    getSkuDetailRows(sku).forEach(function(row){
+      csvRows.push([sku,row[0],row[1],row[2],row[3],row[4],row[5],row[6],row[7],row[8]]);
+    });
+  });
+  var csv=csvRows.map(function(r){return r.map(function(v){
+    var s=String(v==null?"":v);
+    return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(",");}).join("\n");
+  var blob=new Blob([csv],{type:"text/csv"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  var rng=getRange();
+  a.download="sku_detail_"+rng.df+"_"+rng.dt+".csv";
+  a.click();
+}
+
 function render(){
   destroyCharts();
   var ts=getTimeSeries();
@@ -399,7 +436,7 @@ function render(){
   renderDecomp();
 
   var skuBkts=getSkuBuckets();
-  var skuArr=Object.keys(skuBkts).map(function(sku){var v=skuBkts[sku];return{sku:sku,T:v[Ti],C:v[Ci],E:v[Ei],U:v[Ui],D:v[Di],AC:v[Ai],IN:v[Ii],LR:v[CRi],sale:Math.max(0,v[Ti]-v[Ci]-v[Ei]-v[Ui]-v[Di]),rate:v[Ti]>0?((v[Ci]+v[Ei])/v[Ti]*100):0};}).filter(function(s){return s.T>0;}).sort(function(a,b){return b.C-a.C;});
+  var skuArr=Object.keys(skuBkts).map(function(sku){var v=skuBkts[sku];return{sku:sku,T:v[Ti],C:v[Ci],E:v[Ei],U:v[Ui],D:v[Di],AC:v[Ai],IN:v[Ii],LR:v[CRi],sale:Math.max(0,v[Ti]-v[Ci]-v[Ei]-v[Ui]-v[Di]),rate:(v[Ti]-v[Ei])>0?(v[Ci]/(v[Ti]-v[Ei])*100):0};}).filter(function(s){return s.T>0;}).sort(function(a,b){return b.C-a.C;});
   var top15=skuArr.slice(0,15),bh=Math.max(280,top15.length*38);
   document.getElementById("skuBarWrap").style.height=bh+"px";
   document.getElementById("skuGrpWrap").style.height=bh+"px";
@@ -451,24 +488,7 @@ function render(){
   charts.rd=new Chart(document.getElementById("rdChart"),{type:"bar",data:{labels:rdL,datasets:[{data:rdK.map(function(k){return rdCounts[k]||0;}),backgroundColor:"rgba(56,139,253,0.75)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}}}}});
 
   var mx=Math.max.apply(null,skuArr.map(function(s){return s.rate;}).concat([1]));
-  document.getElementById("tblInfo").textContent=skuArr.length+" SKUs "+T.toLocaleString()+" units";
-  // Build filtered detail rows for a SKU
-  function getSkuDetailRows(sku){
-    var r=getRange();
-    var fAct=document.getElementById("fAct").value;
-    var fCncl=document.getElementById("fCncl").value;
-    var allRows=(D.order_rows&&D.order_rows[sku])||[];
-    return allRows.filter(function(row){
-      // row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner]
-      var dateM=row[2].slice(0,7);
-      if(dateM<r.df||dateM>r.dt)return false;
-      if(fAct&&row[3]!==fAct)return false;
-      if(fCncl&&row[4]!==fCncl)return false;
-      if(selPcat.size>0&&!selPcat.has(row[7]))return false;
-      if(selP.size>0&&!selP.has(row[8]))return false;
-      return true;
-    });
-  }
+  document.getElementById("tblInfo").innerHTML='<span>'+skuArr.length+' SKUs '+T.toLocaleString()+' units</span><button onclick="downloadSkuDetailCsv()" style="margin-left:10px;color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">&#11015; Download CSV</button>';
 
   var rows="";
   for(var i=0;i<skuArr.length;i++){
