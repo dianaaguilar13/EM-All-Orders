@@ -785,9 +785,9 @@ def build_cr_data(orders, asana_rows):
     def parse_dt(s):
         if not s: return None
         s = str(s).strip()
-        for fmt in ["%Y-%m-%dT%H:%M:%S.%fZ","%Y-%m-%dT%H:%M:%SZ",
+        for fmt in ["%Y-%m-%dT%H:%M:%S","%Y-%m-%dT%H:%M:%S.%fZ","%Y-%m-%dT%H:%M:%SZ",
                     "%Y-%m-%d %H:%M:%S","%m/%d/%y","%m/%d/%Y","%Y-%m-%d"]:
-            try: return datetime.strptime(s[:19], fmt[:len(s[:19])])
+            try: return datetime.strptime(s[:min(len(s),len(fmt))], fmt[:min(len(s),len(fmt))])
             except: pass
         return None
 
