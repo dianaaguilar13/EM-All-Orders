@@ -74,6 +74,9 @@ function arRender(){
     '<div class="kpi k4"><div class="kl">Cancelled Balance</div><div class="kv" style="color:#ef4444;font-size:20px">'+fmtDollar(cncl_bal)+'</div><div class="ks red">'+cancelled.length+' cancelled orders</div></div>'+
     '<div class="kpi k7"><div class="kl">Active PP</div><div class="kv" style="color:#7c3aed">'+active.length.toLocaleString()+'</div><div class="ks muted">'+fmtDollar(active.reduce(function(s,r){return s+r.bal;},0))+' owed</div></div>';
 
+  // AR Overdue Trend chart
+  arRenderTrendChart();
+
   // Aging chart
   arRenderAgingChart(rows);
 
@@ -88,6 +91,62 @@ function arRender(){
 }
 
 var arChart = null;
+var arTrendChart = null;
+
+function arRenderTrendChart(){
+  var trendData=AR.trend||[];
+  if(!trendData.length){
+    document.getElementById("ar-trend-chart").style.display="none";
+    var noDataEl=document.getElementById("ar-trend-nodata");
+    if(noDataEl)noDataEl.style.display="block";
+    return;
+  }
+  var noDataEl=document.getElementById("ar-trend-nodata");
+  if(noDataEl)noDataEl.style.display="none";
+  document.getElementById("ar-trend-chart").style.display="block";
+  var r=arRange();
+  var filtered=trendData.filter(function(pt){return pt[0]>=r.df&&pt[0]<=r.dt;});
+  if(!filtered.length) return;
+  var labels=filtered.map(function(pt){return pt[0];});
+  var pcts=filtered.map(function(pt){return pt[1];});
+  var avgs=filtered.map(function(pt){return pt.length>2?pt[2]:null;});
+  var ctx=document.getElementById("ar-trend-chart").getContext("2d");
+  if(arTrendChart){arTrendChart.destroy();}
+  arTrendChart=new Chart(ctx,{
+    type:"line",
+    data:{labels:labels,datasets:[
+      {label:"%AR Overdue",data:pcts,borderColor:"#4285f4",backgroundColor:"rgba(66,133,244,0.07)",
+       fill:true,pointRadius:0,borderWidth:1.5,tension:0.3},
+      {label:"Running Average",data:avgs,borderColor:"#ea4335",backgroundColor:"transparent",
+       fill:false,pointRadius:0,borderWidth:2.5,tension:0.5}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{display:true,position:"top",labels:{color:"#64748b",font:{size:11},boxWidth:12,padding:12}},
+        tooltip:{callbacks:{
+          title:function(items){return items[0].label;},
+          label:function(ctx){return ctx.dataset.label+": "+(ctx.raw!=null?ctx.raw.toFixed(2)+"%":"N/A");}
+        }}
+      },
+      scales:{
+        x:{
+          ticks:{color:"#64748b",font:{size:10},maxTicksLimit:20,maxRotation:45,
+            callback:function(val,idx){var d=labels[idx];return d?new Date(d).toLocaleDateString("en-US",{month:"short",year:"2-digit"}):""}},
+          grid:{color:"#f1f5f9"}
+        },
+        y:{
+          title:{display:true,text:"% Of AR",color:"#64748b",font:{size:11}},
+          beginAtZero:true,
+          ticks:{color:"#64748b",font:{size:10},callback:function(v){return v.toFixed(1)+"%";}},
+          grid:{color:"#f1f5f9"}
+        }
+      }
+    }
+  });
+}
+
 function arRenderAgingChart(rows){
   var buckets = ['0-30d','31-60d','61-90d','91-180d','180d+','Cancelled'];
   var labels  = ['0-30 days','31-60 days','61-90 days','91-180 days','180+ days','Cancelled'];

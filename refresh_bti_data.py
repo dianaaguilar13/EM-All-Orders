@@ -15,8 +15,9 @@ import os
 import json
 import csv
 import re
+import bisect
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 
 # ─────────────────────────────────────────────
@@ -274,6 +275,7 @@ def build_cancellation_data(orders):
     PMRD     = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
     GMSKU_CR = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))   # month x sku x credit_status
     PCMSKU_CR= defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
+    QFY      = defaultdict(lambda: defaultdict(make_b))   # "FY'25" x "Q1" bucket
 
     skus=set(); parts=set(); pcats=set()
 
@@ -293,6 +295,9 @@ def build_cancellation_data(orders):
         skus.add(sku); parts.add(part); pcats.add(pcat)
 
         upd(M[month],         cncl, active, lr)
+        if month and len(month)>=7:
+            _yr=int(month[:4]);_mo=int(month[5:7])
+            upd(QFY["FY'"+str(_yr)[2:]]["Q"+str((_mo-1)//3+1)],cncl,active,lr)
         upd(S[sku],           cncl, active, lr)
         upd(PC[pcat],         cncl, active, lr)
         upd(P[part],          cncl, active, lr)
@@ -330,6 +335,7 @@ def build_cancellation_data(orders):
             PCMSKU_CR[pcat][month][sku][cs_raw]   += 1
 
     data = {
+        "QFY": {fy: {q: list(v) for q,v in sorted(qv.items())} for fy,qv in sorted(QFY.items())},
         "M":   {k: list(v) for k,v in sorted(M.items())},
         "S":   {k: list(v) for k,v in S.items()},
         "PC":  {k: list(v) for k,v in PC.items()},
@@ -1060,6 +1066,54 @@ def build_ar_data(orders, payments_rows=None):
     total_inv  = round(sum(x["inv"]  for x in ar_rows), 2)
     total_paid = round(sum(x["paid"] for x in ar_rows), 2)
 
+    # ── AR Overdue Trend (weekly snapshots) ──────────────────────────────────
+    ar_trend = []
+    if order_payments:
+        pool = []
+        for r in orders:
+            inv_r = float(r.get("INV_TOTAL",0) or 0)
+            if inv_r <= 0: continue
+            if get_cncl(r.get("CREDIT_STATUS","")) == "Entry Error": continue
+            oid_r = str(r.get("ID","")).strip()
+            pd_r  = parse_date(str(r.get("DATE",""))[:10])
+            if pd_r: pool.append((oid_r, inv_r, pd_r))
+
+        cum_pmts = {}
+        for oid_r, _, _ in pool:
+            pmts_r = sorted(order_payments.get(oid_r, []))
+            if pmts_r:
+                d_list = [p[0] for p in pmts_r]
+                a_list = []; cum_a = 0.0
+                for _, a in pmts_r: cum_a += a; a_list.append(cum_a)
+                cum_pmts[oid_r] = (d_list, a_list)
+
+        snap_start = max(min((p[2] for p in pool), default=_date(2022,1,1)), _date(2022,1,1)) if pool else _date(2022,1,1)
+        snap = snap_start
+        while snap <= today:
+            t_bal = 0.0; ov_bal = 0.0
+            for oid_r, inv_r, pd_r in pool:
+                if pd_r > snap: continue
+                d_list, a_list = cum_pmts.get(oid_r, ([], []))
+                if d_list:
+                    idx = bisect.bisect_right(d_list, snap) - 1
+                    paid_r = a_list[idx] if idx >= 0 else 0.0
+                    last_p = d_list[idx] if idx >= 0 else None
+                else:
+                    paid_r = 0.0; last_p = None
+                bal_r = inv_r - paid_r
+                if bal_r <= 1.0: continue
+                t_bal += bal_r
+                days_r = (snap - last_p).days if last_p else (snap - pd_r).days
+                if days_r > 30: ov_bal += bal_r
+            ar_trend.append([str(snap), round(ov_bal/t_bal*100,2) if t_bal>0 else 0])
+            snap += timedelta(days=7)
+        # 13-week rolling average
+        win = 13
+        for i in range(len(ar_trend)):
+            si = max(0, i-win+1)
+            ar_trend[i].append(round(sum(ar_trend[j][1] for j in range(si,i+1))/(i-si+1),2))
+        print(f"   → {len(ar_trend)} AR trend snapshots")
+
     print(f"   → {len(ar_rows):,} AR records | Balance=${total_bal:,.0f} | Collected ${total_paid:,.0f}")
     return {
         "summary": {
@@ -1076,6 +1130,7 @@ def build_ar_data(orders, payments_rows=None):
         "by_month": dict(sorted(by_month.items())),
         "by_pcat":  by_pcat,
         "rows":     ar_rows,
+        "trend":    ar_trend,
         "filters": {
             "skus":     sorted(s for s in set(x["sku"]  for x in ar_rows) if s != "Unknown"),
             "pcats":    sorted(set(x["pcat"] for x in ar_rows if x["pcat"])),

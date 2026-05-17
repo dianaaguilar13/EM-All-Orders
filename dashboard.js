@@ -548,6 +548,44 @@ function render(){
   
 document.getElementById("skuTbody").innerHTML=rows;
   document.getElementById("skuTfoot").innerHTML="<td>Total</td><td class='num'>"+T.toLocaleString()+"</td><td class='num' style='color:#58a6ff'>"+AC.toLocaleString()+"</td><td class='num' style='color:#f85149'>"+IN.toLocaleString()+"</td><td class='num'>"+sale.toLocaleString()+"</td><td class='num' style='color:#ff7b72'>"+C.toLocaleString()+"</td><td class='num' style='color:#e3b341'>"+E.toLocaleString()+"</td><td class='num' style='color:#56d364'>"+U.toLocaleString()+"</td><td class='num' style='color:#bc8cff'>"+Dv.toLocaleString()+"</td><td class='num'>"+net.toLocaleString()+"</td><td class='num'>"+rate.toFixed(2)+"%</td><td class='num' style='color:#ff7b72'>$"+Math.round(LR).toLocaleString()+"</td>";
+
+  // ── FY Quarterly Cancel Rate Chart ──────────────────────────────────────────
+  if(charts.qfy){try{charts.qfy.destroy();}catch(e){}}
+  var qfyEl=document.getElementById("qfyChart");
+  if(qfyEl&&D.QFY){
+    var QFY=D.QFY;
+    var fys=Object.keys(QFY).filter(function(fy){return Object.keys(QFY[fy]).length>0;}).sort();
+    var quarters=["Q1","Q2","Q3","Q4"];
+    var FY_COLORS=["#4285f4","#ea4335","#fbbc04","#34a853","#a142f4","#00acc1","#ff6d00"];
+    var qfyDs=fys.map(function(fy,i){
+      return{
+        label:fy,
+        data:quarters.map(function(q){
+          var b=(QFY[fy]||{})[q];
+          if(!b)return null;
+          var denom=b[0]-b[2];
+          return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
+        }),
+        backgroundColor:FY_COLORS[i%FY_COLORS.length],
+        borderRadius:4,borderSkipped:false
+      };
+    });
+    charts.qfy=new Chart(qfyEl.getContext("2d"),{
+      type:"bar",
+      data:{labels:["Cancel Rate Q1","Cancel Rate Q2","Cancel Rate Q3","Cancel Rate Q4"],datasets:qfyDs},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{position:"top",labels:{color:"#64748b",font:{size:11},boxWidth:12,padding:12}},
+          tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": "+(ctx.raw!=null?ctx.raw.toFixed(1)+"%":"N/A");}}}
+        },
+        scales:{
+          x:{ticks:{color:"#64748b",font:{size:11}},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"}}
+        }
+      }
+    });
+  }
 }
 
 // ── CSV Download ───────────────────────────────────────────
@@ -585,7 +623,7 @@ function downloadCancelCsv(){
 
 
 function initDashboard(){
-  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="card full"><div class="ct">Decomposition tree</div><div class="cs">Click any node to drill down. Numbers decrease as you narrow down.</div><div id="decompBreadcrumb" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:10px;min-height:24px"></div><div style="overflow-x:auto;padding-bottom:8px"><div id="decompTree" style="display:flex;align-items:flex-start;gap:0;min-width:max-content;padding:2px"></div></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Refund days</div><div class="cs">Days between order and refund</div><div style="height:200px;position:relative"><canvas id="rdChart"></canvas></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Total</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Net Orders</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div></div>';
+  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="card full"><div class="ct">Decomposition tree</div><div class="cs">Click any node to drill down. Numbers decrease as you narrow down.</div><div id="decompBreadcrumb" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:10px;min-height:24px"></div><div style="overflow-x:auto;padding-bottom:8px"><div id="decompTree" style="display:flex;align-items:flex-start;gap:0;min-width:max-content;padding:2px"></div></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Refund days</div><div class="cs">Days between order and refund</div><div style="height:200px;position:relative"><canvas id="rdChart"></canvas></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Total</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Net Orders</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div></div>';
   renderMsItems();renderMsSkuItems();render();
 }
 

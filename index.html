@@ -550,6 +550,12 @@ function hideAllPanels(){
   <div id="ar-main" style="display:none">
     <div id="ar-kpis" style="display:flex;flex-wrap:wrap;gap:12px;padding:16px 24px;border-bottom:1px solid #dde3ea"></div>
     <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="font-weight:600;color:#1a2332;margin-bottom:4px">AR Overdue Trend</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">% of AR balance overdue (&gt;30 days since last payment) · Weekly snapshots · Red line = 13-week running average</div>
+      <div id="ar-trend-nodata" style="display:none;padding:40px;text-align:center;color:#64748b;background:#f8fafc;border-radius:8px;border:1px dashed #dde3ea">Run <strong>Run.bat</strong> to generate the AR overdue trend from Snowflake payment history.</div>
+      <div style="height:280px"><canvas id="ar-trend-chart"></canvas></div>
+    </div>
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
       <div style="font-weight:600;color:#1a2332;margin-bottom:4px">Aging Analysis</div>
       <div style="font-size:12px;color:#64748b;margin-bottom:12px">Balance remaining by days since last payment</div>
       <div style="height:260px"><canvas id="ar-aging-chart"></canvas></div>
