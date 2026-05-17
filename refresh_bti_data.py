@@ -962,7 +962,7 @@ def save_json(data, filename):
 #  BUILD ar_data.json  (AR / Arrears Dashboard)
 # ─────────────────────────────────────────────
 
-def build_ar_data(orders, payments_rows=None):
+def build_ar_data(orders, payments_rows=None, cancel_qfy=None):
     print("⏳ Building ar_data.json (Arrears)...")
     from datetime import date as _date
     today = _date.today()
@@ -1131,6 +1131,7 @@ def build_ar_data(orders, payments_rows=None):
         "by_pcat":  by_pcat,
         "rows":     ar_rows,
         "trend":    ar_trend,
+        "QFY":      cancel_qfy or {},   # quarterly cancel rate (from cancellation data)
         "filters": {
             "skus":     sorted(s for s in set(x["sku"]  for x in ar_rows) if s != "Unknown"),
             "pcats":    sorted(set(x["pcat"] for x in ar_rows if x["pcat"])),
@@ -1175,7 +1176,7 @@ def main():
         save_json(cr_data, "cr_data.json")
 
     print()
-    ar_data = build_ar_data(orders, payments_rows=payments)
+    ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_data.get("QFY"))
     save_json(ar_data, "ar_data.json")
 
     print()

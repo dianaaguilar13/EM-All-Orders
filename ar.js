@@ -77,6 +77,9 @@ function arRender(){
   // AR Overdue Trend chart
   arRenderTrendChart();
 
+  // FY Quarterly Cancel Rate chart
+  arRenderQfyChart();
+
   // Aging chart
   arRenderAgingChart(rows);
 
@@ -92,6 +95,45 @@ function arRender(){
 
 var arChart = null;
 var arTrendChart = null;
+var arQfyChart = null;
+
+function arRenderQfyChart(){
+  if(arQfyChart){try{arQfyChart.destroy();}catch(e){}}
+  var QFY=AR.QFY||{};
+  var fys=Object.keys(QFY).filter(function(fy){return Object.keys(QFY[fy]).length>0;}).sort();
+  if(!fys.length) return;
+  var quarters=["Q1","Q2","Q3","Q4"];
+  var FY_COLORS=["#4285f4","#ea4335","#fbbc04","#34a853","#a142f4","#00acc1","#ff6d00"];
+  var ds=fys.map(function(fy,i){
+    return{
+      label:fy,
+      data:quarters.map(function(q){
+        var b=(QFY[fy]||{})[q];
+        if(!b) return null;
+        var denom=b[0]-b[2];
+        return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
+      }),
+      backgroundColor:FY_COLORS[i%FY_COLORS.length],
+      borderRadius:4,borderSkipped:false
+    };
+  });
+  var ctx=document.getElementById("ar-qfy-chart").getContext("2d");
+  arQfyChart=new Chart(ctx,{
+    type:"bar",
+    data:{labels:["Cancel Rate Q1","Cancel Rate Q2","Cancel Rate Q3","Cancel Rate Q4"],datasets:ds},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:"top",labels:{color:"#64748b",font:{size:11},boxWidth:12,padding:12}},
+        tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": "+(ctx.raw!=null?ctx.raw.toFixed(1)+"%":"N/A");}}}
+      },
+      scales:{
+        x:{ticks:{color:"#64748b",font:{size:11}},grid:{display:false}},
+        y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"}}
+      }
+    }
+  });
+}
 
 function arRenderTrendChart(){
   var trendData=AR.trend||[];
