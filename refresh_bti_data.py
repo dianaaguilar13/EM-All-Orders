@@ -962,7 +962,7 @@ def save_json(data, filename):
 #  BUILD ar_data.json  (AR / Arrears Dashboard)
 # ─────────────────────────────────────────────
 
-def build_ar_data(orders, payments_rows=None, cancel_qfy=None):
+def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None):
     print("⏳ Building ar_data.json (Arrears)...")
     from datetime import date as _date
     today = _date.today()
@@ -1067,7 +1067,7 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None):
     total_paid = round(sum(x["paid"] for x in ar_rows), 2)
 
     # ── AR Overdue Trend (weekly snapshots) ──────────────────────────────────
-    ar_trend = []
+    ar_trend = []; trend_by_pcat = {}
     if order_payments:
         pool = []
         for r in orders:
@@ -1112,7 +1112,49 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None):
         for i in range(len(ar_trend)):
             si = max(0, i-win+1)
             ar_trend[i].append(round(sum(ar_trend[j][1] for j in range(si,i+1))/(i-si+1),2))
-        print(f"   → {len(ar_trend)} AR trend snapshots")
+        print(f"   → {len(ar_trend)} AR global trend snapshots")
+
+        # Per-pcat trend (4 pcats — manageable)
+        pcat_pools = defaultdict(list)
+        for oid_r, inv_r, pd_r, pc_r in [(o, i, p, r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown")
+                                          for r, (o, i, p) in zip(orders, pool)
+                                          if r.get("ID","").strip() == o]:
+            pcat_pools[pc_r].append((oid_r, inv_r, pd_r))
+
+    # Build per-pcat pools properly
+    oid_to_pcat = {str(r.get("ID","")).strip(): r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown" for r in orders}
+    pcat_pools = defaultdict(list)
+    for oid_r, inv_r, pd_r in pool:
+        pcat_pools[oid_to_pcat.get(oid_r, "Unknown")].append((oid_r, inv_r, pd_r))
+
+    trend_by_pcat = {}
+    if order_payments and pool:
+        for pc, pc_pool in pcat_pools.items():
+            pc_trend = []
+            snap = snap_start
+            while snap <= today:
+                t_bal = 0.0; ov_bal = 0.0
+                for oid_r, inv_r, pd_r in pc_pool:
+                    if pd_r > snap: continue
+                    d_list, a_list = cum_pmts.get(oid_r, ([], []))
+                    if d_list:
+                        idx = bisect.bisect_right(d_list, snap) - 1
+                        paid_r = a_list[idx] if idx >= 0 else 0.0
+                        last_p = d_list[idx] if idx >= 0 else None
+                    else:
+                        paid_r = 0.0; last_p = None
+                    bal_r = inv_r - paid_r
+                    if bal_r <= 1.0: continue
+                    t_bal += bal_r
+                    days_r = (snap - last_p).days if last_p else (snap - pd_r).days
+                    if days_r > 30: ov_bal += bal_r
+                pc_trend.append([str(snap), round(ov_bal/t_bal*100,2) if t_bal>0 else 0])
+                snap += timedelta(days=7)
+            for i in range(len(pc_trend)):
+                si = max(0, i-win+1)
+                pc_trend[i].append(round(sum(pc_trend[j][1] for j in range(si,i+1))/(i-si+1),2))
+            trend_by_pcat[pc] = pc_trend
+        print(f"   → Per-pcat trends: {list(trend_by_pcat.keys())}")
 
     print(f"   → {len(ar_rows):,} AR records | Balance=${total_bal:,.0f} | Collected ${total_paid:,.0f}")
     return {
@@ -1130,8 +1172,12 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None):
         "by_month": dict(sorted(by_month.items())),
         "by_pcat":  by_pcat,
         "rows":     ar_rows,
-        "trend":    ar_trend,
-        "QFY":      cancel_qfy or {},   # quarterly cancel rate (from cancellation data)
+        "trend":         ar_trend,
+        "trend_by_pcat": trend_by_pcat,
+        "QFY":      cancel_qfy or {},
+        "GMSKU":    (cancel_data or {}).get("GMSKU", {}),
+        "PCM":      (cancel_data or {}).get("PCM", {}),
+        "PCMSKU":   (cancel_data or {}).get("PCMSKU", {}),
         "filters": {
             "skus":     sorted(s for s in set(x["sku"]  for x in ar_rows) if s != "Unknown"),
             "pcats":    sorted(set(x["pcat"] for x in ar_rows if x["pcat"])),
@@ -1176,7 +1222,7 @@ def main():
         save_json(cr_data, "cr_data.json")
 
     print()
-    ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_data.get("QFY"))
+    ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_data.get("QFY"), cancel_data=cancel_data)
     save_json(ar_data, "ar_data.json")
 
     print()

@@ -97,9 +97,54 @@ var arChart = null;
 var arTrendChart = null;
 var arQfyChart = null;
 
+function arBuildQfyFromMonths(monthMap){
+  var out={};
+  Object.keys(monthMap).forEach(function(m){
+    if(!m||m.length<7) return;
+    var yr=parseInt(m.slice(0,4)),mo=parseInt(m.slice(5,7));
+    var fy="FY'"+String(yr).slice(2), q="Q"+(Math.floor((mo-1)/3)+1);
+    if(!out[fy])out[fy]={};
+    if(!out[fy][q])out[fy][q]=[0,0,0,0,0,0,0,0.0];
+    var b=monthMap[m];
+    for(var i=0;i<8;i++)out[fy][q][i]+=(b[i]||0);
+  });
+  return out;
+}
+
 function arRenderQfyChart(){
   if(arQfyChart){try{arQfyChart.destroy();}catch(e){}}
-  var QFY=AR.QFY||{};
+  var skus=arSelSku.size>0?Array.from(arSelSku):null;
+  var pcat=arPcat();
+  var QFY;
+
+  if(!skus&&!pcat){
+    QFY=AR.QFY||{};
+  } else {
+    var monthMap={};
+    if(skus&&pcat){
+      var pcatMths=(AR.PCMSKU||{})[pcat]||{};
+      Object.keys(pcatMths).forEach(function(m){
+        skus.forEach(function(s){
+          var b=(pcatMths[m]||{})[s]; if(!b)return;
+          if(!monthMap[m])monthMap[m]=[0,0,0,0,0,0,0,0.0];
+          for(var i=0;i<8;i++)monthMap[m][i]+=(b[i]||0);
+        });
+      });
+    } else if(skus){
+      var gmsku=AR.GMSKU||{};
+      Object.keys(gmsku).forEach(function(m){
+        skus.forEach(function(s){
+          var b=(gmsku[m]||{})[s]; if(!b)return;
+          if(!monthMap[m])monthMap[m]=[0,0,0,0,0,0,0,0.0];
+          for(var i=0;i<8;i++)monthMap[m][i]+=(b[i]||0);
+        });
+      });
+    } else {
+      monthMap=(AR.PCM||{})[pcat]||{};
+    }
+    QFY=arBuildQfyFromMonths(monthMap);
+  }
+
   var fys=Object.keys(QFY).filter(function(fy){return Object.keys(QFY[fy]).length>0;}).sort();
   if(!fys.length) return;
   var quarters=["Q1","Q2","Q3","Q4"];
@@ -108,8 +153,7 @@ function arRenderQfyChart(){
     return{
       label:fy,
       data:quarters.map(function(q){
-        var b=(QFY[fy]||{})[q];
-        if(!b) return null;
+        var b=(QFY[fy]||{})[q]; if(!b)return null;
         var denom=b[0]-b[2];
         return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
       }),
@@ -118,6 +162,7 @@ function arRenderQfyChart(){
     };
   });
   var ctx=document.getElementById("ar-qfy-chart").getContext("2d");
+  var filterNote=skus||pcat?" · "+(skus?skus.join(", ")+" ":"")+(pcat?"("+pcat+")":""):"";
   arQfyChart=new Chart(ctx,{
     type:"bar",
     data:{labels:["Cancel Rate Q1","Cancel Rate Q2","Cancel Rate Q3","Cancel Rate Q4"],datasets:ds},
@@ -125,6 +170,7 @@ function arRenderQfyChart(){
       responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{position:"top",labels:{color:"#64748b",font:{size:11},boxWidth:12,padding:12}},
+        title:{display:!!(skus||pcat),text:"Filtered: "+filterNote.slice(3),color:"#64748b",font:{size:11}},
         tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": "+(ctx.raw!=null?ctx.raw.toFixed(1)+"%":"N/A");}}}
       },
       scales:{
@@ -136,11 +182,30 @@ function arRenderQfyChart(){
 }
 
 function arRenderTrendChart(){
-  var trendData=AR.trend||[];
-  if(!trendData.length){
+  var skus=arSelSku.size>0?Array.from(arSelSku):null;
+  var pcat=arPcat();
+
+  // Pick the right trend dataset based on filters
+  var trendData=null;
+  var trendLabel="%AR Overdue";
+  var trendNote="";
+
+  if(pcat&&AR.trend_by_pcat&&AR.trend_by_pcat[pcat]){
+    trendData=AR.trend_by_pcat[pcat];
+    trendLabel="%AR Overdue ("+pcat+")";
+  } else if(pcat&&(!AR.trend_by_pcat||!AR.trend_by_pcat[pcat])){
+    // Pcat requested but no per-pcat data yet
+    trendNote="Pcat-filtered trend will be available after next Run.bat";
+    trendData=AR.trend||[];
+  } else {
+    trendData=AR.trend||[];
+  }
+  if(skus&&!pcat) trendNote="SKU filter does not affect trend — showing all SKUs";
+
+  if(!(trendData&&trendData.length)){
     document.getElementById("ar-trend-chart").style.display="none";
     var noDataEl=document.getElementById("ar-trend-nodata");
-    if(noDataEl)noDataEl.style.display="block";
+    if(noDataEl){noDataEl.style.display="block";noDataEl.textContent=trendNote||"Run Run.bat to generate the AR overdue trend from Snowflake payment history.";}
     return;
   }
   var noDataEl=document.getElementById("ar-trend-nodata");
@@ -157,7 +222,7 @@ function arRenderTrendChart(){
   arTrendChart=new Chart(ctx,{
     type:"line",
     data:{labels:labels,datasets:[
-      {label:"%AR Overdue",data:pcts,borderColor:"#4285f4",backgroundColor:"rgba(66,133,244,0.07)",
+      {label:trendLabel,data:pcts,borderColor:"#4285f4",backgroundColor:"rgba(66,133,244,0.07)",
        fill:true,pointRadius:0,borderWidth:1.5,tension:0.3},
       {label:"Running Average",data:avgs,borderColor:"#ea4335",backgroundColor:"transparent",
        fill:false,pointRadius:0,borderWidth:2.5,tension:0.5}
