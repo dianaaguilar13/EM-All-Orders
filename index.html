@@ -89,6 +89,7 @@ tr:hover td{background:#f8fafc}
     <button class="btn" id="pif-tab-btn" onclick="showPifTab()" style="color:#16a34a;border-color:#16a34a33;background:transparent;font-weight:500">&#128200; PIF/PP</button>
     <button class="btn" id="cr-tab-btn" onclick="showCrTab()" style="color:#ef4444;border-color:#ef444433;background:transparent;font-weight:500">&#128203; CRS</button>
       <button onclick="showArTab()" style="color:#0891b2;border-color:#0891b233;background:transparent;border:1px solid;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:500">&#128176; AR</button>
+      <button onclick="showAr2Tab()" style="color:#0d9488;border-color:#0d948833;background:transparent;border:1px solid;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:500">&#9989; AR v2</button>
     <button class="btn" id="cancel-tab-btn" onclick="showCancelTab()" style="display:none;color:#64748b;background:transparent;border-color:#dde3ea">&#8592; Cancellations</button>
   </div>
 </div>
@@ -582,13 +583,152 @@ function hideAllPanels(){
 function showArTab(){
   var mc=document.getElementById("mainContent");if(mc)mc.style.display="none";
   var fi=document.querySelector(".filters");if(fi)fi.style.display="none";
-  ["ldp-panel","pif-panel","cr-panel"].forEach(function(id){
+  ["ldp-panel","pif-panel","cr-panel","ar2-panel"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
   document.getElementById("ar-panel").style.display="block";
   var cb=document.getElementById("cancel-tab-btn");if(cb)cb.style.display="inline";
 }
 </script>
+
+<!-- ── AR v2 Panel ─────────────────────────────────────────────────────────── -->
+<div id="ar2-panel" style="display:none">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid #99f6e4;background:#f0fdfa">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:13px;font-weight:700;color:#0d9488">&#9989; AR v2 — Source of Truth</span>
+      <span style="font-size:10px;color:#0f766e;background:#ccfbf1;padding:2px 8px;border-radius:10px;font-weight:500">ANALYTICS.MART.DIM_AR_ALL_INVOICES</span>
+      <span id="ar2-rc-lbl" style="font-size:12px;color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:10px"></span>
+    </div>
+    <button onclick="ar2DownloadCsv()" style="background:#0d9488;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:500">&#11015; Download CSV</button>
+  </div>
+
+  <!-- V1 vs V2 Comparison Banner -->
+  <div id="ar2-compare-banner" style="display:none;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 24px;background:#fefce8;border-bottom:1px solid #fde047;font-size:12px;color:#713f12"></div>
+
+  <!-- Filters -->
+  <div style="padding:12px 24px;background:#f0fdfa;border-bottom:1px solid #99f6e4;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">DATE FROM</div>
+      <input type="date" id="ar2-df" value="2022-01-01" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff"></div>
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">DATE TO</div>
+      <input type="date" id="ar2-dt" value="2026-12-31" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff"></div>
+    <div style="position:relative">
+      <div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">PROGRAM (SKU)</div>
+      <button id="ar2-sku-btn" onclick="ar2ToggleSkuMenu()" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 12px;font-size:12px;background:#fff;cursor:pointer;min-width:130px;text-align:left">All SKUs &#9662;</button>
+      <div id="ar2-sku-menu" style="display:none;position:absolute;top:100%;left:0;z-index:100;background:#fff;border:1px solid #99f6e4;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);min-width:220px;max-height:280px;overflow-y:auto"></div>
+    </div>
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">PARTNER CATEGORY</div>
+      <select id="ar2-pcat" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff"><option value="">All Categories</option></select></div>
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">DIVISION</div>
+      <select id="ar2-div" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff"><option value="">All Divisions</option></select></div>
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">STATUS</div>
+      <select id="ar2-status" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff">
+        <option value="">All</option><option value="Active">Active</option><option value="Cancelled">Cancelled</option></select></div>
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">AGING BUCKET</div>
+      <select id="ar2-bucket" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff">
+        <option value="">All Buckets</option>
+        <option value="Current">Current (not overdue)</option>
+        <option value="0-30d">0–30 days</option>
+        <option value="31-60d">31–60 days</option>
+        <option value="61-90d">61–90 days</option>
+        <option value="91-180d">91–180 days</option>
+        <option value="180d+">180+ days</option>
+        <option value="Cancelled">Cancelled</option></select></div>
+    <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">PAST DUE ISSUE</div>
+      <select id="ar2-pdi" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff">
+        <option value="">All</option><option value="yes">Flagged Only</option></select></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="ar2Apply()" style="background:#0d9488;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">&#8635; Apply</button>
+      <button onclick="ar2Reset()" style="background:#fff;color:#64748b;border:1px solid #dde3ea;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">Reset</button>
+    </div>
+  </div>
+
+  <!-- Loading / Main -->
+  <div id="ar2-loading" style="padding:40px;text-align:center;color:#64748b">Loading AR v2 data...</div>
+  <div id="ar2-main" style="display:none">
+
+    <!-- KPIs -->
+    <div id="ar2-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;padding:16px 24px;border-bottom:1px solid #dde3ea"></div>
+
+    <!-- Row 1: Aging (full width) -->
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Aging Analysis — Balance by Bucket</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">Dollar amounts from pre-calculated Snowflake columns (source of truth) · Current = not yet overdue</div>
+      <div style="height:260px"><canvas id="ar2-aging-chart"></canvas></div>
+    </div>
+
+    <!-- Row 2: Arrears donut + Division bar -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #dde3ea">
+      <div style="padding:16px 24px;border-right:1px solid #dde3ea">
+        <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Arrears vs Current vs Cancelled</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:12px">Split of total balance remaining</div>
+        <div style="height:220px"><canvas id="ar2-donut-chart"></canvas></div>
+      </div>
+      <div style="padding:16px 24px">
+        <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Balance by Division</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:12px">Outstanding balance per division (top 10)</div>
+        <div style="height:220px"><canvas id="ar2-div-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Row 3: Partner Category donut + Collection Attempts -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #dde3ea">
+      <div style="padding:16px 24px;border-right:1px solid #dde3ea">
+        <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Balance by Partner Category</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:12px">Share of outstanding balance per referral source</div>
+        <div style="height:220px"><canvas id="ar2-pcat-chart"></canvas></div>
+      </div>
+      <div style="padding:16px 24px" id="ar2-attempts-wrap">
+        <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Collection Attempts</div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:12px">Account count by collection attempt stage</div>
+        <div style="height:220px"><canvas id="ar2-attempts-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- SKU Summary Table -->
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="font-weight:600;color:#0d9488;margin-bottom:12px">Balance by Program (SKU)</div>
+      <div style="overflow-x:auto" id="ar2-sku-table"></div>
+    </div>
+
+    <!-- Detail Table -->
+    <div style="padding:16px 24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-weight:600;color:#0d9488">Full Order Detail</div>
+        <span id="ar2-detail-lbl" style="font-size:12px;color:#64748b"></span>
+      </div>
+      <div style="overflow-x:auto;max-height:520px;overflow-y:auto" id="ar2-detail-table"></div>
+    </div>
+
+  </div><!-- /ar2-main -->
+</div><!-- /ar2-panel -->
+
+<script>
+function showAr2Tab(){
+  var mc=document.getElementById("mainContent");if(mc)mc.style.display="none";
+  var fi=document.querySelector(".filters");if(fi)fi.style.display="none";
+  ["ldp-panel","pif-panel","cr-panel","ar-panel"].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.style.display="none";
+  });
+  document.getElementById("ar2-panel").style.display="block";
+  var cb=document.getElementById("cancel-tab-btn");if(cb)cb.style.display="inline";
+  // Render now that data is loaded (deferred render if not yet loaded)
+  if(typeof AR2!=="undefined"&&AR2) ar2Render();
+}
+</script>
+
+<!-- Also hide ar2-panel when returning to Cancellations -->
+<script>
+(function(){
+  var _orig = window.showCancelTab || function(){};
+  window.showCancelTab = function(){
+    var el=document.getElementById("ar2-panel");if(el)el.style.display="none";
+    _orig();
+  };
+})();
+</script>
+
 <script src="ar.js?v=1778712227"></script>
+<script src="ar2.js?v=1"></script>
 </body>
 </html>

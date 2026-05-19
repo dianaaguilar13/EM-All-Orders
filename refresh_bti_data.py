@@ -1186,6 +1186,188 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None)
         }
     }
 
+def fetch_ar_invoices(conn):
+    """Pull AR invoice data from ANALYTICS.MART.DIM_AR_ALL_INVOICES."""
+    print("⏳ Fetching AR invoices from DIM_AR_ALL_INVOICES...")
+    sql = """
+        SELECT
+            "KEY"                         AS ar_key,
+            "ID"                          AS ar_id,
+            "ORDERID"                     AS order_id,
+            "CONTACTID"                   AS contact_id,
+            "EMAIL"                       AS email,
+            "NAME"                        AS client_name,
+            "DATE"                        AS ar_date,
+            "PRODUCTNAME"                 AS product_name,
+            "DIVISION"                    AS division,
+            "REFERRALPARTNERCATEGORY"     AS pcat,
+            "REFERRALPARTNER"             AS partner,
+            "JOBTITLE"                    AS job_title,
+            "INV"                         AS inv,
+            "PAYMENT"                     AS payment,
+            "CREDIT"                      AS credit,
+            "REFUND"                      AS refund,
+            "BALANCE"                     AS balance,
+            "0-30"                        AS b0_30,
+            "31-60"                       AS b31_60,
+            "61-90"                       AS b61_90,
+            "90+"                         AS b90p,
+            "total arrears"               AS total_arrears,
+            "current"                     AS current_bal,
+            "DAYSDELAY"                   AS days_delay,
+            "LASTPAYMENTDATE"             AS last_pmt_date,
+            "LASTPAYMENTTYPE"             AS last_pmt_type,
+            "LASTPAYMENTAMOUNT"           AS last_pmt_amt,
+            "LAST_SCHEDULED_PAYMENT_DATE" AS last_sched_pmt,
+            "PASTDUEISSUE"                AS past_due_issue,
+            "CLIENT_RESOLUTION_STATUS"    AS crs_status,
+            "1STATTEMPT"                  AS att1,
+            "1STATTEMPTDATE"              AS att1_date,
+            "2NDATTEMPT"                  AS att2,
+            "2NDATTEMPTDATE"              AS att2_date,
+            "3RDATTEMPT"                  AS att3,
+            "3RDATTEMPTDATE"              AS att3_date
+        FROM ANALYTICS.MART.DIM_AR_ALL_INVOICES
+        ORDER BY "BALANCE" DESC NULLS LAST
+    """
+    cur = conn.cursor()
+    cur.execute(sql)
+    cols = [c[0].lower() for c in cur.description]
+    rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+    for r in rows:
+        for k, v in r.items():
+            if hasattr(v, 'strftime'):
+                r[k] = v.strftime('%Y-%m-%d')
+            elif v is None:
+                r[k] = ''
+            else:
+                r[k] = str(v)
+    print(f"   → {len(rows):,} AR invoice records fetched")
+    return rows
+
+
+def build_ar_v2_data(ar_rows):
+    """Build ar2_data.json from DIM_AR_ALL_INVOICES rows."""
+    print("⏳ Building ar2_data.json (AR v2)...")
+    from datetime import date as _date
+    today = _date.today()
+
+    def cm(v):
+        try: return round(float(str(v).replace('$','').replace(',','').strip() or 0), 2)
+        except: return 0.0
+
+    def ci(v):
+        try: return int(float(str(v) or 0))
+        except: return 0
+
+    def get_v2_status(credit):
+        c = (credit or "").lower().strip()
+        if "cncl" in c or "lrev" in c or "cancelled" in c: return "Cancelled"
+        return "Active"
+
+    def get_v2_bucket(days_delay, status):
+        if status == "Cancelled": return "Cancelled"
+        try: dd = int(float(str(days_delay) or 0))
+        except: dd = 0
+        if dd <= 0:   return "Current"
+        if dd <= 30:  return "0-30d"
+        if dd <= 60:  return "31-60d"
+        if dd <= 90:  return "61-90d"
+        if dd <= 180: return "91-180d"
+        return "180d+"
+
+    def clean_pdi(v):
+        return str(v).strip().lower() in ("true","yes","1","y","x","flagged","issue")
+
+    rows_out = []
+    skus = set(); pcats = set(); divs = set(); partners = set()
+    total_inv = 0.0; total_paid = 0.0; total_bal = 0.0
+    total_arr = 0.0; total_cur = 0.0; pdi_count = 0
+
+    for r in ar_rows:
+        inv     = cm(r.get("inv",""))
+        payment = cm(r.get("payment",""))
+        balance = cm(r.get("balance",""))
+        arrears = cm(r.get("total_arrears",""))
+        cur_bal = cm(r.get("current_bal",""))
+        b0_30   = cm(r.get("b0_30",""))
+        b31_60  = cm(r.get("b31_60",""))
+        b61_90  = cm(r.get("b61_90",""))
+        b90p    = cm(r.get("b90p",""))
+        credit  = str(r.get("credit","") or "")
+        status  = get_v2_status(credit)
+        dd      = ci(r.get("days_delay",""))
+        bucket  = get_v2_bucket(dd, status)
+        sku     = str(r.get("product_name","") or "Unknown").strip()
+        pcat    = str(r.get("pcat","") or "Unknown").strip()
+        div_    = str(r.get("division","") or "Other").strip()
+        part    = str(r.get("partner","") or "").strip()
+        pdi     = clean_pdi(r.get("past_due_issue",""))
+        cpct    = round(payment/inv*100, 1) if inv > 0 else 0.0
+
+        skus.add(sku); pcats.add(pcat); divs.add(div_); partners.add(part)
+        total_inv  += inv;  total_paid += payment; total_bal += balance
+        total_arr  += arrears; total_cur += cur_bal
+        if pdi: pdi_count += 1
+
+        rows_out.append({
+            "oid":  str(r.get("order_id","")   or ""),
+            "cid":  str(r.get("contact_id","") or ""),
+            "name": str(r.get("client_name","")or ""),
+            "sku":  sku,
+            "date": str(r.get("ar_date","")    or "")[:10],
+            "div":  div_,
+            "pcat": pcat,
+            "part": part,
+            "inv":  inv,
+            "paid": payment,
+            "bal":  balance,
+            "arr":  arrears,
+            "cur":  cur_bal,
+            "b0":   b0_30,
+            "b31":  b31_60,
+            "b61":  b61_90,
+            "b90":  b90p,
+            "dd":   dd,
+            "bucket": bucket,
+            "status": status,
+            "cpct": cpct,
+            "crs":  str(r.get("crs_status","")    or ""),
+            "pdi":  pdi,
+            "lpd":  str(r.get("last_pmt_date","") or ""),
+            "lpa":  cm(r.get("last_pmt_amt","")),
+            "lpt":  str(r.get("last_pmt_type","") or ""),
+            "lspd": str(r.get("last_sched_pmt","")or ""),
+            "a1":   str(r.get("att1","")   or ""),
+            "a1d":  str(r.get("att1_date","")or ""),
+            "a2":   str(r.get("att2","")   or ""),
+            "a2d":  str(r.get("att2_date","")or ""),
+            "a3":   str(r.get("att3","")   or ""),
+            "a3d":  str(r.get("att3_date","")or ""),
+        })
+
+    print(f"   → {len(rows_out):,} AR v2 records | Balance=${total_bal:,.0f} | Arrears=${total_arr:,.0f}")
+    return {
+        "summary": {
+            "total_orders":  len(rows_out),
+            "total_inv":     round(total_inv,  2),
+            "total_paid":    round(total_paid, 2),
+            "total_bal":     round(total_bal,  2),
+            "total_arrears": round(total_arr,  2),
+            "total_current": round(total_cur,  2),
+            "pdi_count":     pdi_count,
+            "as_of":         str(today),
+        },
+        "rows": rows_out,
+        "FL": {
+            "skus":     sorted(s for s in skus     if s and s != "Unknown"),
+            "pcats":    sorted(p for p in pcats    if p and p != "Unknown"),
+            "divs":     sorted(d for d in divs     if d and d != "Other"),
+            "partners": sorted(p for p in partners if p),
+        }
+    }
+
+
 def main():
     print("=" * 55)
     print("  BTI Analytics Dashboard — Data Refresh")
@@ -1193,9 +1375,10 @@ def main():
     print("=" * 55)
 
     # 1. Connect & fetch from Snowflake
-    conn     = connect_snowflake()
-    orders   = fetch_orders(conn)
-    payments = fetch_payments(conn)
+    conn        = connect_snowflake()
+    orders      = fetch_orders(conn)
+    payments    = fetch_payments(conn)
+    ar_invoices = fetch_ar_invoices(conn)
     conn.close()
 
     # 2. Build and save each JSON
@@ -1224,6 +1407,10 @@ def main():
     print()
     ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_data.get("QFY"), cancel_data=cancel_data)
     save_json(ar_data, "ar_data.json")
+
+    print()
+    ar2_data = build_ar_v2_data(ar_invoices)
+    save_json(ar2_data, "ar2_data.json")
 
     print()
     print("=" * 55)
