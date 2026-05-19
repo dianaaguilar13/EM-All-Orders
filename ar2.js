@@ -676,17 +676,21 @@ function ar2RenderFilters(){
 }
 
 // ── Load data ─────────────────────────────────────────────────────────────────
-fetch("ar2_data.json").then(function(r){return r.json();})
-  .then(function(data){
-    AR2 = data;
-    ar2RenderFilters();
-    // Render only if the panel is already visible
-    if(document.getElementById("ar2-panel").style.display !== "none") ar2Render();
-  })
-  .catch(function(err){
-    document.getElementById("ar2-loading").innerHTML =
-      '<div style="color:#ef4444;padding:20px">Failed to load ar2_data.json — run Run.bat to generate: '+err+'</div>';
-  });
+// Load ar2_data.json (invoice snapshot) + ar2_trend.json (weekly history) in parallel.
+// ar2_trend.json is always authoritative for trend_v2 — it updates on every Run.bat
+// independently of the full data rebuild.
+Promise.all([
+  fetch("ar2_data.json").then(function(r){ return r.json(); }),
+  fetch("ar2_trend.json?v=" + Date.now()).then(function(r){ return r.json(); }).catch(function(){ return null; })
+]).then(function(results){
+  AR2 = results[0];
+  if(results[1] && results[1].length) AR2.trend_v2 = results[1];
+  ar2RenderFilters();
+  if(document.getElementById("ar2-panel").style.display !== "none") ar2Render();
+}).catch(function(err){
+  document.getElementById("ar2-loading").innerHTML =
+    '<div style="color:#ef4444;padding:20px">Failed to load ar2_data.json — run Run.bat to generate: '+err+'</div>';
+});
 
 document.addEventListener("click", function(e){
   var menu = document.getElementById("ar2-sku-menu");
