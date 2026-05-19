@@ -102,6 +102,8 @@ function ar2Render(){
   ar2RenderComparison(total_bal);
 
   // Charts
+  ar2RenderTrendChart();
+  ar2RenderQfyChart();
   ar2RenderAgingChart(rows);
   ar2RenderArrearsDonut(rows);
   ar2RenderDivChart(rows);
@@ -142,6 +144,171 @@ function ar2RenderComparison(v2Bal){
     '<span style="margin-right:20px">V1 Balance (derived): <b>'+ar2D(v1Bal)+'</b></span>'+
     '<span style="margin-right:20px">V2 Balance (source of truth): <b style="color:#0d9488">'+ar2D(v2Bal)+'</b></span>'+
     '<span style="color:'+diffColor+'"><b>'+diffLabel+ar2D(Math.abs(diff))+'</b> difference</span>';
+}
+
+// ── AR Overdue Trend (reuses AR v1 trend data, responds to ar2 pcat filter) ──
+function ar2RenderTrendChart(){
+  if(typeof arTrendChart !== "undefined" && ar2Charts.trend){
+    try{ar2Charts.trend.destroy();}catch(e){}
+  }
+  var noDataEl = document.getElementById("ar2-trend-nodata");
+  var canvas   = document.getElementById("ar2-trend-chart");
+
+  // Requires AR v1 data (trend lives in ar_data.json)
+  if(typeof AR === "undefined" || !AR){
+    if(noDataEl){noDataEl.style.display="block"; noDataEl.textContent="Run Run.bat to generate the AR overdue trend.";}
+    if(canvas)canvas.style.display="none";
+    return;
+  }
+
+  var pcat      = ar2Pcat();
+  var trendData = null;
+  var trendLabel = "% AR Overdue";
+  var note = "";
+
+  if(pcat && AR.trend_by_pcat && AR.trend_by_pcat[pcat]){
+    trendData  = AR.trend_by_pcat[pcat];
+    trendLabel = "% AR Overdue ("+pcat+")";
+  } else if(pcat && (!AR.trend_by_pcat || !AR.trend_by_pcat[pcat])){
+    note      = "Pcat-filtered trend available after next Run.bat";
+    trendData = AR.trend || [];
+  } else {
+    trendData = AR.trend || [];
+  }
+  if(ar2SelSku.size > 0 && !pcat) note = "SKU filter does not affect trend — showing global";
+
+  if(!(trendData && trendData.length)){
+    if(noDataEl){noDataEl.style.display="block"; noDataEl.textContent = note || "Run Run.bat to generate the AR overdue trend from Snowflake payment history.";}
+    if(canvas)canvas.style.display="none";
+    return;
+  }
+  if(noDataEl) noDataEl.style.display="none";
+  if(canvas)   canvas.style.display="block";
+
+  var r        = ar2Range();
+  var filtered = trendData.filter(function(pt){return pt[0]>=r.df&&pt[0]<=r.dt;});
+  if(!filtered.length) return;
+  var labels = filtered.map(function(pt){return pt[0];});
+  var pcts   = filtered.map(function(pt){return pt[1];});
+  var avgs   = filtered.map(function(pt){return pt.length>2?pt[2]:null;});
+  var ctx = canvas.getContext("2d");
+  ar2Charts.trend = new Chart(ctx, {
+    type:"line",
+    data:{labels:labels, datasets:[
+      {label:trendLabel, data:pcts, borderColor:"#0d9488", backgroundColor:"rgba(13,148,136,0.07)",
+       fill:true, pointRadius:0, borderWidth:1.5, tension:0.3},
+      {label:"13-wk Running Avg", data:avgs, borderColor:"#ea4335", backgroundColor:"transparent",
+       fill:false, pointRadius:0, borderWidth:2.5, tension:0.5}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index", intersect:false},
+      plugins:{
+        legend:{display:true, position:"top", labels:{color:"#64748b", font:{size:11}, boxWidth:12, padding:12}},
+        tooltip:{callbacks:{
+          title:function(items){return items[0].label;},
+          label:function(c){return c.dataset.label+": "+(c.raw!=null?c.raw.toFixed(2)+"%":"N/A");}
+        }}
+      },
+      scales:{
+        x:{ticks:{color:"#64748b", font:{size:10}, maxTicksLimit:20, maxRotation:45,
+            callback:function(val,idx){var d=labels[idx];return d?new Date(d).toLocaleDateString("en-US",{month:"short",year:"2-digit"}):""}},
+           grid:{color:"#f1f5f9"}},
+        y:{title:{display:true, text:"% Of AR", color:"#64748b", font:{size:11}},
+           beginAtZero:true,
+           ticks:{color:"#64748b", font:{size:10}, callback:function(v){return v.toFixed(1)+"%";}},
+           grid:{color:"#f1f5f9"}}
+      }
+    }
+  });
+}
+
+// ── FY Cancel Rate by Quarter (reuses AR v1 QFY/GMSKU/PCM/PCMSKU data) ───────
+function ar2RenderQfyChart(){
+  if(ar2Charts.qfy){try{ar2Charts.qfy.destroy();}catch(e){}}
+
+  if(typeof AR === "undefined" || !AR || !AR.QFY){
+    document.getElementById("ar2-qfy-wrap").style.display="none"; return;
+  }
+  document.getElementById("ar2-qfy-wrap").style.display="block";
+
+  var skus = ar2SelSku.size > 0 ? Array.from(ar2SelSku) : null;
+  var pcat = ar2Pcat();
+  var QFY;
+
+  if(!skus && !pcat){
+    QFY = AR.QFY || {};
+  } else {
+    var monthMap = {};
+    if(skus && pcat){
+      var pcatMths = (AR.PCMSKU || {})[pcat] || {};
+      Object.keys(pcatMths).forEach(function(m){
+        skus.forEach(function(s){
+          var b=(pcatMths[m]||{})[s]; if(!b)return;
+          if(!monthMap[m])monthMap[m]=[0,0,0,0,0,0,0,0.0];
+          for(var i=0;i<8;i++)monthMap[m][i]+=(b[i]||0);
+        });
+      });
+    } else if(skus){
+      var gmsku = AR.GMSKU || {};
+      Object.keys(gmsku).forEach(function(m){
+        skus.forEach(function(s){
+          var b=(gmsku[m]||{})[s]; if(!b)return;
+          if(!monthMap[m])monthMap[m]=[0,0,0,0,0,0,0,0.0];
+          for(var i=0;i<8;i++)monthMap[m][i]+=(b[i]||0);
+        });
+      });
+    } else {
+      monthMap = (AR.PCM || {})[pcat] || {};
+    }
+    // aggregate into QFY
+    QFY = {};
+    Object.keys(monthMap).forEach(function(m){
+      if(!m||m.length<7)return;
+      var yr=parseInt(m.slice(0,4)),mo=parseInt(m.slice(5,7));
+      var fy="FY'"+String(yr).slice(2), q="Q"+(Math.floor((mo-1)/3)+1);
+      if(!QFY[fy])QFY[fy]={};
+      if(!QFY[fy][q])QFY[fy][q]=[0,0,0,0,0,0,0,0.0];
+      var b=monthMap[m];
+      for(var i=0;i<8;i++)QFY[fy][q][i]+=(b[i]||0);
+    });
+  }
+
+  var fys = Object.keys(QFY).filter(function(fy){return Object.keys(QFY[fy]).length>0;}).sort();
+  if(!fys.length){document.getElementById("ar2-qfy-wrap").style.display="none"; return;}
+  var quarters  = ["Q1","Q2","Q3","Q4"];
+  var FY_COLORS = ["#4285f4","#ea4335","#fbbc04","#34a853","#a142f4","#00acc1","#ff6d00"];
+  var ds = fys.map(function(fy,i){
+    return{
+      label:fy,
+      data:quarters.map(function(q){
+        var b=(QFY[fy]||{})[q]; if(!b)return null;
+        var denom=b[0]-b[2]; return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
+      }),
+      backgroundColor:FY_COLORS[i%FY_COLORS.length],
+      borderRadius:4, borderSkipped:false
+    };
+  });
+  var ctx = document.getElementById("ar2-qfy-chart").getContext("2d");
+  var filterNote = (skus||pcat) ? " · "+(skus?skus.join(", ")+" ":"")+(pcat?"("+pcat+")":"") : "";
+  ar2Charts.qfy = new Chart(ctx, {
+    type:"bar",
+    data:{labels:["Cancel Rate Q1","Cancel Rate Q2","Cancel Rate Q3","Cancel Rate Q4"], datasets:ds},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:"top", labels:{color:"#64748b", font:{size:11}, boxWidth:12, padding:12}},
+        title:{display:!!(skus||pcat), text:"Filtered: "+filterNote.slice(3), color:"#64748b", font:{size:11}},
+        tooltip:{callbacks:{label:function(c){return c.dataset.label+": "+(c.raw!=null?c.raw.toFixed(1)+"%":"N/A");}}}
+      },
+      scales:{
+        x:{ticks:{color:"#64748b", font:{size:11}}, grid:{display:false}},
+        y:{beginAtZero:true,
+           ticks:{color:"#64748b", font:{size:10}, callback:function(v){return v+"%";}},
+           grid:{color:"#f1f5f9"}}
+      }
+    }
+  });
 }
 
 // ── Aging chart (pre-calculated $ buckets from Snowflake) ────────────────────

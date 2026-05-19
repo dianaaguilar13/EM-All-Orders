@@ -650,7 +650,22 @@ function showArTab(){
     <!-- KPIs -->
     <div id="ar2-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;padding:16px 24px;border-bottom:1px solid #dde3ea"></div>
 
-    <!-- Row 1: Aging (full width) -->
+    <!-- AR Overdue Trend -->
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="font-weight:600;color:#0d9488;margin-bottom:3px">AR Overdue Trend</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">% of AR balance overdue (&gt;30 days since last payment) · Weekly snapshots · Red line = 13-week running average</div>
+      <div id="ar2-trend-nodata" style="display:none;padding:30px;text-align:center;color:#64748b;background:#f8fafc;border-radius:8px;border:1px dashed #dde3ea">Run <strong>Run.bat</strong> to generate the AR overdue trend from Snowflake payment history.</div>
+      <div style="height:280px"><canvas id="ar2-trend-chart"></canvas></div>
+    </div>
+
+    <!-- FY Cancel Rate by Quarter -->
+    <div id="ar2-qfy-wrap" style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="font-weight:600;color:#0d9488;margin-bottom:3px">FY Cancel Rate by Quarter</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec · Responds to SKU &amp; Partner Category filters</div>
+      <div style="height:300px"><canvas id="ar2-qfy-chart"></canvas></div>
+    </div>
+
+    <!-- Aging Analysis -->
     <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
       <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Aging Analysis — Balance by Bucket</div>
       <div style="font-size:11px;color:#64748b;margin-bottom:12px">Dollar amounts from pre-calculated Snowflake columns (source of truth) · Current = not yet overdue</div>
