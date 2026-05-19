@@ -146,81 +146,149 @@ function ar2RenderComparison(v2Bal){
     '<span style="color:'+diffColor+'"><b>'+diffLabel+ar2D(Math.abs(diff))+'</b> difference</span>';
 }
 
-// ── AR Overdue Trend (reuses AR v1 trend data, responds to ar2 pcat filter) ──
+// ── AR Overdue Trend v2 — true arrears % from billing system history ──────────
 function ar2RenderTrendChart(){
-  if(typeof arTrendChart !== "undefined" && ar2Charts.trend){
-    try{ar2Charts.trend.destroy();}catch(e){}
-  }
+  if(ar2Charts.trend){ try{ar2Charts.trend.destroy();}catch(e){} }
   var noDataEl = document.getElementById("ar2-trend-nodata");
   var canvas   = document.getElementById("ar2-trend-chart");
+  var trendWrap = document.getElementById("ar2-trend-table-wrap");
 
-  // Requires AR v1 data (trend lives in ar_data.json)
-  if(typeof AR === "undefined" || !AR){
-    if(noDataEl){noDataEl.style.display="block"; noDataEl.textContent="Run Run.bat to generate the AR overdue trend.";}
-    if(canvas)canvas.style.display="none";
-    return;
-  }
+  var trendData = AR2 && AR2.trend_v2 && AR2.trend_v2.length ? AR2.trend_v2 : null;
 
-  var pcat      = ar2Pcat();
-  var trendData = null;
-  var trendLabel = "% AR Overdue";
-  var note = "";
-
-  if(pcat && AR.trend_by_pcat && AR.trend_by_pcat[pcat]){
-    trendData  = AR.trend_by_pcat[pcat];
-    trendLabel = "% AR Overdue ("+pcat+")";
-  } else if(pcat && (!AR.trend_by_pcat || !AR.trend_by_pcat[pcat])){
-    note      = "Pcat-filtered trend available after next Run.bat";
-    trendData = AR.trend || [];
-  } else {
-    trendData = AR.trend || [];
-  }
-  if(ar2SelSku.size > 0 && !pcat) note = "SKU filter does not affect trend — showing global";
-
-  if(!(trendData && trendData.length)){
-    if(noDataEl){noDataEl.style.display="block"; noDataEl.textContent = note || "Run Run.bat to generate the AR overdue trend from Snowflake payment history.";}
-    if(canvas)canvas.style.display="none";
+  if(!trendData){
+    if(noDataEl){ noDataEl.style.display="block";
+      noDataEl.textContent="Run Run.bat to generate the AR Overdue Trend (seeds from AR Overdue Historic Week Data.xlsx)."; }
+    if(canvas) canvas.style.display="none";
+    if(trendWrap) trendWrap.style.display="none";
     return;
   }
   if(noDataEl) noDataEl.style.display="none";
   if(canvas)   canvas.style.display="block";
 
   var r        = ar2Range();
-  var filtered = trendData.filter(function(pt){return pt[0]>=r.df&&pt[0]<=r.dt;});
-  if(!filtered.length) return;
-  var labels = filtered.map(function(pt){return pt[0];});
-  var pcts   = filtered.map(function(pt){return pt[1];});
-  var avgs   = filtered.map(function(pt){return pt.length>2?pt[2]:null;});
+  var filtered = trendData.filter(function(pt){ return pt.d >= r.df && pt.d <= r.dt; });
+  if(!filtered.length){ if(trendWrap) trendWrap.style.display="none"; return; }
+
+  var labels = filtered.map(function(pt){ return pt.d; });
+  var pcts   = filtered.map(function(pt){ return pt.pct; });
+  var avgs   = filtered.map(function(pt){ return pt.avg52 != null ? pt.avg52 : null; });
+
   var ctx = canvas.getContext("2d");
   ar2Charts.trend = new Chart(ctx, {
     type:"line",
     data:{labels:labels, datasets:[
-      {label:trendLabel, data:pcts, borderColor:"#0d9488", backgroundColor:"rgba(13,148,136,0.07)",
+      {label:"% AR Overdue (billing system)", data:pcts,
+       borderColor:"#0d9488", backgroundColor:"rgba(13,148,136,0.08)",
        fill:true, pointRadius:0, borderWidth:1.5, tension:0.3},
-      {label:"13-wk Running Avg", data:avgs, borderColor:"#ea4335", backgroundColor:"transparent",
+      {label:"52-wk Running Avg", data:avgs,
+       borderColor:"#ea4335", backgroundColor:"transparent",
        fill:false, pointRadius:0, borderWidth:2.5, tension:0.5}
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:"index", intersect:false},
       plugins:{
-        legend:{display:true, position:"top", labels:{color:"#64748b", font:{size:11}, boxWidth:12, padding:12}},
+        legend:{display:true, position:"top",
+          labels:{color:"#64748b", font:{size:11}, boxWidth:12, padding:12}},
         tooltip:{callbacks:{
-          title:function(items){return items[0].label;},
-          label:function(c){return c.dataset.label+": "+(c.raw!=null?c.raw.toFixed(2)+"%":"N/A");}
+          title:function(items){ return "Week ending " + items[0].label; },
+          label:function(c){ return c.dataset.label+": "+(c.raw!=null?c.raw.toFixed(2)+"%":"N/A"); }
         }}
       },
       scales:{
-        x:{ticks:{color:"#64748b", font:{size:10}, maxTicksLimit:20, maxRotation:45,
-            callback:function(val,idx){var d=labels[idx];return d?new Date(d).toLocaleDateString("en-US",{month:"short",year:"2-digit"}):""}},
+        x:{ticks:{color:"#64748b", font:{size:10}, maxTicksLimit:24, maxRotation:45,
+            callback:function(val,idx){
+              var d=labels[idx];
+              return d ? new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}) : "";
+            }},
            grid:{color:"#f1f5f9"}},
-        y:{title:{display:true, text:"% Of AR", color:"#64748b", font:{size:11}},
+        y:{title:{display:true, text:"% Of AR Overdue", color:"#64748b", font:{size:11}},
            beginAtZero:true,
-           ticks:{color:"#64748b", font:{size:10}, callback:function(v){return v.toFixed(1)+"%";}},
+           ticks:{color:"#64748b", font:{size:10},
+             callback:function(v){ return v.toFixed(1)+"%"; }},
            grid:{color:"#f1f5f9"}}
       }
     }
   });
+
+  // Render the expandable data table below
+  ar2RenderTrendTable(filtered);
+  if(trendWrap) trendWrap.style.display="block";
+}
+
+// ── AR Overdue Trend — expandable data table ──────────────────────────────────
+function ar2RenderTrendTable(data){
+  var wrap = document.getElementById("ar2-trend-table-wrap");
+  if(!wrap) return;
+  var fmt$ = function(v){ return v ? "$"+Math.round(v).toLocaleString() : "—"; };
+  var fmtP = function(v){ return v != null ? v.toFixed(2)+"%" : "—"; };
+
+  var rows = data.slice().reverse(); // newest first
+  var tbody = rows.map(function(pt){
+    return "<tr>" +
+      "<td>" + pt.d + "</td>" +
+      "<td style='text-align:right'>" + fmt$(pt.tb) + "</td>" +
+      "<td style='text-align:right'>" + fmt$(pt.ob) + "</td>" +
+      "<td style='text-align:right;font-weight:600;color:#0d9488'>" + fmtP(pt.pct) + "</td>" +
+      "<td style='text-align:right;color:#ea4335'>" + fmtP(pt.avg52) + "</td>" +
+      "<td>" + (pt.q || "") + "</td>" +
+      "<td>" + (pt.y ? "FY'" + String(pt.y).slice(-2) : "") + "</td>" +
+    "</tr>";
+  }).join("");
+
+  wrap.innerHTML =
+    "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
+      "<span style='font-size:12px;font-weight:600;color:#0d9488;cursor:pointer' onclick='ar2ToggleTrendTable(this)'>▼ Weekly Data Table (" + rows.length + " weeks)</span>" +
+      "<button onclick='ar2DownloadTrendCsv()' style='font-size:11px;padding:4px 10px;border:1px solid #0d9488;border-radius:4px;background:#fff;color:#0d9488;cursor:pointer'>⬇ Download CSV</button>" +
+    "</div>" +
+    "<div id='ar2-trend-tbl-body'>" +
+      "<table style='width:100%;border-collapse:collapse;font-size:12px'>" +
+        "<thead><tr style='background:#f1faf9;position:sticky;top:0'>" +
+          "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Week (Friday)</th>" +
+          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Total AR Balance</th>" +
+          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Overdue Balance</th>" +
+          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>% Overdue</th>" +
+          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>52-wk Avg</th>" +
+          "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Quarter</th>" +
+          "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Fiscal Year</th>" +
+        "</tr></thead>" +
+        "<tbody>" + tbody + "</tbody>" +
+      "</table>" +
+    "</div>";
+}
+
+function ar2ToggleTrendTable(btn){
+  var body = document.getElementById("ar2-trend-tbl-body");
+  if(!body) return;
+  if(body.style.display === "none"){
+    body.style.display = "block";
+    btn.textContent = btn.textContent.replace("▶","▼");
+  } else {
+    body.style.display = "none";
+    btn.textContent = btn.textContent.replace("▼","▶");
+  }
+}
+
+function ar2DownloadTrendCsv(){
+  if(!AR2 || !AR2.trend_v2 || !AR2.trend_v2.length) return;
+  var header = ["Week (Friday)","Total AR Balance","Overdue Balance","% Of AR Overdue","52-wk Running Avg","Quarter","Fiscal Year"];
+  var lines  = [header.join(",")];
+  AR2.trend_v2.forEach(function(pt){
+    lines.push([
+      pt.d,
+      pt.tb != null ? pt.tb.toFixed(2) : "",
+      pt.ob != null ? pt.ob.toFixed(2) : "",
+      pt.pct != null ? pt.pct.toFixed(2) : "",
+      pt.avg52 != null ? pt.avg52.toFixed(2) : "",
+      pt.q || "",
+      pt.y ? "FY'" + String(pt.y).slice(-2) : ""
+    ].join(","));
+  });
+  var blob = new Blob([lines.join("\n")], {type:"text/csv"});
+  var a    = document.createElement("a");
+  a.href   = URL.createObjectURL(blob);
+  a.download = "AR_Overdue_Trend_v2.csv";
+  a.click();
 }
 
 // ── FY Cancel Rate by Quarter (reuses AR v1 QFY/GMSKU/PCM/PCMSKU data) ───────

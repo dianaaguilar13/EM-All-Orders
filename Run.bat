@@ -10,7 +10,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Committing updated data to GitHub...
-git add ar_data.json ar2_data.json cr_data.json data.json ldp_data.json pif_data.json pif_rows.json
+git add ar_data.json ar2_data.json ar2_trend.json cr_data.json data.json ldp_data.json pif_data.json pif_rows.json
 git commit -m "Refresh dashboard data %date% %time%"
 git push origin main
 

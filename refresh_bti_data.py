@@ -1246,7 +1246,132 @@ def fetch_ar_invoices(conn):
     return rows
 
 
-def build_ar_v2_data(ar_rows):
+def load_ar_trend_history():
+    """Load AR overdue weekly history.
+    First run: seeds from 'AR Overdue Historic Week Data.xlsx'.
+    Subsequent runs: loads from ar2_trend.json (persisted append log).
+    Returns list of dicts: {d, tb, ob, pct, avg52, q, y}
+    where pct and avg52 are 0-100 scale (not decimal).
+    """
+    import openpyxl
+    json_path = os.path.join(CONFIG["output_dir"], "ar2_trend.json")
+    xl_path   = os.path.join(CONFIG["output_dir"], "AR Overdue Historic Week Data.xlsx")
+
+    # Prefer the persisted JSON log if it exists
+    if os.path.exists(json_path):
+        with open(json_path, "r") as f:
+            history = json.load(f)
+        print(f"   → Loaded {len(history)} weeks from ar2_trend.json")
+        return history
+
+    # First run — seed from Excel
+    if not os.path.exists(xl_path):
+        print("   ⚠️  AR Overdue Historic Week Data.xlsx not found — trend_v2 will be empty")
+        return []
+
+    wb = openpyxl.load_workbook(xl_path, read_only=True, data_only=True)
+    ws = wb.active
+    history = []
+    first_row = True
+    for row in ws.iter_rows(values_only=True):
+        if first_row:
+            first_row = False
+            continue
+        if not row[0]:
+            continue
+        # Col 0: Date, 1: Total AR Balance, 7: Overdue Balance,
+        # 8: % Of AR Overdue (decimal), 9: 52wk avg (decimal),
+        # 10: Quarter, 11: Year
+        date_val = row[0]
+        if hasattr(date_val, 'strftime'):
+            date_str = date_val.strftime('%Y-%m-%d')
+        else:
+            date_str = str(date_val)[:10]
+        try:
+            tb  = round(float(row[1] or 0), 2)
+        except:
+            tb  = 0.0
+        try:
+            ob  = round(float(row[7] or 0), 2)
+        except:
+            ob  = 0.0
+        pct_raw = row[8]
+        pct = round(float(pct_raw) * 100, 2) if pct_raw is not None else None
+        if pct is None:
+            continue
+        # avg52 will be recomputed in append step; store None for now
+        q = str(row[10] or "")
+        try:
+            y = int(row[11] or 0)
+        except:
+            y = 0
+        history.append({"d": date_str, "tb": tb, "ob": ob, "pct": pct,
+                         "avg52": None, "q": q, "y": y})
+    wb.close()
+    print(f"   → Seeded {len(history)} weeks from Excel (AR Overdue Historic Week Data.xlsx)")
+    return history
+
+
+def append_weekly_ar_trend(history, ar_invoices):
+    """Append this week's snapshot to the AR overdue trend history.
+    Weeks run Saturday→Friday; Friday is the week-end label date.
+    Computes overdue % from DIM_AR_ALL_INVOICES arrears snapshot.
+    Recalculates 52-week rolling average across all rows.
+    Saves the updated history to ar2_trend.json for future runs.
+    """
+    from datetime import date as _date
+    today      = _date.today()
+    # Snap to most recent Friday (weekday 4)
+    days_since_friday = (today.weekday() - 4) % 7
+    week_friday = today - timedelta(days=days_since_friday)
+    week_str    = week_friday.strftime('%Y-%m-%d')
+
+    # Compute quarter & 2-digit year
+    mo = week_friday.month
+    q_label = "Q" + str((mo - 1) // 3 + 1)
+    y_label = week_friday.year % 100
+
+    existing_dates = {row["d"] for row in history}
+    if week_str not in existing_dates:
+        # Compute overdue % from Snowflake snapshot
+        total_bal = 0.0
+        total_arr = 0.0
+        for r in ar_invoices:
+            try: bal = float(str(r.get("balance","") or 0))
+            except: bal = 0.0
+            try: arr = float(str(r.get("total_arrears","") or 0))
+            except: arr = 0.0
+            if bal > 0:
+                total_bal += bal
+                total_arr += max(0.0, arr)
+        pct_overdue = round(total_arr / total_bal * 100, 2) if total_bal > 0 else 0.0
+        history.append({"d": week_str, "tb": round(total_bal, 2),
+                         "ob": round(total_arr, 2), "pct": pct_overdue,
+                         "avg52": None, "q": q_label, "y": y_label})
+        print(f"   → AR trend v2: appended week {week_str} — {pct_overdue:.2f}% overdue (${total_bal:,.0f} total bal)")
+    else:
+        print(f"   → AR trend v2: week {week_str} already in history, skipping")
+
+    # Sort by date
+    history.sort(key=lambda x: x["d"])
+
+    # Recompute 52-week rolling average for every row
+    win = 52
+    for i, row in enumerate(history):
+        si  = max(0, i - win + 1)
+        avg = round(sum(history[j]["pct"] for j in range(si, i + 1)) / (i - si + 1), 2)
+        history[i]["avg52"] = avg
+
+    # Persist to ar2_trend.json
+    json_path = os.path.join(CONFIG["output_dir"], "ar2_trend.json")
+    with open(json_path, "w") as f:
+        json.dump(history, f, separators=(',', ':'))
+    size_kb = os.path.getsize(json_path) // 1024
+    print(f"   💾 ar2_trend.json saved ({size_kb} KB, {len(history)} weeks)")
+    return history
+
+
+def build_ar_v2_data(ar_rows, trend_v2=None):
     """Build ar2_data.json from DIM_AR_ALL_INVOICES rows."""
     print("⏳ Building ar2_data.json (AR v2)...")
     from datetime import date as _date
@@ -1359,6 +1484,7 @@ def build_ar_v2_data(ar_rows):
             "as_of":         str(today),
         },
         "rows": rows_out,
+        "trend_v2": trend_v2 or [],
         "FL": {
             "skus":     sorted(s for s in skus     if s and s != "Unknown"),
             "pcats":    sorted(p for p in pcats    if p and p != "Unknown"),
@@ -1409,7 +1535,9 @@ def main():
     save_json(ar_data, "ar_data.json")
 
     print()
-    ar2_data = build_ar_v2_data(ar_invoices)
+    ar_trend_v2 = load_ar_trend_history()
+    ar_trend_v2 = append_weekly_ar_trend(ar_trend_v2, ar_invoices)
+    ar2_data = build_ar_v2_data(ar_invoices, trend_v2=ar_trend_v2)
     save_json(ar2_data, "ar2_data.json")
 
     print()

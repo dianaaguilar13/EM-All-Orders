@@ -653,9 +653,10 @@ function showArTab(){
     <!-- AR Overdue Trend -->
     <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
       <div style="font-weight:600;color:#0d9488;margin-bottom:3px">AR Overdue Trend</div>
-      <div style="font-size:11px;color:#64748b;margin-bottom:12px">% of AR balance overdue (&gt;30 days since last payment) · Weekly snapshots · Red line = 13-week running average</div>
-      <div id="ar2-trend-nodata" style="display:none;padding:30px;text-align:center;color:#64748b;background:#f8fafc;border-radius:8px;border:1px dashed #dde3ea">Run <strong>Run.bat</strong> to generate the AR overdue trend from Snowflake payment history.</div>
-      <div style="height:280px"><canvas id="ar2-trend-chart"></canvas></div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">True % of AR balance overdue — sourced from billing system weekly snapshots · Weeks run Sat→Fri (Friday = week-end label) · Red line = 52-week running average · Seeds from <em>AR Overdue Historic Week Data.xlsx</em> · New week appended on each Run.bat</div>
+      <div id="ar2-trend-nodata" style="display:none;padding:30px;text-align:center;color:#64748b;background:#f8fafc;border-radius:8px;border:1px dashed #dde3ea">Run <strong>Run.bat</strong> to seed the AR Overdue Trend from <strong>AR Overdue Historic Week Data.xlsx</strong>.</div>
+      <div style="height:300px"><canvas id="ar2-trend-chart"></canvas></div>
+      <div id="ar2-trend-table-wrap" style="display:none;margin-top:16px;max-height:320px;overflow-y:auto;border:1px solid #dde3ea;border-radius:8px;padding:12px 16px;background:#fafcff"></div>
     </div>
 
     <!-- FY Cancel Rate by Quarter -->
