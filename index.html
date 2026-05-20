@@ -70,9 +70,62 @@ tr:hover td{background:#f8fafc}
 .bb{flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;min-width:40px}
 .bf{height:100%;border-radius:2px}
 @media(max-width:900px){.grid2{grid-template-columns:1fr}}
+/* ── Password overlay ─────────────────────────────── */
+#pw-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);z-index:9999;display:flex;align-items:center;justify-content:center}
+#pw-box{background:#ffffff;border-radius:16px;padding:40px 44px;width:380px;max-width:calc(100vw - 32px);box-shadow:0 24px 64px rgba(0,0,0,.5);text-align:center}
+#pw-logo{font-size:22px;font-weight:700;letter-spacing:-0.5px;color:#1a2332;margin-bottom:4px}
+#pw-logo span{color:#2563eb}
+#pw-sub{font-size:12px;color:#64748b;margin-bottom:28px}
+#pw-input{width:100%;border:1px solid #dde3ea;border-radius:8px;padding:10px 14px;font-size:14px;font-family:"DM Sans",sans-serif;outline:none;color:#1a2332;background:#f8fafc;transition:border-color .15s}
+#pw-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px #2563eb18;background:#fff}
+#pw-input.shake{animation:pw-shake .35s ease}
+@keyframes pw-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+#pw-err{font-size:12px;color:#ef4444;margin-top:8px;min-height:18px;font-weight:500}
+#pw-btn{margin-top:16px;width:100%;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:600;font-family:"DM Sans",sans-serif;cursor:pointer;transition:background .15s}
+#pw-btn:hover{background:#1d4ed8}
+#pw-remember{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;font-size:11px;color:#64748b;cursor:pointer}
+#pw-remember input{accent-color:#2563eb;cursor:pointer}
 </style>
 </head>
 <body>
+
+<!-- ── Password gate ───────────────────────────────────────────────── -->
+<div id="pw-overlay">
+  <div id="pw-box">
+    <div id="pw-logo">BTI <span>Analytics</span></div>
+    <div id="pw-sub">All Orders Dashboard · Internal Use Only</div>
+    <input id="pw-input" type="password" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')pwCheck()">
+    <div id="pw-err"></div>
+    <button id="pw-btn" onclick="pwCheck()">Unlock Dashboard</button>
+    <label id="pw-remember"><input type="checkbox" id="pw-rem"> Remember me on this device</label>
+  </div>
+</div>
+
+<script>
+// ── Change PASSWORD here ──────────────────────────────────────────────
+var PW = "BTI2026";
+// ─────────────────────────────────────────────────────────────────────
+var PW_KEY = "bti_dash_auth";
+(function(){
+  if(localStorage.getItem(PW_KEY) === PW){
+    document.getElementById("pw-overlay").style.display = "none";
+  }
+})();
+function pwCheck(){
+  var val = document.getElementById("pw-input").value;
+  if(val === PW){
+    if(document.getElementById("pw-rem").checked) localStorage.setItem(PW_KEY, PW);
+    document.getElementById("pw-overlay").style.display = "none";
+  } else {
+    var inp = document.getElementById("pw-input");
+    document.getElementById("pw-err").textContent = "Incorrect password. Try again.";
+    inp.classList.remove("shake");
+    void inp.offsetWidth; // reflow to restart animation
+    inp.classList.add("shake");
+    inp.select();
+  }
+}
+</script>
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:12px">
     <div class="logo">BTI <span>Analytics</span></div>
