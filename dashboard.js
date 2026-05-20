@@ -1,7 +1,7 @@
 var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 
-function sumArr(arr){var o=[0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<8;j++)o[j]+=(a[j]||0);}return o;}
+function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<11;j++)o[j]+=(a[j]||0);}return o;}
 
 // ── Multi-select ──────────────────────────────────────────
 function toggleMs(e){e.stopPropagation();var dr=document.getElementById("msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msQ").focus();renderMsItems();}}
