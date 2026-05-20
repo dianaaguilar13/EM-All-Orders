@@ -42,7 +42,16 @@ select:focus,input[type=date]:focus{border-color:#2563eb;box-shadow:0 0 0 2px #2
 .spinner{width:32px;height:32px;border:2px solid #dde3ea;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .main{padding:14px 20px;display:flex;flex-direction:column;gap:14px}
-.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.kpi-row{display:flex;flex-direction:column;gap:10px}
+.kpi-top-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.kpi-groups{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi-group-card{border-radius:8px;padding:14px 16px;border:1px solid;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.kpi-group-card.adj{border-color:#f59e0b66;background:#fffbeb}
+.kpi-group-card.chg{border-color:#7c3aed55;background:#faf5ff}
+.kpi-group-hdr{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px}
+.kpi-group-inner{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kpi-mini{padding:10px 12px;background:#ffffff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.kv-mini{font-size:22px;font-weight:700;letter-spacing:-0.5px;line-height:1.2;color:#1a2332}
 .kpi{background:#ffffff;border:1px solid #dde3ea;border-radius:8px;padding:12px 14px;position:relative;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px}
 .kpi.k1::after{background:#2563eb}.kpi.k2::after{background:#3b82f6}.kpi.k3::after{background:#ef4444}

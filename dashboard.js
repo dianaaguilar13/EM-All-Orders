@@ -1,5 +1,6 @@
 var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
+var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<11;j++)o[j]+=(a[j]||0);}return o;}
 
@@ -415,16 +416,31 @@ function render(){
   document.getElementById("rcLbl").textContent=T.toLocaleString()+" records "+(selP.size>0?selP.size+" partner(s)":pcat||"all data");
 
   document.getElementById("kpiRow").innerHTML=
-    '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+net.toLocaleString()+'</div><div class="ks muted">excl. entry error, pend, no pmt</div></div>'+
-    '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+AC.toLocaleString()+'</div><div class="ks muted">'+(net>0?(AC/net*100).toFixed(1):0)+'% of units</div></div>'+
-    '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+C.toLocaleString()+'</div><div class="ks red">'+rate.toFixed(1)+'% cancel rate</div></div>'+
-    '<div class="kpi k5"><div class="kl">Entry Error</div><div class="kv" style="color:#f59e0b">'+E.toLocaleString()+'</div><div class="ks amber">excl. from units</div></div>'+
-    '<div class="kpi k6"><div class="kl">Upgrades</div><div class="kv" style="color:#16a34a">'+U.toLocaleString()+'</div><div class="ks green">upgrade events</div></div>'+
-    '<div class="kpi k7"><div class="kl">Downgrades</div><div class="kv" style="color:#7c3aed">'+Dv.toLocaleString()+'</div><div class="ks muted">downgrade events</div></div>'+
-    '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:18px">$'+Math.round(LR).toLocaleString()+'</div><div class="ks red">payments on cancels</div></div>'+
-    '<div class="kpi k1"><div class="kl">Switch</div><div class="kv" style="color:#0d9488">'+Sw.toLocaleString()+'</div><div class="ks muted">active · switch events</div></div>'+
-    '<div class="kpi k5"><div class="kl">Pend</div><div class="kv" style="color:#f59e0b">'+Pe.toLocaleString()+'</div><div class="ks amber">excl. from units</div></div>'+
-    '<div class="kpi k7"><div class="kl">No Pmt</div><div class="kv" style="color:#64748b">'+NP.toLocaleString()+'</div><div class="ks muted">excl. from units</div></div>';
+    '<div class="kpi-top-row">'+
+      '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+net.toLocaleString()+'</div><div class="ks muted">excl. entry error, pend, no pmt</div></div>'+
+      '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+AC.toLocaleString()+'</div><div class="ks muted">'+(net>0?(AC/net*100).toFixed(1):0)+'% of units</div></div>'+
+      '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+C.toLocaleString()+'</div><div class="ks red">'+(net>0?(C/net*100).toFixed(1):0)+'% of units</div></div>'+
+      '<div class="kpi k4"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+rate.toFixed(1)+'%</div><div class="ks red">cancellations / total units</div></div>'+
+      '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:22px">$'+Math.round(LR).toLocaleString()+'</div><div class="ks red">payments on cancels</div></div>'+
+    '</div>'+
+    '<div class="kpi-groups">'+
+      '<div class="kpi-group-card adj">'+
+        '<div class="kpi-group-hdr"><span style="font-size:16px">📧</span><span style="color:#b45309">ADJUSTMENTS &amp; EXCEPTIONS</span></div>'+
+        '<div class="kpi-group-inner">'+
+          '<div class="kpi-mini"><div class="kl">ENTRY ERROR</div><div class="kv-mini" style="color:#f59e0b">'+E.toLocaleString()+'</div><div class="ks amber">excl. from units</div></div>'+
+          '<div class="kpi-mini"><div class="kl">PEND</div><div class="kv-mini" style="color:#f59e0b">'+Pe.toLocaleString()+'</div><div class="ks amber">excl. from units</div></div>'+
+          '<div class="kpi-mini"><div class="kl">NO PMT</div><div class="kv-mini" style="color:#64748b">'+NP.toLocaleString()+'</div><div class="ks muted">excl. from units</div></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="kpi-group-card chg">'+
+        '<div class="kpi-group-hdr"><span style="font-size:16px">📈</span><span style="color:#7c3aed">CHANGE EVENTS</span></div>'+
+        '<div class="kpi-group-inner">'+
+          '<div class="kpi-mini"><div class="kl">UPGRADES</div><div class="kv-mini" style="color:#16a34a">'+U.toLocaleString()+'</div><div class="ks green">upgrade events</div></div>'+
+          '<div class="kpi-mini"><div class="kl">DOWNGRADES</div><div class="kv-mini" style="color:#7c3aed">'+Dv.toLocaleString()+'</div><div class="ks muted">downgrade events</div></div>'+
+          '<div class="kpi-mini"><div class="kl">SWITCH</div><div class="kv-mini" style="color:#0d9488">'+Sw.toLocaleString()+'</div><div class="ks muted">active · switch events</div></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
 
   var mLabels=ts.map(function(x){return fmtM(x.m);});
   charts.trend=new Chart(document.getElementById("trendChart"),{type:"bar",data:{labels:mLabels,datasets:[
@@ -441,9 +457,6 @@ function render(){
     y:{stacked:true,ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},
     y2:{position:"right",ticks:{color:"#388bfd",font:{size:10},callback:function(v){return v+"%";}},grid:{display:false}}
   }}});
-
-  CNCL_DECOMP_PATH=[];
-  renderDecomp();
 
   var skuBkts=getSkuBuckets();
   var skuArr=Object.keys(skuBkts).map(function(sku){
@@ -514,9 +527,16 @@ function render(){
   var donutKeys=Object.keys(donutData).filter(function(k){return donutData[k]>0;}).sort(function(a,b){return donutData[b]-donutData[a];});
   var donutColors={"Marketing":"#388bfd","Enrollment Mentor":"#f85149","Affiliate":"#3fb950","Event":"#e3b341","Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb950","Downgrade":"#bc8cff","Sale":"#16a34a"};
   charts.pcat=new Chart(document.getElementById("pcatChart"),{type:"doughnut",data:{labels:donutKeys,datasets:[{data:donutKeys.map(function(k){return donutData[k];}),backgroundColor:donutKeys.map(function(k){return donutColors[k]||"#2563eb";}),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:"62%",plugins:{legend:{position:"right",labels:{color:"#8b949e",font:{size:11},boxWidth:10,padding:8}}}}});
-    var rdCounts=getRdCounts(),rdK=["<=30d","<=45d","<=60d","<=90d",">90d"],rdL=["≤30d","≤45d","≤60d","≤90d",">90d"];
-  charts.rd=new Chart(document.getElementById("rdChart"),{type:"bar",data:{labels:rdL,datasets:[{data:rdK.map(function(k){return rdCounts[k]||0;}),backgroundColor:"rgba(56,139,253,0.75)",borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}}}}});
+    var rdCounts=getRdCounts();
+  var rdTotal=RD_KEYS.reduce(function(s,k){return s+(rdCounts[k]||0);},0);
+  charts.rd=new Chart(document.getElementById("rdChart"),{type:"bar",data:{labels:RD_LABELS,datasets:[{data:RD_KEYS.map(function(k){return rdCounts[k]||0;}),backgroundColor:RD_KEYS.map(function(k){return k==="N/A"?"rgba(100,116,139,0.65)":"rgba(56,139,253,0.75)";}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var tot=rdTotal;return ctx.parsed.y+' orders ('+(tot>0?(ctx.parsed.y/tot*100).toFixed(1):0)+'% of cancelled)';}}}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}}}}});
+  var rdRateEl=document.getElementById("rdRateChart");
+  if(rdRateEl){
+    if(charts.rdRate){try{charts.rdRate.destroy();}catch(e){}}
+    charts.rdRate=new Chart(rdRateEl,{type:"bar",data:{labels:RD_LABELS,datasets:[{data:RD_KEYS.map(function(k){return net>0?+((rdCounts[k]||0)/net*100).toFixed(2):0;}),backgroundColor:RD_KEYS.map(function(k){return k==="N/A"?"rgba(100,116,139,0.65)":"rgba(239,68,68,0.75)";}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.parsed.y.toFixed(2)+'% of net units';}}}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#21262d44"}}}}});
+  }
 
+  var skuRd=D.SKURD||{};
   var mx=Math.max.apply(null,skuArr.map(function(s){return s.rate;}).concat([1]));
   document.getElementById("tblInfo").innerHTML='<span>'+skuArr.length+' SKUs '+T.toLocaleString()+' units</span><button onclick="downloadSkuDetailCsv()" style="margin-left:10px;color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">&#11015; Download CSV</button>';
 
@@ -540,7 +560,7 @@ function render(){
       "<td class='num' style='color:#0d9488'>"+s.Sw.toLocaleString()+"</td>"+
       "<td class='num' style='color:#f59e0b'>"+s.Pe.toLocaleString()+"</td>"+
       "<td class='num' style='color:#64748b'>"+s.NP.toLocaleString()+"</td>"+
-      "<td class='num'>"+s.net.toLocaleString()+"</td>"+
+      (function(){var rd=skuRd[s.sku]||{};var parts=RD_KEYS.filter(function(k){return rd[k]>0;}).map(function(k){return RD_LABELS[RD_KEYS.indexOf(k)]+':'+rd[k];});return "<td style='font-size:10px;color:#64748b;white-space:nowrap'>"+(parts.length?parts.join(' · '):'—')+"</td>";})()+
       "<td><div class='bw'><div class='bb'><div class='bf' style='width:"+(mx>0?(s.rate/mx*100).toFixed(0):0)+"%;background:"+bg+"'></div></div>"+
       "<span class='num' style='min-width:38px;font-size:11px;color:"+cl+"'>"+s.rate.toFixed(2)+"%</span></div></td>"+
       "<td class='num' style='color:#ef4444'>$"+Math.round(s.LR).toLocaleString()+"</td>"+
@@ -552,7 +572,7 @@ function render(){
     detailHtml+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+s.sku+' — '+detailRows.length.toLocaleString()+' orders'+(detailRows.length>500?' (showing first 500)':'')+'</div>';
     detailHtml+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
     detailHtml+='<thead><tr style="background:#f1f5f9">';
-    ['Order ID','Contact ID','Date','Product Name','Status','Cancel Status','Invoice Total','Refunds'].forEach(function(h){
+    ['Order ID','Contact ID','Date','Product Name','Status','Cancel Status','Invoice Total','Lost Revenue'].forEach(function(h){
       detailHtml+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
     });
     detailHtml+='</tr></thead><tbody>';
@@ -572,7 +592,8 @@ function render(){
       detailHtml+='<td style="padding:5px 10px"><span style="color:'+actColor+';font-weight:600;font-size:11px">'+dr[3]+'</span></td>';
       detailHtml+='<td style="padding:5px 10px"><span style="color:'+cnclColor+';font-weight:600;font-size:11px">'+dr[4]+'</span></td>';
       detailHtml+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(dr[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
-      detailHtml+='<td style="padding:5px 10px;text-align:right;color:'+(dr[6]>0?"#ef4444":"#374151")+'">'+((dr[6]||0)>0?'$'+(dr[6]).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
+      var orderLr=dr[10]||0;
+      detailHtml+='<td style="padding:5px 10px;text-align:right;color:'+(orderLr>0?"#ef4444":"#94a3b8")+'">'+(orderLr>0?'$'+orderLr.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
       detailHtml+='</tr>';
     }
     detailHtml+='</tbody></table></div></div></td></tr>';
@@ -580,7 +601,7 @@ function render(){
   }
   
 document.getElementById("skuTbody").innerHTML=rows;
-  document.getElementById("skuTfoot").innerHTML="<td>Total</td><td class='num'>"+net.toLocaleString()+"</td><td class='num' style='color:#58a6ff'>"+AC.toLocaleString()+"</td><td class='num' style='color:#f85149'>"+IN.toLocaleString()+"</td><td class='num'>"+sale.toLocaleString()+"</td><td class='num' style='color:#ff7b72'>"+C.toLocaleString()+"</td><td class='num' style='color:#e3b341'>"+E.toLocaleString()+"</td><td class='num' style='color:#56d364'>"+U.toLocaleString()+"</td><td class='num' style='color:#bc8cff'>"+Dv.toLocaleString()+"</td><td class='num' style='color:#0d9488'>"+Sw.toLocaleString()+"</td><td class='num' style='color:#f59e0b'>"+Pe.toLocaleString()+"</td><td class='num' style='color:#64748b'>"+NP.toLocaleString()+"</td><td class='num'>"+net.toLocaleString()+"</td><td class='num'>"+rate.toFixed(2)+"%</td><td class='num' style='color:#ff7b72'>$"+Math.round(LR).toLocaleString()+"</td>";
+  document.getElementById("skuTfoot").innerHTML="<td>Total</td><td class='num'>"+net.toLocaleString()+"</td><td class='num' style='color:#58a6ff'>"+AC.toLocaleString()+"</td><td class='num' style='color:#f85149'>"+IN.toLocaleString()+"</td><td class='num'>"+sale.toLocaleString()+"</td><td class='num' style='color:#ff7b72'>"+C.toLocaleString()+"</td><td class='num' style='color:#e3b341'>"+E.toLocaleString()+"</td><td class='num' style='color:#56d364'>"+U.toLocaleString()+"</td><td class='num' style='color:#bc8cff'>"+Dv.toLocaleString()+"</td><td class='num' style='color:#0d9488'>"+Sw.toLocaleString()+"</td><td class='num' style='color:#f59e0b'>"+Pe.toLocaleString()+"</td><td class='num' style='color:#64748b'>"+NP.toLocaleString()+"</td><td style='color:#94a3b8;font-size:11px'>—</td><td class='num'>"+rate.toFixed(2)+"%</td><td class='num' style='color:#ff7b72'>$"+Math.round(LR).toLocaleString()+"</td>";
 
   // ── FY Quarterly Cancel Rate Chart ──────────────────────────────────────────
   if(charts.qfy){try{charts.qfy.destroy();}catch(e){}}
@@ -657,7 +678,7 @@ function downloadCancelCsv(){
 
 
 function initDashboard(){
-  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="card full"><div class="ct">Decomposition tree</div><div class="cs">Click any node to drill down. Numbers decrease as you narrow down.</div><div id="decompBreadcrumb" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-bottom:10px;min-height:24px"></div><div style="overflow-x:auto;padding-bottom:8px"><div id="decompTree" style="display:flex;align-items:flex-start;gap:0;min-width:max-content;padding:2px"></div></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Refund days</div><div class="cs">Days between order and refund</div><div style="height:200px;position:relative"><canvas id="rdChart"></canvas></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Net Orders</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div></div>';
+  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div></div>';
   renderMsItems();renderMsSkuItems();render();
 }
 

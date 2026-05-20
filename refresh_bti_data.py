@@ -291,6 +291,7 @@ def build_cancellation_data(orders):
     GMSKU_CR = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))   # month x sku x credit_status
     PCMSKU_CR= defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
     QFY      = defaultdict(lambda: defaultdict(make_b))   # "FY'25" x "Q1" bucket
+    SKURD    = defaultdict(lambda: defaultdict(int))       # sku x rd_bucket
 
     skus=set(); parts=set(); pcats=set()
 
@@ -301,7 +302,10 @@ def build_cancellation_data(orders):
         sku    = r.get("SKU","") or "Unknown"
         pcat   = r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
         part   = r.get("REFERRAL_PARTNER","") or "Unknown"
-        lr     = float(r.get("LOST_REVENUE",0) or 0)
+        inv_total_val  = float(r.get("INV_TOTAL",0) or 0)
+        payments_val   = float(r.get("PAYMENTS_TOTAL",0) or 0)
+        refunds_val    = float(r.get("REFUNDS",0) or 0)
+        lr = max(0.0, inv_total_val - payments_val + refunds_val) if cncl == "Cancelled" else 0.0
         rdate  = r.get("REFUND_CREDIT_DATE","")
         date   = r.get("DATE","")
         cs_raw = r.get("CREDIT_STATUS","") or ""
@@ -322,26 +326,28 @@ def build_cancellation_data(orders):
         upd(PCMSKU[pcat][month][sku],    cncl, active, lr)
         upd(PMSKU[part][month][sku],     cncl, active, lr)
 
-        # Refund days
-        if cncl == "Cancelled" and rdate:
+        # Refund days — include N/A for cancelled orders without a refund date
+        if cncl == "Cancelled":
             rd = get_rd(rdate, date)
-            if rd != "N/A":
-                GMRD[month][rd]  += 1
-                PCMRD[pcat][month][rd] += 1
-                PMRD[part][month][rd]  += 1
+            GMRD[month][rd]        += 1
+            PCMRD[pcat][month][rd] += 1
+            PMRD[part][month][rd]  += 1
+            SKURD[sku][rd]         += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product]
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr]
+        order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
             str(r.get("DATE",""))[:10],
             active,
             cncl,
-            round(float(r.get("INV_TOTAL",0) or 0), 2),
-            round(float(r.get("REFUNDS",0) or 0), 2),
+            round(inv_total_val, 2),
+            round(refunds_val, 2),
             pcat,
             part,
             r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT",""),
+            order_lr,
         ])
 
         # Cancel reasons
@@ -363,6 +369,7 @@ def build_cancellation_data(orders):
         "GMRD":   {m: dict(v) for m,v in GMRD.items()},
         "PCMRD":  {p: {m: dict(v) for m,v in mv.items()} for p,mv in PCMRD.items()},
         "PMRD":   {p: {m: dict(v) for m,v in mv.items()} for p,mv in PMRD.items()},
+        "SKURD":  {s: dict(v) for s,v in SKURD.items()},
         "GMSKU_CR":  {m: {s: dict(cr) for s,cr in sv.items()} for m,sv in GMSKU_CR.items()},
         "PCMSKU_CR": {p: {m: {s: dict(cr) for s,cr in sv.items()} for m,sv in mv.items()} for p,mv in PCMSKU_CR.items()},
         "FL": {
