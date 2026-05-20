@@ -1,4 +1,4 @@
-var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7;
+var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<8;j++)o[j]+=(a[j]||0);}return o;}
@@ -75,11 +75,15 @@ function cnclDecompGetItems(dim){
   function cnclCount(b){
     if(!selCncl)return b[Ti]||0;
     var c=b[Ci]||0,e=b[Ei]||0,u=b[Ui]||0,d=b[Di]||0,t=b[Ti]||0;
-    if(selCncl==="Cancelled")return c;
+    var sw=b[Si]||0,pe=b[Pi]||0,np=b[NPi]||0;
+    if(selCncl==="Cancelled")  return c;
     if(selCncl==="Entry Error")return e;
-    if(selCncl==="Upgrade")return u;
-    if(selCncl==="Downgrade")return d;
-    if(selCncl==="Sale")return Math.max(0,t-c-e-u-d);
+    if(selCncl==="Upgrade")    return u;
+    if(selCncl==="Downgrade")  return d;
+    if(selCncl==="Switch")     return sw;
+    if(selCncl==="Pend")       return pe;
+    if(selCncl==="No Pmt")     return np;
+    if(selCncl==="Sale")       return Math.max(0,t-c-e-u-d-sw-pe-np);
     return t;
   }
 
@@ -266,15 +270,15 @@ function renderDecompBC(){
 
 function getTimeSeries(){
   var r=getRange(),byM={};
-  var e8=function(){return[0,0,0,0,0,0,0,0];};
+  var e11=function(){return[0,0,0,0,0,0,0,0,0,0,0];};
   var skus=selSku.size>0?Array.from(selSku):null;
   var pcats=selPcat.size>0?Array.from(selPcat):null;
 
   function addToByM(src,skuKey){
     Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-      if(!byM[m])byM[m]=e8();
+      if(!byM[m])byM[m]=e11();
       var v=skuKey?(src[m]&&src[m][skuKey]||null):src[m];
-      if(v)for(var i=0;i<8;i++)byM[m][i]+=(v[i]||0);
+      if(v)for(var i=0;i<11;i++)byM[m][i]+=(v[i]||0);
     });
   }
 
@@ -306,8 +310,8 @@ function getSkuBuckets(){
       var keys=skus?skus:Object.keys(skuMap);
       keys.forEach(function(s){
         var v=skuMap[s];if(!v)return;
-        if(!src[s])src[s]=[0,0,0,0,0,0,0,0];
-        for(var i=0;i<8;i++)src[s][i]+=(v[i]||0);
+        if(!src[s])src[s]=[0,0,0,0,0,0,0,0,0,0,0];
+        for(var i=0;i<11;i++)src[s][i]+=(v[i]||0);
       });
     });
   }
@@ -404,20 +408,22 @@ function render(){
   var ts=getTimeSeries();
   var tot=sumArr(ts.map(function(x){return x.b;}));
   var T=tot[Ti],C=tot[Ci],E=tot[Ei],U=tot[Ui],Dv=tot[Di],AC=tot[Ai],IN=tot[Ii],LR=tot[CRi];
-  var valid=T-E,rate=valid>0?(C/valid*100):0,net=T-C-E,sale=Math.max(0,T-C-E-U-Dv);
-  var displayTotal=T-E;
+  var Sw=tot[Si]||0,Pe=tot[Pi]||0,NP=tot[NPi]||0;
+  var net=T-E-Pe-NP, rate=net>0?(C/net*100):0;
   var pcat=getPcat();
   document.getElementById("rcLbl").textContent=T.toLocaleString()+" records "+(selP.size>0?selP.size+" partner(s)":pcat||"all data");
 
   document.getElementById("kpiRow").innerHTML=
-    '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+displayTotal.toLocaleString()+'</div><div class="ks muted">excl. entry errors</div></div>'+
-    '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+AC.toLocaleString()+'</div><div class="ks muted">'+(displayTotal>0?(AC/displayTotal*100).toFixed(1):0)+'% continuing</div></div>'+
-    '<div class="kpi k3"><div class="kl">Inactive</div><div class="kv" style="color:#ef4444">'+IN.toLocaleString()+'</div><div class="ks red">'+(displayTotal>0?(IN/displayTotal*100).toFixed(1):0)+'% of total</div></div>'+
+    '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+net.toLocaleString()+'</div><div class="ks muted">excl. entry error, pend, no pmt</div></div>'+
+    '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+AC.toLocaleString()+'</div><div class="ks muted">'+(net>0?(AC/net*100).toFixed(1):0)+'% of units</div></div>'+
     '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+C.toLocaleString()+'</div><div class="ks red">'+rate.toFixed(1)+'% cancel rate</div></div>'+
-    '<div class="kpi k5"><div class="kl">Entry Error</div><div class="kv" style="color:#f59e0b">'+E.toLocaleString()+'</div><div class="ks amber">excl. from cancel %</div></div>'+
+    '<div class="kpi k5"><div class="kl">Entry Error</div><div class="kv" style="color:#f59e0b">'+E.toLocaleString()+'</div><div class="ks amber">excl. from units</div></div>'+
     '<div class="kpi k6"><div class="kl">Upgrades</div><div class="kv" style="color:#16a34a">'+U.toLocaleString()+'</div><div class="ks green">upgrade events</div></div>'+
     '<div class="kpi k7"><div class="kl">Downgrades</div><div class="kv" style="color:#7c3aed">'+Dv.toLocaleString()+'</div><div class="ks muted">downgrade events</div></div>'+
-    '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:18px">$'+Math.round(LR).toLocaleString()+'</div><div class="ks red">payments on cancels</div></div>';
+    '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:18px">$'+Math.round(LR).toLocaleString()+'</div><div class="ks red">payments on cancels</div></div>'+
+    '<div class="kpi k1"><div class="kl">Switch</div><div class="kv" style="color:#0d9488">'+Sw.toLocaleString()+'</div><div class="ks muted">active · switch events</div></div>'+
+    '<div class="kpi k5"><div class="kl">Pend</div><div class="kv" style="color:#f59e0b">'+Pe.toLocaleString()+'</div><div class="ks amber">excl. from units</div></div>'+
+    '<div class="kpi k7"><div class="kl">No Pmt</div><div class="kv" style="color:#64748b">'+NP.toLocaleString()+'</div><div class="ks muted">excl. from units</div></div>';
 
   var mLabels=ts.map(function(x){return fmtM(x.m);});
   charts.trend=new Chart(document.getElementById("trendChart"),{type:"bar",data:{labels:mLabels,datasets:[
@@ -425,7 +431,10 @@ function render(){
     {label:"Entry Error",data:ts.map(function(x){return x.b[Ei];}),backgroundColor:"rgba(227,179,65,0.8)",borderRadius:3,stack:"s"},
     {label:"Upgrade",data:ts.map(function(x){return x.b[Ui];}),backgroundColor:"rgba(63,185,80,0.8)",borderRadius:3,stack:"s"},
     {label:"Downgrade",data:ts.map(function(x){return x.b[Di];}),backgroundColor:"rgba(188,140,255,0.8)",borderRadius:3,stack:"s"},
-    {label:"Cancel %",data:ts.map(function(x){var v=x.b[Ti]-x.b[Ei];return v>0?+(x.b[Ci]/v*100).toFixed(2):0;}),type:"line",yAxisID:"y2",borderColor:"#388bfd",backgroundColor:"rgba(56,139,253,0.07)",fill:true,tension:0.35,pointRadius:2,pointBackgroundColor:"#388bfd",borderWidth:2}
+    {label:"Switch",data:ts.map(function(x){return x.b[Si]||0;}),backgroundColor:"rgba(13,148,136,0.8)",borderRadius:3,stack:"s"},
+    {label:"Pend",data:ts.map(function(x){return x.b[Pi]||0;}),backgroundColor:"rgba(251,191,36,0.7)",borderRadius:3,stack:"s"},
+    {label:"No Pmt",data:ts.map(function(x){return x.b[NPi]||0;}),backgroundColor:"rgba(100,116,139,0.7)",borderRadius:3,stack:"s"},
+    {label:"Cancel %",data:ts.map(function(x){var v=x.b[Ti]-x.b[Ei]-(x.b[Pi]||0)-(x.b[NPi]||0);return v>0?+(x.b[Ci]/v*100).toFixed(2):0;}),type:"line",yAxisID:"y2",borderColor:"#388bfd",backgroundColor:"rgba(56,139,253,0.07)",fill:true,tension:0.35,pointRadius:2,pointBackgroundColor:"#388bfd",borderWidth:2}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:"index",intersect:false}},scales:{
     x:{stacked:true,ticks:{color:"#8b949e",font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:24},grid:{color:"#21262d44"}},
     y:{stacked:true,ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},
@@ -436,25 +445,45 @@ function render(){
   renderDecomp();
 
   var skuBkts=getSkuBuckets();
-  var skuArr=Object.keys(skuBkts).map(function(sku){var v=skuBkts[sku];return{sku:sku,T:v[Ti],C:v[Ci],E:v[Ei],U:v[Ui],D:v[Di],AC:v[Ai],IN:v[Ii],LR:v[CRi],sale:Math.max(0,v[Ti]-v[Ci]-v[Ei]-v[Ui]-v[Di]),rate:(v[Ti]-v[Ei])>0?(v[Ci]/(v[Ti]-v[Ei])*100):0};}).filter(function(s){return s.T>0;}).sort(function(a,b){return b.C-a.C;});
+  var skuArr=Object.keys(skuBkts).map(function(sku){
+    var v=skuBkts[sku];
+    var sw=v[Si]||0,pe=v[Pi]||0,np=v[NPi]||0;
+    var net_=Math.max(0,v[Ti]-v[Ei]-pe-np);
+    return{sku:sku,T:v[Ti],C:v[Ci],E:v[Ei],U:v[Ui],D:v[Di],AC:v[Ai],IN:v[Ii],LR:v[CRi],
+           Sw:sw,Pe:pe,NP:np,net:net_,
+           sale:Math.max(0,v[Ti]-v[Ci]-v[Ei]-v[Ui]-v[Di]-sw-pe-np),
+           rate:net_>0?(v[Ci]/net_*100):0};
+  }).filter(function(s){return s.T>0;}).sort(function(a,b){return b.C-a.C;});
   var top15=skuArr.slice(0,15),bh=Math.max(280,top15.length*38);
   document.getElementById("skuBarWrap").style.height=bh+"px";
   document.getElementById("skuGrpWrap").style.height=bh+"px";
   if(top15.length>0){
     charts.skuBar=new Chart(document.getElementById("skuBarChart"),{type:"bar",data:{labels:top15.map(function(s){return s.sku;}),datasets:[{data:top15.map(function(s){return +s.rate.toFixed(1);}),backgroundColor:top15.map(function(s){return s.rate>30?"rgba(248,81,73,0.85)":s.rate>15?"rgba(227,179,65,0.85)":"rgba(56,139,253,0.85)";}),borderRadius:4}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.parsed.x.toFixed(1)+"%";}}}},scales:{x:{ticks:{color:"#8b949e",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#21262d44"}},y:{ticks:{color:"#334155",font:{size:10}},grid:{display:false}}}}});
-    charts.skuGrp=new Chart(document.getElementById("skuGrpChart"),{type:"bar",data:{labels:top15.map(function(s){return s.sku;}),datasets:[{label:"Cancelled",data:top15.map(function(s){return s.C;}),backgroundColor:"rgba(248,81,73,0.8)",borderRadius:3},{label:"Entry Error",data:top15.map(function(s){return s.E;}),backgroundColor:"rgba(227,179,65,0.8)",borderRadius:3},{label:"Upgraded",data:top15.map(function(s){return s.U;}),backgroundColor:"rgba(63,185,80,0.8)",borderRadius:3},{label:"Downgraded",data:top15.map(function(s){return s.D;}),backgroundColor:"rgba(188,140,255,0.8)",borderRadius:3}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#334155",font:{size:10}},grid:{display:false}}}}});
+    charts.skuGrp=new Chart(document.getElementById("skuGrpChart"),{type:"bar",data:{labels:top15.map(function(s){return s.sku;}),datasets:[
+      {label:"Cancelled",  data:top15.map(function(s){return s.C;}), backgroundColor:"rgba(248,81,73,0.8)", borderRadius:3},
+      {label:"Entry Error",data:top15.map(function(s){return s.E;}), backgroundColor:"rgba(227,179,65,0.8)",borderRadius:3},
+      {label:"Upgraded",   data:top15.map(function(s){return s.U;}), backgroundColor:"rgba(63,185,80,0.8)", borderRadius:3},
+      {label:"Downgraded", data:top15.map(function(s){return s.D;}), backgroundColor:"rgba(188,140,255,0.8)",borderRadius:3},
+      {label:"Switch",     data:top15.map(function(s){return s.Sw;}),backgroundColor:"rgba(13,148,136,0.8)",borderRadius:3},
+      {label:"Pend",       data:top15.map(function(s){return s.Pe;}),backgroundColor:"rgba(251,191,36,0.7)",borderRadius:3},
+      {label:"No Pmt",     data:top15.map(function(s){return s.NP;}),backgroundColor:"rgba(100,116,139,0.7)",borderRadius:3}
+    ]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#334155",font:{size:10}},grid:{display:false}}}}});
   }
   // Partner category donut - fully date+filter+sku aware
   var r2=getRange(),pcat2=getPcat(),sku2=getSku();
   var donutData={};
   function addDB(v){
     var c=v[Ci]||0,e=v[Ei]||0,u=v[Ui]||0,d=v[Di]||0,t=v[Ti]||0;
-    var s=Math.max(0,t-c-e-u-d);
-    donutData["Cancelled"]=(donutData["Cancelled"]||0)+c;
+    var sw=v[Si]||0,pe=v[Pi]||0,np=v[NPi]||0;
+    var s=Math.max(0,t-c-e-u-d-sw-pe-np);
+    donutData["Cancelled"]  =(donutData["Cancelled"]  ||0)+c;
     donutData["Entry Error"]=(donutData["Entry Error"]||0)+e;
-    donutData["Upgrade"]=(donutData["Upgrade"]||0)+u;
-    donutData["Downgrade"]=(donutData["Downgrade"]||0)+d;
-    donutData["Sale"]=(donutData["Sale"]||0)+s;
+    donutData["Upgrade"]    =(donutData["Upgrade"]    ||0)+u;
+    donutData["Downgrade"]  =(donutData["Downgrade"]  ||0)+d;
+    donutData["Switch"]     =(donutData["Switch"]     ||0)+sw;
+    donutData["Pend"]       =(donutData["Pend"]       ||0)+pe;
+    donutData["No Pmt"]     =(donutData["No Pmt"]     ||0)+np;
+    donutData["Sale"]       =(donutData["Sale"]       ||0)+s;
   }
   if(selP.size>0){
     selP.forEach(function(p){
@@ -563,7 +592,7 @@ document.getElementById("skuTbody").innerHTML=rows;
         data:quarters.map(function(q){
           var b=(QFY[fy]||{})[q];
           if(!b)return null;
-          var denom=b[0]-b[2];
+          var denom=b[0]-b[2]-(b[9]||0)-(b[10]||0);
           return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
         }),
         backgroundColor:FY_COLORS[i%FY_COLORS.length],
@@ -595,19 +624,20 @@ function downloadCancelCsv(){
   var ts=getTimeSeries();
   var tot=sumArr(ts.map(function(x){return x.b;}));
   var T=tot[0],C=tot[1],E=tot[2],U=tot[3],Dv=tot[4],AC=tot[5],IN=tot[6],LR=tot[7];
-  var displayTotal=T-E;
-  var rate=displayTotal>0?(C/displayTotal*100):0;
+  var Sw=tot[8]||0,Pe=tot[9]||0,NP=tot[10]||0;
+  var net=T-E-Pe-NP, rate=net>0?(C/net*100):0;
 
-  var rows=[["SKU","Total Orders","Active","Inactive","Cancelled","Entry Error","Upgrades","Downgrades","Cancel Rate %","Lost Revenue"]];
+  var rows=[["SKU","Net Units","Active","Cancelled","Entry Error","Upgrades","Downgrades","Switch","Pend","No Pmt","Cancel Rate %","Lost Revenue"]];
   Object.entries(skuBkts).forEach(function(e){
     var s=e[0],v=e[1];
-    var sT=v[0],sC=v[1],sE=v[2],sU=v[3],sD=v[4],sA=v[5],sI=v[6],sLR=v[7]||0;
-    var sDisp=sT-sE;
-    var sRate=sDisp>0?(sC/sDisp*100):0;
-    rows.push([s,sDisp,sA,sI,sC,sE,sU,sD,sRate.toFixed(1),Math.round(sLR)]);
+    var sT=v[0],sC=v[1],sE=v[2],sU=v[3],sD=v[4],sA=v[5],sLR=v[7]||0;
+    var sSw=v[8]||0,sPe=v[9]||0,sNP=v[10]||0;
+    var sNet=sT-sE-sPe-sNP;
+    var sRate=sNet>0?(sC/sNet*100):0;
+    rows.push([s,sNet,sA,sC,sE,sU,sD,sSw,sPe,sNP,sRate.toFixed(1),Math.round(sLR)]);
   });
   // Summary row
-  rows.push(["TOTAL",displayTotal,AC,IN,C,E,U,Dv,rate.toFixed(1),Math.round(LR)]);
+  rows.push(["TOTAL",net,AC,C,E,U,Dv,Sw,Pe,NP,rate.toFixed(1),Math.round(LR)]);
 
   var csv=rows.map(function(r){return r.map(function(v){
     var s=String(v==null?"":v);

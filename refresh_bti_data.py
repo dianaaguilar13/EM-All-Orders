@@ -183,14 +183,24 @@ def parse_date(s):
 
 def get_cncl(cs):
     cs = (cs or "").lower().strip()
-    if "upgrade"    in cs: return "Upgrade"
-    if "downgrade"  in cs: return "Downgrade"
+    # ── Pend: not a unit (checked before generic cncl) ──────────────────
+    if "test-cncl" in cs:           return "Pend"
+    if cs == "cncl-pending":        return "Pend"
+    if cs == "pendord to saleord":  return "Pend"
+    if cs == "cncl-fref-dup":       return "Pend"
+    # ── No Pmt: not a unit (checked before generic cncl) ────────────────
+    if "nopayment" in cs or "no payment" in cs or "nopmt" in cs: return "No Pmt"
+    # ── Switch: counts as unit, Active (checked before generic cncl) ────
+    if "switchev" in cs or "switchtopp" in cs or "sw div" in cs: return "Switch"
+    # ── Original categories ──────────────────────────────────────────────
+    if "upgrade"     in cs: return "Upgrade"
+    if "downgrade"   in cs: return "Downgrade"
     if "entry error" in cs or "error" in cs: return "Entry Error"
-    if "cncl"       in cs or "lrev" in cs:  return "Cancelled"
+    if "cncl"        in cs or "lrev" in cs:  return "Cancelled"
     return "Sale"
 
 def get_active(cncl):
-    return "Inactive" if cncl in ("Entry Error","Cancelled") else "Active"
+    return "Inactive" if cncl in ("Entry Error","Cancelled","Pend","No Pmt") else "Active"
 
 def get_division(uid):
     uid = (uid or "").lower()
@@ -248,8 +258,10 @@ def pif_classify(row):
 def build_cancellation_data(orders):
     print("⏳ Building data.json (Cancellation)...")
 
-    Ti,Ci,Ei,Ui,Di,Ai,Ii,CRi = 0,1,2,3,4,5,6,7
-    def make_b(): return [0,0,0,0,0,0,0,0.0]
+    # b[0]=Total  b[1]=Cancelled  b[2]=EntryError  b[3]=Upgrade  b[4]=Downgrade
+    # b[5]=Active b[6]=Inactive   b[7]=LostRev     b[8]=Switch   b[9]=Pend  b[10]=NoPmt
+    Ti,Ci,Ei,Ui,Di,Ai,Ii,CRi,Si,Pi,NPi = 0,1,2,3,4,5,6,7,8,9,10
+    def make_b(): return [0,0,0,0,0,0,0,0.0,0,0,0]
     rows_by_sku = defaultdict(list)
     def upd(b, cncl, active, lr):
         b[0] += 1
@@ -257,6 +269,9 @@ def build_cancellation_data(orders):
         elif cncl == "Entry Error": b[2] += 1
         elif cncl == "Upgrade":     b[3] += 1
         elif cncl == "Downgrade":   b[4] += 1
+        elif cncl == "Switch":      b[8] += 1
+        elif cncl == "Pend":        b[9] += 1
+        elif cncl == "No Pmt":      b[10]+= 1
         if active == "Active":      b[5] += 1
         else:                       b[6] += 1
         b[7] += lr
@@ -330,7 +345,7 @@ def build_cancellation_data(orders):
         ])
 
         # Cancel reasons
-        if cncl in ("Cancelled","Entry Error") and cs_raw:
+        if cncl in ("Cancelled","Entry Error","Switch","Pend","No Pmt") and cs_raw:
             GMSKU_CR[month][sku][cs_raw]          += 1
             PCMSKU_CR[pcat][month][sku][cs_raw]   += 1
 

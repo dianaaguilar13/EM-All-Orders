@@ -351,7 +351,7 @@ function ar2RenderQfyChart(){
       label:fy,
       data:quarters.map(function(q){
         var b=(QFY[fy]||{})[q]; if(!b)return null;
-        var denom=b[0]-b[2]; return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
+        var denom=b[0]-b[2]-(b[9]||0)-(b[10]||0); return denom>0?parseFloat((b[1]/denom*100).toFixed(1)):0;
       }),
       backgroundColor:FY_COLORS[i%FY_COLORS.length],
       borderRadius:4, borderSkipped:false
