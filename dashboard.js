@@ -386,10 +386,10 @@ function getSkuDetailRows(sku){
 
 function downloadSkuDetailCsv(){
   var skuBkts=getSkuBuckets();
-  var csvRows=[["SKU","Order ID","Contact ID","Date","Product Name","Status","Cancel Status","Invoice Total","Refunds","Partner Category","Referral Partner"]];
+  var csvRows=[["SKU","Order ID","Contact ID","Date","Product Name","Status","Cancel Status","Refund Days","Invoice Total","Lost Revenue","Partner Category","Referral Partner"]];
   Object.keys(skuBkts).sort().forEach(function(sku){
     getSkuDetailRows(sku).forEach(function(row){
-      csvRows.push([sku,row[0],row[1],row[2],row[9]||"",row[3],row[4],row[5],row[6],row[7],row[8]]);
+      csvRows.push([sku,row[0],row[1],row[2],row[9]||"",row[3],row[4],row[11]||"—",row[5],row[10]||0,row[7],row[8]]);
     });
   });
   var csv=csvRows.map(function(r){return r.map(function(v){
