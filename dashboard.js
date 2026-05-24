@@ -389,14 +389,14 @@ function downloadSkuDetailCsv(){
   var csvRows=[["SKU","Order ID","Contact ID","Date","Product Name","Status","Cancel Status","Refund Days","Invoice Total","Lost Revenue","Partner Category","Referral Partner"]];
   Object.keys(skuBkts).sort().forEach(function(sku){
     getSkuDetailRows(sku).forEach(function(row){
-      csvRows.push([sku,row[0],row[1],row[2],row[9]||"",row[3],row[4],row[11]||"—",row[5],row[10]||0,row[7],row[8]]);
+      csvRows.push([sku,row[0],row[1],row[2],row[9]||"",row[3],row[4],row[11]||"",row[5],row[10]||0,row[7],row[8]]);
     });
   });
   var csv=csvRows.map(function(r){return r.map(function(v){
     var s=String(v==null?"":v);
     return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
   }).join(",");}).join("\n");
-  var blob=new Blob([csv],{type:"text/csv"});
+  var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   var rng=getRange();
@@ -674,7 +674,7 @@ function downloadCancelCsv(){
     return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
   }).join(",");}).join("\n");
 
-  var blob=new Blob([csv],{type:"text/csv"});
+  var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   a.download="cancellations_"+r.df+"_"+r.dt+".csv";
