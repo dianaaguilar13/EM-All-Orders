@@ -334,8 +334,9 @@ def build_cancellation_data(orders):
             PMRD[part][month][rd]  += 1
             SKURD[sku][rd]         += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr]
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd]
         order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
+        order_rd = get_rd(rdate, date) if cncl == "Cancelled" else "—"
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
@@ -348,6 +349,7 @@ def build_cancellation_data(orders):
             part,
             r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT",""),
             order_lr,
+            order_rd,
         ])
 
         # Cancel reasons

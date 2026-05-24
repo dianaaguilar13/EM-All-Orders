@@ -528,6 +528,9 @@ function render(){
   var donutColors={"Marketing":"#388bfd","Enrollment Mentor":"#f85149","Affiliate":"#3fb950","Event":"#e3b341","Cancelled":"#f85149","Entry Error":"#e3b341","Upgrade":"#3fb950","Downgrade":"#bc8cff","Sale":"#16a34a"};
   charts.pcat=new Chart(document.getElementById("pcatChart"),{type:"doughnut",data:{labels:donutKeys,datasets:[{data:donutKeys.map(function(k){return donutData[k];}),backgroundColor:donutKeys.map(function(k){return donutColors[k]||"#2563eb";}),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:"62%",plugins:{legend:{position:"right",labels:{color:"#8b949e",font:{size:11},boxWidth:10,padding:8}}}}});
     var rdCounts=getRdCounts();
+  // Implicit N/A: any cancelled orders not captured in date buckets (e.g. no REFUND_CREDIT_DATE in Snowflake)
+  var rdDateSum=["<=30d","<=45d","<=60d","<=90d",">90d"].reduce(function(s,k){return s+(rdCounts[k]||0);},0);
+  rdCounts["N/A"]=Math.max(rdCounts["N/A"]||0, C-rdDateSum);
   var rdTotal=RD_KEYS.reduce(function(s,k){return s+(rdCounts[k]||0);},0);
   charts.rd=new Chart(document.getElementById("rdChart"),{type:"bar",data:{labels:RD_LABELS,datasets:[{data:RD_KEYS.map(function(k){return rdCounts[k]||0;}),backgroundColor:RD_KEYS.map(function(k){return k==="N/A"?"rgba(100,116,139,0.65)":"rgba(56,139,253,0.75)";}),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var tot=rdTotal;return ctx.parsed.y+' orders ('+(tot>0?(ctx.parsed.y/tot*100).toFixed(1):0)+'% of cancelled)';}}}},scales:{x:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}},y:{ticks:{color:"#8b949e",font:{size:10}},grid:{color:"#21262d44"}}}}});
   var rdRateEl=document.getElementById("rdRateChart");
@@ -572,7 +575,7 @@ function render(){
     detailHtml+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+s.sku+' — '+detailRows.length.toLocaleString()+' orders'+(detailRows.length>500?' (showing first 500)':'')+'</div>';
     detailHtml+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
     detailHtml+='<thead><tr style="background:#f1f5f9">';
-    ['Order ID','Contact ID','Date','Product Name','Status','Cancel Status','Invoice Total','Lost Revenue'].forEach(function(h){
+    ['Order ID','Contact ID','Date','Product Name','Status','Cancel Status','Refund Days','Invoice Total','Lost Revenue'].forEach(function(h){
       detailHtml+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
     });
     detailHtml+='</tr></thead><tbody>';
@@ -591,6 +594,8 @@ function render(){
       detailHtml+='<td style="padding:5px 10px;color:#374151;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(dr[9]||'')+'">'+( dr[9]||'—')+'</td>';
       detailHtml+='<td style="padding:5px 10px"><span style="color:'+actColor+';font-weight:600;font-size:11px">'+dr[3]+'</span></td>';
       detailHtml+='<td style="padding:5px 10px"><span style="color:'+cnclColor+';font-weight:600;font-size:11px">'+dr[4]+'</span></td>';
+      var rdVal=dr[11]||'—';var rdColor=rdVal==='N/A'?'#94a3b8':rdVal==='—'?'#94a3b8':'#2563eb';
+      detailHtml+='<td style="padding:5px 10px;font-size:11px;font-weight:600;color:'+rdColor+'">'+rdVal+'</td>';
       detailHtml+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(dr[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
       var orderLr=dr[10]||0;
       detailHtml+='<td style="padding:5px 10px;text-align:right;color:'+(orderLr>0?"#ef4444":"#94a3b8")+'">'+(orderLr>0?'$'+orderLr.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
