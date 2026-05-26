@@ -93,13 +93,11 @@ document.addEventListener("click",function(e){
 function ldpRenderSkuItems(){
   if(!LDP)return;
   var q=document.getElementById("ldp-skuQ").value.toLowerCase();
-  var vis=LDP.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});
+  var incl=LDP.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});
+  var excl=LDP.FL.skus.filter(function(s){return EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});
   var h="";
-  for(var i=0;i<vis.length;i++){
-    var s=vis[i];var ck=ldpSelSku.has(s)?"checked":"";
-    var e=s.replace(/&/g,"&amp;");
-    h+='<div class="ms-item" data-s="'+e+'" onclick="ldpTogSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";
-  }
+  for(var i=0;i<incl.length;i++){var s=incl[i];var ck=ldpSelSku.has(s)?"checked":"";var e=s.replace(/&/g,"&amp;");h+='<div class="ms-item" data-s="'+e+'" onclick="ldpTogSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";}
+  if(excl.length>0){h+='<div style="padding:5px 10px 3px;font-size:10px;color:#94a3b8;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">⚠ Excluded by default</div>';for(var i=0;i<excl.length;i++){var s=excl[i];var ck=ldpSelSku.has(s)?"checked":"";var e=s.replace(/&/g,"&amp;");h+='<div class="ms-item" data-s="'+e+'" onclick="ldpTogSku(event,this)" style="opacity:0.65"><input type="checkbox" '+ck+' onclick="return false"><span style="color:#94a3b8">'+e+"</span></div>";}}
   document.getElementById("ldp-skuItems").innerHTML=h;
 }
 function ldpTogSku(ev,el){ev.stopPropagation();var s=el.getAttribute("data-s");if(ldpSelSku.has(s))ldpSelSku.delete(s);else ldpSelSku.add(s);ldpUpdateSkuBtn();ldpRenderSkuItems();}

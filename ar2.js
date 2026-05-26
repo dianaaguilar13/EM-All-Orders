@@ -38,6 +38,15 @@ function ar2RenderSkuMenu(){
     html+="<div class='ms-item' style='padding:6px 12px;font-size:12px;cursor:pointer;color:#1a2332' onclick='ar2ToggleSku(event,\""+s.replace(/"/g,"&quot;")+"\")'>"+
       "<input type='checkbox' "+ck+" onclick='return false' style='margin-right:6px;accent-color:#0d9488'>"+s+"</div>";
   });
+  var exclSkus=AR2.FL.skus.filter(function(s){return EXCLUDED_SKUS.has(s);});
+  if(exclSkus.length>0){
+    html+="<div style='padding:5px 10px 3px;font-size:10px;color:#94a3b8;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px;margin-top:2px'>⚠ Excluded by default</div>";
+    exclSkus.forEach(function(s){
+      var ck=ar2SelSku.has(s)?"checked":"";
+      html+="<div class='ms-item' style='padding:6px 12px;font-size:12px;cursor:pointer;color:#94a3b8;opacity:0.65' onclick='ar2ToggleSku(event,\""+s.replace(/"/g,"&quot;")+"\")'>"+
+        "<input type='checkbox' "+ck+" onclick='return false' style='margin-right:6px;accent-color:#0d9488'>"+s+"</div>";
+    });
+  }
   menu.innerHTML=html;
 }
 function ar2ToggleSku(ev,sku){
