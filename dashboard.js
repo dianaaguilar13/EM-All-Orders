@@ -286,15 +286,26 @@ function getTimeSeries(){
     });
   }
 
+  // Helper: add aggregate monthly src to byM, subtracting excluded-SKU contributions via skuMonthMap
+  function addAggMinusExcluded(aggSrc,skuMonthMap){
+    Object.keys(aggSrc).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      var row=(aggSrc[m]||[]).slice();while(row.length<12)row.push(0);
+      var gs=skuMonthMap[m]||{};
+      Object.keys(gs).forEach(function(s){if(EXCLUDED_SKUS.has(s)){var v=gs[s];if(v)for(var i=0;i<12;i++)row[i]-=(v[i]||0);}});
+      if(!byM[m])byM[m]=e12();
+      for(var i=0;i<12;i++)byM[m][i]+=(row[i]||0);
+    });
+  }
+
   if(selP.size>0){
     selP.forEach(function(p){
       if(skus){skus.forEach(function(s){addToByM((D.PMSKU&&D.PMSKU[p])||{},s);});}
-      else{addToByM((D.PM&&D.PM[p])||{},null);}
+      else{addAggMinusExcluded((D.PM&&D.PM[p])||{},(D.PMSKU&&D.PMSKU[p])||{});}
     });
   } else if(pcats){
     pcats.forEach(function(pcat){
       if(skus){skus.forEach(function(s){addToByM((D.PCMSKU&&D.PCMSKU[pcat])||{},s);});}
-      else{addToByM((D.PCM&&D.PCM[pcat])||{},null);}
+      else{addAggMinusExcluded((D.PCM&&D.PCM[pcat])||{},(D.PCMSKU&&D.PCMSKU[pcat])||{});}
     });
   } else if(skus){
     skus.forEach(function(s){addToByM(D.GMSKU||{},s);});
