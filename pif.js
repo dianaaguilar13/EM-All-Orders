@@ -5,7 +5,7 @@ var pifExpandedSku=null; // currently expanded SKU row
 var pifTreePath=[]; // stores labels: ["PIF","Active","LS",...]
 
 // ── Multi-select SKU ───────────────────────────────────────
-function pifToggleSku(e){e.stopPropagation();var dr=document.getElementById("pif-skuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("pif-skuQ").focus();pifRenderSkuItems();}}
+function pifToggleSku(e){var dr=document.getElementById("pif-skuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("pif-skuQ").focus();pifRenderSkuItems();}}
 function pifRenderSkuItems(){if(!PIF)return;var q=document.getElementById("pif-skuQ").value.toLowerCase();var vis=PIF.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});var h="";vis.forEach(function(s){var ck=pifSelSku.has(s)?"checked":"";var e=s.replace(/&/g,"&amp;");h+='<div class="ms-item" data-s="'+e+'" onclick="pifTogSkuItem(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";});document.getElementById("pif-skuItems").innerHTML=h;}
 function pifTogSkuItem(ev,el){ev.stopPropagation();var s=el.getAttribute("data-s");if(pifSelSku.has(s))pifSelSku.delete(s);else pifSelSku.add(s);pifUpdateSkuBtn();pifRenderSkuItems();}
 function pifSkuAll(){PIF.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(document.getElementById("pif-skuQ").value.toLowerCase())>=0;}).forEach(function(s){pifSelSku.add(s);});pifUpdateSkuBtn();pifRenderSkuItems();}
@@ -13,7 +13,7 @@ function pifSkuClear(){pifSelSku.clear();pifUpdateSkuBtn();pifRenderSkuItems();}
 function pifUpdateSkuBtn(){var btn=document.getElementById("pif-skuBtn");var cnt=document.getElementById("pif-skuCnt");if(pifSelSku.size===0){btn.textContent="All SKUs";cnt.style.display="none";}else{btn.textContent=pifSelSku.size===1?Array.from(pifSelSku)[0].slice(0,18):pifSelSku.size+" SKUs";cnt.textContent=pifSelSku.size;cnt.style.display="inline";}}
 
 // ── Multi-select Partner ───────────────────────────────────
-function pifToggleMs(e){e.stopPropagation();var dr=document.getElementById("pif-msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("pif-msQ").focus();pifRenderMsItems();}}
+function pifToggleMs(e){var dr=document.getElementById("pif-msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("pif-msQ").focus();pifRenderMsItems();}}
 function pifRenderMsItems(){if(!PIF)return;var q=document.getElementById("pif-msQ").value.toLowerCase();var vis=PIF.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;});var h="";vis.forEach(function(p){var ck=pifSelP.has(p)?"checked":"";var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;");h+='<div class="ms-item" data-p="'+e+'" onclick="pifTogP(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";});document.getElementById("pif-msItems").innerHTML=h;}
 function pifTogP(ev,el){ev.stopPropagation();var p=el.getAttribute("data-p");if(pifSelP.has(p))pifSelP.delete(p);else pifSelP.add(p);pifUpdateMsBtn();pifRenderMsItems();}
 function pifMsAll(){PIF.FL.partners.filter(function(p){return p.toLowerCase().indexOf(document.getElementById("pif-msQ").value.toLowerCase())>=0;}).forEach(function(p){pifSelP.add(p);});pifUpdateMsBtn();pifRenderMsItems();}

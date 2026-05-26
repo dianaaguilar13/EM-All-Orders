@@ -8,7 +8,7 @@ var EXCLUDED_SKUS=new Set(["5DC","BT-Dinner Ticket","CAP-2022-06-Ticket-Free","C
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<12;j++)o[j]+=(a[j]||0);}return o;}
 
 // ── Multi-select ──────────────────────────────────────────
-function toggleMs(e){e.stopPropagation();var dr=document.getElementById("msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msQ").focus();renderMsItems();}}
+function toggleMs(e){var dr=document.getElementById("msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msQ").focus();renderMsItems();}}
 document.addEventListener("click",function(e){if(!document.getElementById("msWrap").contains(e.target))document.getElementById("msDrop").classList.remove("open");});
 document.addEventListener("click",function(e){if(!document.getElementById("msSkuWrap").contains(e.target))document.getElementById("msSkuDrop").classList.remove("open");});
 document.addEventListener("click",function(e){if(!document.getElementById("msPcatWrap").contains(e.target))document.getElementById("msPcatDrop").classList.remove("open");});
@@ -19,7 +19,7 @@ function msClear(){selP.clear();updateMsBtn();renderMsItems();}
 function updateMsBtn(){var btn=document.getElementById("msBtn");var cnt=document.getElementById("msCnt");if(selP.size===0){btn.textContent="All Partners";cnt.style.display="none";}else{btn.textContent=selP.size===1?Array.from(selP)[0].slice(0,22):selP.size+" partners selected";cnt.textContent=selP.size;cnt.style.display="inline";}}
 
 // ── SKU Multi-select ──────────────────────────────────────────
-function toggleMsSku(e){e.stopPropagation();var dr=document.getElementById("msSkuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msSkuQ").focus();renderMsSkuItems();}}
+function toggleMsSku(e){var dr=document.getElementById("msSkuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msSkuQ").focus();renderMsSkuItems();}}
 function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ").value.toLowerCase();var vis=D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var s=vis[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";}document.getElementById("msSkuItems").innerHTML=h;}
 function togSku(ev,el){ev.stopPropagation();var s=el.getAttribute("data-p");if(selSku.has(s))selSku.delete(s);else selSku.add(s);updateMsSkuBtn();renderMsSkuItems();}
 function skuAll(){var q=document.getElementById("msSkuQ").value.toLowerCase();D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;}).forEach(function(s){selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
@@ -28,7 +28,7 @@ function updateMsSkuBtn(){var btn=document.getElementById("msSkuBtn");var cnt=do
 
 // ── PCat Multi-select ──────────────────────────────────────────
 var PCAT_OPTS=["Enrollment Mentor","Event","Marketing","Affiliate"];
-function toggleMsPcat(e){e.stopPropagation();var dr=document.getElementById("msPcatDrop");dr.classList.toggle("open");if(dr.classList.contains("open"))renderMsPcatItems();}
+function toggleMsPcat(e){var dr=document.getElementById("msPcatDrop");dr.classList.toggle("open");if(dr.classList.contains("open"))renderMsPcatItems();}
 function renderMsPcatItems(){var h="";for(var i=0;i<PCAT_OPTS.length;i++){var p=PCAT_OPTS[i];var ck=selPcat.has(p)?"checked":"";h+='<div class="ms-item" data-p="'+p+'" onclick="togPcat(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+p+"</span></div>";}document.getElementById("msPcatItems").innerHTML=h;}
 function togPcat(ev,el){ev.stopPropagation();var p=el.getAttribute("data-p");if(selPcat.has(p))selPcat.delete(p);else selPcat.add(p);updateMsPcatBtn();renderMsPcatItems();}
 function pcatAll(){PCAT_OPTS.forEach(function(p){selPcat.add(p);});updateMsPcatBtn();renderMsPcatItems();}

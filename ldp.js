@@ -50,7 +50,6 @@ function ldpGetRange(){return{df:document.getElementById("ldp-df").value.slice(0
 function ldpGetPcat(){return document.getElementById("ldp-pcat").value;}
 
 function ldpToggleMs(e){
-  e.stopPropagation();
   var dr=document.getElementById("ldp-msDrop");
   dr.classList.toggle("open");
   if(dr.classList.contains("open")){document.getElementById("ldp-msQ").focus();ldpRenderMsItems();}
@@ -83,7 +82,6 @@ function ldpUpdateMsBtn(){
 
 // SKU multi-select
 function ldpToggleSku(e){
-  e.stopPropagation();
   var dr=document.getElementById("ldp-skuDrop");
   dr.classList.toggle("open");
   if(dr.classList.contains("open")){document.getElementById("ldp-skuQ").focus();ldpRenderSkuItems();}
