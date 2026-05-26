@@ -24,8 +24,21 @@ function ldpGetTotalUnits(r_, pcat_){
       Object.keys(sd).forEach(function(m){if(m>=df&&m<=dt)arr.push(sd[m]);});
     });
   }else if(pcat_&&LDP.TMP&&LDP.TMP[pcat_]){
+    // Use TMP[pcat] but subtract excluded-SKU contributions via TMPS[pcat][sku]
+    var tmAdj={};
     var pd=LDP.TMP[pcat_];
-    Object.keys(pd).forEach(function(m){if(m>=df&&m<=dt)arr.push(pd[m]);});
+    Object.keys(pd).forEach(function(m){if(m>=df&&m<=dt)tmAdj[m]=(pd[m]||[]).slice();});
+    if(LDP.TMPS&&LDP.TMPS[pcat_]){
+      var pcSkus=LDP.TMPS[pcat_];
+      Object.keys(pcSkus).forEach(function(sku){
+        if(!EXCLUDED_SKUS.has(sku))return;
+        var sd=pcSkus[sku]||{};
+        Object.keys(sd).forEach(function(m){
+          if(tmAdj[m]){var v=sd[m];if(v)for(var i=0;i<11;i++)tmAdj[m][i]=(tmAdj[m][i]||0)-(v[i]||0);}
+        });
+      });
+    }
+    Object.keys(tmAdj).forEach(function(m){arr.push(tmAdj[m]);});
   }else{
     // No filter: use TM but subtract excluded-SKU contributions via TMS
     var tmAdj={};

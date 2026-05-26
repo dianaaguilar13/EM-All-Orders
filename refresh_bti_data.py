@@ -630,9 +630,10 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         if active_r == "Active": b[5] += 1
         else:                    b[6] += 1
 
-    TM  = defaultdict(make_tb)                              # global by month
-    TMS = defaultdict(lambda: defaultdict(make_tb))          # by sku x month
-    TMP = defaultdict(lambda: defaultdict(make_tb))          # by pcat x month
+    TM   = defaultdict(make_tb)                                          # global by month
+    TMS  = defaultdict(lambda: defaultdict(make_tb))                     # by sku x month
+    TMP  = defaultdict(lambda: defaultdict(make_tb))                     # by pcat x month
+    TMPS = defaultdict(lambda: defaultdict(lambda: defaultdict(make_tb)))# by pcat x sku x month
 
     for r_a in orders:
         inv_a   = float(r_a.get("INV_TOTAL",0) or 0)
@@ -646,6 +647,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         tupd(TM[month_a], cncl_a, act_a)
         tupd(TMS[sku_a][month_a], cncl_a, act_a)
         tupd(TMP[pcat_a][month_a], cncl_a, act_a)
+        tupd(TMPS[pcat_a][sku_a][month_a], cncl_a, act_a)
 
     by_month = defaultdict(make_b)
     by_sku   = defaultdict(make_b)
@@ -705,8 +707,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         "PC":  {k: list(v) for k,v in by_pcat.items()},
         "P":   {k: list(v) for k,v in by_part.items()},
         "TM":  {k: list(v) for k,v in sorted(TM.items())},
-        "TMS": {s: {m: list(v) for m,v in mv.items()} for s,mv in TMS.items()},
-        "TMP": {p: {m: list(v) for m,v in mv.items()} for p,mv in TMP.items()},
+        "TMS":  {s: {m: list(v) for m,v in mv.items()} for s,mv in TMS.items()},
+        "TMP":  {p: {m: list(v) for m,v in mv.items()} for p,mv in TMP.items()},
+        "TMPS": {p: {s: {m: list(v) for m,v in mv.items()} for s,mv in sv.items()} for p,sv in TMPS.items()},
         "FL":  {
             "skus":     sorted(s for s in all_skus  if s and s != "Unknown"),
             "partners": sorted(p for p in all_parts if p and p != "Unknown"),
