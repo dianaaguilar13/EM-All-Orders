@@ -26,7 +26,25 @@ function ar2Reset()  {
 }
 
 // ── SKU multi-select ──────────────────────────────────────────────────────────
-function ar2ToggleSku(sku){ ar2SelSku.has(sku)?ar2SelSku.delete(sku):ar2SelSku.add(sku); ar2UpdateSkuBtn(); }
+function ar2RenderSkuMenu(){
+  if(!AR2||!AR2.FL)return;
+  var menu=document.getElementById("ar2-sku-menu");if(!menu)return;
+  var html="<div style='padding:7px 10px;border-bottom:1px solid #dde3ea;display:flex;gap:8px'>"+
+    "<button onclick='ar2SkuAll()' style='font-size:11px;padding:2px 8px;border:1px solid #dde3ea;border-radius:4px;background:#fff;cursor:pointer'>All</button>"+
+    "<button onclick='ar2SkuClear()' style='font-size:11px;padding:2px 8px;border:1px solid #dde3ea;border-radius:4px;background:#fff;cursor:pointer'>Clear</button></div>";
+  AR2.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s);}).forEach(function(s){
+    var ck=ar2SelSku.has(s)?"checked":"";
+    html+="<div class='ms-item' style='padding:6px 12px;font-size:12px;cursor:pointer;color:#1a2332' onclick='ar2ToggleSku(event,\""+s.replace(/"/g,"&quot;")+"\")'>"+
+      "<input type='checkbox' "+ck+" onclick='return false' style='margin-right:6px;accent-color:#0d9488'>"+s+"</div>";
+  });
+  menu.innerHTML=html;
+}
+function ar2ToggleSku(ev,sku){
+  if(ev&&ev.stopPropagation)ev.stopPropagation();
+  ar2SelSku.has(sku)?ar2SelSku.delete(sku):ar2SelSku.add(sku);
+  ar2UpdateSkuBtn();
+  ar2RenderSkuMenu();
+}
 function ar2UpdateSkuBtn(){
   var btn = document.getElementById("ar2-sku-btn");
   btn.textContent = ar2SelSku.size > 0
@@ -34,8 +52,8 @@ function ar2UpdateSkuBtn(){
     : "All SKUs ▾";
   btn.style.borderColor = ar2SelSku.size > 0 ? "#0d9488" : "#dde3ea";
 }
-function ar2SkuAll()  { ar2SelSku.clear(); ar2UpdateSkuBtn(); ar2Render(); }
-function ar2SkuClear(){ ar2SelSku.clear(); ar2UpdateSkuBtn(); }
+function ar2SkuAll()  { ar2SelSku.clear(); ar2UpdateSkuBtn(); ar2RenderSkuMenu(); ar2Render(); }
+function ar2SkuClear(){ ar2SelSku.clear(); ar2UpdateSkuBtn(); ar2RenderSkuMenu(); }
 function ar2ToggleSkuMenu(){
   var m = document.getElementById("ar2-sku-menu");
   m.style.display = m.style.display === "block" ? "none" : "block";
@@ -47,6 +65,7 @@ function ar2GetFiltered(){
       status = ar2Status(), bucket = ar2Bucket(), pdi = ar2Pdi();
   return AR2.rows.filter(function(row){
     if(row.date && (row.date < r.df || row.date > r.dt)) return false;
+    if(EXCLUDED_SKUS.has(row.sku)) return false;
     if(ar2SelSku.size > 0 && !ar2SelSku.has(row.sku)) return false;
     if(pcat   && row.pcat   !== pcat)   return false;
     if(div_   && row.div    !== div_)   return false;
@@ -656,15 +675,7 @@ function ar2RenderFilters(){
   if(!AR2 || !AR2.FL) return;
 
   // SKU multi-select menu
-  var menu = document.getElementById("ar2-sku-menu");
-  var html = "<div style='padding:7px 10px;border-bottom:1px solid #dde3ea;display:flex;gap:8px'>"+
-    "<button onclick='ar2SkuAll()' style='font-size:11px;padding:2px 8px;border:1px solid #dde3ea;border-radius:4px;background:#fff;cursor:pointer'>All</button>"+
-    "<button onclick='ar2SkuClear()' style='font-size:11px;padding:2px 8px;border:1px solid #dde3ea;border-radius:4px;background:#fff;cursor:pointer'>Clear</button></div>";
-  AR2.FL.skus.forEach(function(s){
-    html += "<div style='padding:6px 12px;font-size:12px;cursor:pointer;color:#1a2332' onclick='ar2ToggleSku(\""+s.replace(/"/g,"&quot;")+"\")'>" +
-      "<input type='checkbox' onclick='return false' style='margin-right:6px;accent-color:#0d9488'>" + s + "</div>";
-  });
-  menu.innerHTML = html;
+  ar2RenderSkuMenu();
 
   // Partner Category
   var pc = document.getElementById("ar2-pcat");

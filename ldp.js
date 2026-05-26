@@ -26,7 +26,19 @@ function ldpGetTotalUnits(r_, pcat_){
     var pd=LDP.TMP[pcat_];
     Object.keys(pd).forEach(function(m){if(m>=df&&m<=dt)arr.push(pd[m]);});
   }else{
-    Object.keys(LDP.TM).forEach(function(m){if(m>=df&&m<=dt)arr.push(LDP.TM[m]);});
+    // No filter: use TM but subtract excluded-SKU contributions via TMS
+    var tmAdj={};
+    Object.keys(LDP.TM).forEach(function(m){if(m>=df&&m<=dt)tmAdj[m]=(LDP.TM[m]||[]).slice();});
+    if(LDP.TMS){
+      Object.keys(LDP.TMS).forEach(function(sku){
+        if(!EXCLUDED_SKUS.has(sku))return;
+        var sd=LDP.TMS[sku]||{};
+        Object.keys(sd).forEach(function(m){
+          if(tmAdj[m]){var v=sd[m];if(v)for(var i=0;i<11;i++)tmAdj[m][i]=(tmAdj[m][i]||0)-(v[i]||0);}
+        });
+      });
+    }
+    Object.keys(tmAdj).forEach(function(m){arr.push(tmAdj[m]);});
   }
   var tot=ldpSumArr(arr);
   return Math.max(0,tot[LTi]-tot[LEi]-tot[LPi]-tot[LNPi]);
@@ -54,11 +66,11 @@ function ldpRenderMsItems(){
   for(var i=0;i<vis.length;i++){
     var p=vis[i];var ck=ldpSelP.has(p)?"checked":"";
     var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    h+='<div class="ms-item" data-p="'+e+'" onclick="ldpTogP(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";
+    h+='<div class="ms-item" data-p="'+e+'" onclick="ldpTogP(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";
   }
   document.getElementById("ldp-msItems").innerHTML=h;
 }
-function ldpTogP(el){var p=el.getAttribute("data-p");if(ldpSelP.has(p))ldpSelP.delete(p);else ldpSelP.add(p);ldpUpdateMsBtn();ldpRenderMsItems();}
+function ldpTogP(ev,el){ev.stopPropagation();var p=el.getAttribute("data-p");if(ldpSelP.has(p))ldpSelP.delete(p);else ldpSelP.add(p);ldpUpdateMsBtn();ldpRenderMsItems();}
 function ldpMsAll(){LDP.FL.partners.filter(function(p){return p.toLowerCase().indexOf(document.getElementById("ldp-msQ").value.toLowerCase())>=0;}).forEach(function(p){ldpSelP.add(p);});ldpUpdateMsBtn();ldpRenderMsItems();}
 function ldpMsClear(){ldpSelP.clear();ldpUpdateMsBtn();ldpRenderMsItems();}
 function ldpUpdateMsBtn(){
@@ -82,17 +94,17 @@ document.addEventListener("click",function(e){
 function ldpRenderSkuItems(){
   if(!LDP)return;
   var q=document.getElementById("ldp-skuQ").value.toLowerCase();
-  var vis=LDP.FL.skus.filter(function(s){return s.toLowerCase().indexOf(q)>=0;});
+  var vis=LDP.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});
   var h="";
   for(var i=0;i<vis.length;i++){
     var s=vis[i];var ck=ldpSelSku.has(s)?"checked":"";
     var e=s.replace(/&/g,"&amp;");
-    h+='<div class="ms-item" data-s="'+e+'" onclick="ldpTogSku(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";
+    h+='<div class="ms-item" data-s="'+e+'" onclick="ldpTogSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";
   }
   document.getElementById("ldp-skuItems").innerHTML=h;
 }
-function ldpTogSku(el){var s=el.getAttribute("data-s");if(ldpSelSku.has(s))ldpSelSku.delete(s);else ldpSelSku.add(s);ldpUpdateSkuBtn();ldpRenderSkuItems();}
-function ldpSkuAll(){LDP.FL.skus.filter(function(s){return s.toLowerCase().indexOf(document.getElementById("ldp-skuQ").value.toLowerCase())>=0;}).forEach(function(s){ldpSelSku.add(s);});ldpUpdateSkuBtn();ldpRenderSkuItems();}
+function ldpTogSku(ev,el){ev.stopPropagation();var s=el.getAttribute("data-s");if(ldpSelSku.has(s))ldpSelSku.delete(s);else ldpSelSku.add(s);ldpUpdateSkuBtn();ldpRenderSkuItems();}
+function ldpSkuAll(){LDP.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(document.getElementById("ldp-skuQ").value.toLowerCase())>=0;}).forEach(function(s){ldpSelSku.add(s);});ldpUpdateSkuBtn();ldpRenderSkuItems();}
 function ldpSkuClear(){ldpSelSku.clear();ldpUpdateSkuBtn();ldpRenderSkuItems();}
 function ldpUpdateSkuBtn(){
   var btn=document.getElementById("ldp-skuBtn");
@@ -110,6 +122,7 @@ function ldpGetRows(){
   return LDP.rows.filter(function(row){
     var m=row[5]; // month
     if(m<r.df||m>r.dt)return false;
+    if(EXCLUDED_SKUS.has(row[3]))return false; // always exclude
     if(ldpSelSku.size>0&&!ldpSelSku.has(row[3]))return false; // sku
     if(pcat&&row[13]!==pcat)return false; // pcat
     if(ldpSelP.size>0&&!ldpSelP.has(row[14]))return false; // partner

@@ -5,16 +5,16 @@ var pifTreePath=[]; // stores labels: ["PIF","Active","LS",...]
 
 // ── Multi-select SKU ───────────────────────────────────────
 function pifToggleSku(e){e.stopPropagation();var dr=document.getElementById("pif-skuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("pif-skuQ").focus();pifRenderSkuItems();}}
-function pifRenderSkuItems(){if(!PIF)return;var q=document.getElementById("pif-skuQ").value.toLowerCase();var vis=PIF.FL.skus.filter(function(s){return s.toLowerCase().indexOf(q)>=0;});var h="";vis.forEach(function(s){var ck=pifSelSku.has(s)?"checked":"";var e=s.replace(/&/g,"&amp;");h+='<div class="ms-item" data-s="'+e+'" onclick="pifTogSkuItem(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";});document.getElementById("pif-skuItems").innerHTML=h;}
-function pifTogSkuItem(el){var s=el.getAttribute("data-s");if(pifSelSku.has(s))pifSelSku.delete(s);else pifSelSku.add(s);pifUpdateSkuBtn();pifRenderSkuItems();}
-function pifSkuAll(){PIF.FL.skus.filter(function(s){return s.toLowerCase().indexOf(document.getElementById("pif-skuQ").value.toLowerCase())>=0;}).forEach(function(s){pifSelSku.add(s);});pifUpdateSkuBtn();pifRenderSkuItems();}
+function pifRenderSkuItems(){if(!PIF)return;var q=document.getElementById("pif-skuQ").value.toLowerCase();var vis=PIF.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});var h="";vis.forEach(function(s){var ck=pifSelSku.has(s)?"checked":"";var e=s.replace(/&/g,"&amp;");h+='<div class="ms-item" data-s="'+e+'" onclick="pifTogSkuItem(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";});document.getElementById("pif-skuItems").innerHTML=h;}
+function pifTogSkuItem(ev,el){ev.stopPropagation();var s=el.getAttribute("data-s");if(pifSelSku.has(s))pifSelSku.delete(s);else pifSelSku.add(s);pifUpdateSkuBtn();pifRenderSkuItems();}
+function pifSkuAll(){PIF.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(document.getElementById("pif-skuQ").value.toLowerCase())>=0;}).forEach(function(s){pifSelSku.add(s);});pifUpdateSkuBtn();pifRenderSkuItems();}
 function pifSkuClear(){pifSelSku.clear();pifUpdateSkuBtn();pifRenderSkuItems();}
 function pifUpdateSkuBtn(){var btn=document.getElementById("pif-skuBtn");var cnt=document.getElementById("pif-skuCnt");if(pifSelSku.size===0){btn.textContent="All SKUs";cnt.style.display="none";}else{btn.textContent=pifSelSku.size===1?Array.from(pifSelSku)[0].slice(0,18):pifSelSku.size+" SKUs";cnt.textContent=pifSelSku.size;cnt.style.display="inline";}}
 
 // ── Multi-select Partner ───────────────────────────────────
 function pifToggleMs(e){e.stopPropagation();var dr=document.getElementById("pif-msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("pif-msQ").focus();pifRenderMsItems();}}
-function pifRenderMsItems(){if(!PIF)return;var q=document.getElementById("pif-msQ").value.toLowerCase();var vis=PIF.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;});var h="";vis.forEach(function(p){var ck=pifSelP.has(p)?"checked":"";var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;");h+='<div class="ms-item" data-p="'+e+'" onclick="pifTogP(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";});document.getElementById("pif-msItems").innerHTML=h;}
-function pifTogP(el){var p=el.getAttribute("data-p");if(pifSelP.has(p))pifSelP.delete(p);else pifSelP.add(p);pifUpdateMsBtn();pifRenderMsItems();}
+function pifRenderMsItems(){if(!PIF)return;var q=document.getElementById("pif-msQ").value.toLowerCase();var vis=PIF.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;});var h="";vis.forEach(function(p){var ck=pifSelP.has(p)?"checked":"";var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;");h+='<div class="ms-item" data-p="'+e+'" onclick="pifTogP(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";});document.getElementById("pif-msItems").innerHTML=h;}
+function pifTogP(ev,el){ev.stopPropagation();var p=el.getAttribute("data-p");if(pifSelP.has(p))pifSelP.delete(p);else pifSelP.add(p);pifUpdateMsBtn();pifRenderMsItems();}
 function pifMsAll(){PIF.FL.partners.filter(function(p){return p.toLowerCase().indexOf(document.getElementById("pif-msQ").value.toLowerCase())>=0;}).forEach(function(p){pifSelP.add(p);});pifUpdateMsBtn();pifRenderMsItems();}
 function pifMsClear(){pifSelP.clear();pifUpdateMsBtn();pifRenderMsItems();}
 function pifUpdateMsBtn(){var btn=document.getElementById("pif-msBtn");var cnt=document.getElementById("pif-msCnt");if(pifSelP.size===0){btn.textContent="All Partners";cnt.style.display="none";}else{btn.textContent=pifSelP.size===1?Array.from(pifSelP)[0].slice(0,22):pifSelP.size+" partners";cnt.textContent=pifSelP.size;cnt.style.display="inline";}}
@@ -137,6 +137,7 @@ function pifGetTotals(){
     var clsN=["PIF","PP","PIF_LATE"];
     var tot=[0,0,0,0,0.0,0.0,0.0,0,0,0,0,0,0,0,0];
     Object.keys(PIF_ROWS.rows).forEach(function(sku){
+      if(EXCLUDED_SKUS.has(sku))return;
       if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
       (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
         if(r2[3]<r.df||r2[3]>r.dt)return;
@@ -185,6 +186,7 @@ function pifGetSkuData(){
     var skuMap={};
     Object.keys(PIF_ROWS.rows).forEach(function(sku){
       if(sku==="Unknown")return; // hide records with no SKU from breakdown
+      if(EXCLUDED_SKUS.has(sku))return;
       if(pifSelSku.size>0&&!pifSelSku.has(sku))return;
       (PIF_ROWS.rows[sku]||[]).forEach(function(r2){
         if(r2[3]<r.df||r2[3]>r.dt)return;
@@ -227,17 +229,17 @@ function pifGetSkuData(){
     // Partner filter: use PMSKU[partner][sku][month]
     partArr.forEach(function(p){
       var pm=PIF.PMSKU[p]||{};
-      var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(pm);
+      var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(pm).filter(function(s){return!EXCLUDED_SKUS.has(s);});
       skus.forEach(function(sku){ addSkuMonths(sku, pm[sku]||{}); });
     });
   } else if(pcat&&PIF.SMNPC){
     // Pcat filter: use SMNPC[sku][pcat][month]
-    var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMNPC);
+    var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMNPC).filter(function(s){return!EXCLUDED_SKUS.has(s);});
     skus.forEach(function(sku){
       addSkuMonths(sku, ((PIF.SMNPC[sku])||{})[pcat]||{});
     });
   } else if(PIF.SMN){
-    var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMN);
+    var skus=pifSelSku.size>0?Array.from(pifSelSku):Object.keys(PIF.SMN).filter(function(s){return!EXCLUDED_SKUS.has(s);});
     skus.forEach(function(sku){
       var sm=PIF.SMN[sku]||{};
       Object.keys(sm).filter(function(m){return m>=r.df.slice(0,7)&&m<=r.dt.slice(0,7);}).forEach(function(m){

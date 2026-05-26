@@ -2,6 +2,9 @@ var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10,LDPCi=11;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
+// SKUs excluded from all dropdowns and from global "all-data" totals
+var EXCLUDED_SKUS=new Set(["5DC","BT-Dinner Ticket","CAP-2022-06-Ticket-Free","CAP-2022-06-Ticket-VIP Upgrade","CAP-2022-06-VIP Upgrade","CAP-Catapult","CCT Kit","DBL 2022-10 Package","DBL 2022-10 Ticket","DBL 2023-05 Package","DBL 2023-05 Ticket","DBL 2024-05 Package","DBL 2024-05 Ticket","DBL 2025-01 Package","DBL 2025-01 Ticket","DBL 2026-01 Package","DBL 2026-01 Ticket","DBLV 2022-01 Ticket","DBLV 2022-05 Ticket","DBLV 2022-10 Package","DBLV 2022-10 Ticket","DBLV 2023-01 Package","DBLV 2023-01 Ticket","DBLV 2023-09 Package","DBLV 2023-09 Ticket","DBLV 2024-01 Package","DBLV 2024-01 Ticket","DBLV 2024-09 Package","DBLV 2024-09 Ticket","DBLV 2025-01 Package","DBLV 2025-01 Ticket","DBLV 2025-05 Package","DBLV 2025-05 Ticket","DBLV 2025-09 Package","DBLV 2025-09 Ticket","DBLV 2026-05 Package","DBLV 2026-05 Ticket","Deferment","INTSV4ADD","LMI DB CMBO","LMI DB DG","LMI DB DG SP","LMI DB PH GB","LMI DBK PH","LMI IYG CMBO","LMI IYG DG","LMI IYG PH","LMI LM CMBO","LMI LM DG","LMI LMK PH","LMI WWL CMBO","LMI WWL DG","LMI WWL PH","Pending","Pending Order","Unknown"]);
+
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<12;j++)o[j]+=(a[j]||0);}return o;}
 
 // ── Multi-select ──────────────────────────────────────────
@@ -9,25 +12,25 @@ function toggleMs(e){e.stopPropagation();var dr=document.getElementById("msDrop"
 document.addEventListener("click",function(e){if(!document.getElementById("msWrap").contains(e.target))document.getElementById("msDrop").classList.remove("open");});
 document.addEventListener("click",function(e){if(!document.getElementById("msSkuWrap").contains(e.target))document.getElementById("msSkuDrop").classList.remove("open");});
 document.addEventListener("click",function(e){if(!document.getElementById("msPcatWrap").contains(e.target))document.getElementById("msPcatDrop").classList.remove("open");});
-function renderMsItems(){if(!D)return;var q=document.getElementById("msQ").value.toLowerCase();var vis=D.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var p=vis[i];var ck=selP.has(p)?"checked":"";var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+e+'" onclick="togP(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";}document.getElementById("msItems").innerHTML=h;}
-function togP(el){var p=el.getAttribute("data-p");if(selP.has(p))selP.delete(p);else selP.add(p);updateMsBtn();renderMsItems();}
+function renderMsItems(){if(!D)return;var q=document.getElementById("msQ").value.toLowerCase();var vis=D.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var p=vis[i];var ck=selP.has(p)?"checked":"";var e=p.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+e+'" onclick="togP(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+e+"</span></div>";}document.getElementById("msItems").innerHTML=h;}
+function togP(ev,el){ev.stopPropagation();var p=el.getAttribute("data-p");if(selP.has(p))selP.delete(p);else selP.add(p);updateMsBtn();renderMsItems();}
 function msAll(){var q=document.getElementById("msQ").value.toLowerCase();D.FL.partners.filter(function(p){return p.toLowerCase().indexOf(q)>=0;}).forEach(function(p){selP.add(p);});updateMsBtn();renderMsItems();}
 function msClear(){selP.clear();updateMsBtn();renderMsItems();}
 function updateMsBtn(){var btn=document.getElementById("msBtn");var cnt=document.getElementById("msCnt");if(selP.size===0){btn.textContent="All Partners";cnt.style.display="none";}else{btn.textContent=selP.size===1?Array.from(selP)[0].slice(0,22):selP.size+" partners selected";cnt.textContent=selP.size;cnt.style.display="inline";}}
 
 // ── SKU Multi-select ──────────────────────────────────────────
 function toggleMsSku(e){e.stopPropagation();var dr=document.getElementById("msSkuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msSkuQ").focus();renderMsSkuItems();}}
-function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ").value.toLowerCase();var vis=D.FL.skus.filter(function(s){return s.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var s=vis[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";}document.getElementById("msSkuItems").innerHTML=h;}
-function togSku(el){var s=el.getAttribute("data-p");if(selSku.has(s))selSku.delete(s);else selSku.add(s);updateMsSkuBtn();renderMsSkuItems();}
-function skuAll(){var q=document.getElementById("msSkuQ").value.toLowerCase();D.FL.skus.filter(function(s){return s.toLowerCase().indexOf(q)>=0;}).forEach(function(s){selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
+function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ").value.toLowerCase();var vis=D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<vis.length;i++){var s=vis[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";}document.getElementById("msSkuItems").innerHTML=h;}
+function togSku(ev,el){ev.stopPropagation();var s=el.getAttribute("data-p");if(selSku.has(s))selSku.delete(s);else selSku.add(s);updateMsSkuBtn();renderMsSkuItems();}
+function skuAll(){var q=document.getElementById("msSkuQ").value.toLowerCase();D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;}).forEach(function(s){selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
 function skuClear(){selSku.clear();updateMsSkuBtn();renderMsSkuItems();}
 function updateMsSkuBtn(){var btn=document.getElementById("msSkuBtn");var cnt=document.getElementById("msSkuCnt");if(selSku.size===0){btn.textContent="All SKUs";cnt.style.display="none";}else{btn.textContent=selSku.size===1?Array.from(selSku)[0].slice(0,22):selSku.size+" SKUs selected";cnt.textContent=selSku.size;cnt.style.display="inline";}}
 
 // ── PCat Multi-select ──────────────────────────────────────────
 var PCAT_OPTS=["Enrollment Mentor","Event","Marketing","Affiliate"];
 function toggleMsPcat(e){e.stopPropagation();var dr=document.getElementById("msPcatDrop");dr.classList.toggle("open");if(dr.classList.contains("open"))renderMsPcatItems();}
-function renderMsPcatItems(){var h="";for(var i=0;i<PCAT_OPTS.length;i++){var p=PCAT_OPTS[i];var ck=selPcat.has(p)?"checked":"";h+='<div class="ms-item" data-p="'+p+'" onclick="togPcat(this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+p+"</span></div>";}document.getElementById("msPcatItems").innerHTML=h;}
-function togPcat(el){var p=el.getAttribute("data-p");if(selPcat.has(p))selPcat.delete(p);else selPcat.add(p);updateMsPcatBtn();renderMsPcatItems();}
+function renderMsPcatItems(){var h="";for(var i=0;i<PCAT_OPTS.length;i++){var p=PCAT_OPTS[i];var ck=selPcat.has(p)?"checked":"";h+='<div class="ms-item" data-p="'+p+'" onclick="togPcat(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+p+"</span></div>";}document.getElementById("msPcatItems").innerHTML=h;}
+function togPcat(ev,el){ev.stopPropagation();var p=el.getAttribute("data-p");if(selPcat.has(p))selPcat.delete(p);else selPcat.add(p);updateMsPcatBtn();renderMsPcatItems();}
 function pcatAll(){PCAT_OPTS.forEach(function(p){selPcat.add(p);});updateMsPcatBtn();renderMsPcatItems();}
 function pcatClear(){selPcat.clear();updateMsPcatBtn();renderMsPcatItems();}
 function updateMsPcatBtn(){var btn=document.getElementById("msPcatBtn");var cnt=document.getElementById("msPcatCnt");if(selPcat.size===0){btn.textContent="All Categories";cnt.style.display="none";}else{btn.textContent=selPcat.size===1?Array.from(selPcat)[0]:selPcat.size+" categories";cnt.textContent=selPcat.size;cnt.style.display="inline";}}
@@ -271,15 +274,15 @@ function renderDecompBC(){
 
 function getTimeSeries(){
   var r=getRange(),byM={};
-  var e11=function(){return[0,0,0,0,0,0,0,0,0,0,0];};
+  var e12=function(){return[0,0,0,0,0,0,0,0,0,0,0,0];};
   var skus=selSku.size>0?Array.from(selSku):null;
   var pcats=selPcat.size>0?Array.from(selPcat):null;
 
   function addToByM(src,skuKey){
     Object.keys(src).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
-      if(!byM[m])byM[m]=e11();
+      if(!byM[m])byM[m]=e12();
       var v=skuKey?(src[m]&&src[m][skuKey]||null):src[m];
-      if(v)for(var i=0;i<11;i++)byM[m][i]+=(v[i]||0);
+      if(v)for(var i=0;i<12;i++)byM[m][i]+=(v[i]||0);
     });
   }
 
@@ -296,7 +299,13 @@ function getTimeSeries(){
   } else if(skus){
     skus.forEach(function(s){addToByM(D.GMSKU||{},s);});
   } else {
-    Object.keys(D.M).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){byM[m]=D.M[m];});
+    // No filter: use global M but subtract excluded-SKU contributions
+    Object.keys(D.M).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
+      var row=(D.M[m]||[]).slice();while(row.length<12)row.push(0);
+      var gs=D.GMSKU[m]||{};
+      Object.keys(gs).forEach(function(s){if(EXCLUDED_SKUS.has(s)){var v=gs[s];if(v)for(var i=0;i<12;i++)row[i]-=(v[i]||0);}});
+      byM[m]=row;
+    });
   }
   return Object.keys(byM).sort().map(function(m){return{m:m,b:byM[m]};});
 }
@@ -308,11 +317,11 @@ function getSkuBuckets(){
   function addSrc(monthSkuMap){
     Object.keys(monthSkuMap).filter(function(m){return m>=r.df&&m<=r.dt;}).forEach(function(m){
       var skuMap=monthSkuMap[m];
-      var keys=skus?skus:Object.keys(skuMap);
+      var keys=skus?skus:Object.keys(skuMap).filter(function(s){return!EXCLUDED_SKUS.has(s);});
       keys.forEach(function(s){
         var v=skuMap[s];if(!v)return;
-        if(!src[s])src[s]=[0,0,0,0,0,0,0,0,0,0,0];
-        for(var i=0;i<11;i++)src[s][i]+=(v[i]||0);
+        if(!src[s])src[s]=[0,0,0,0,0,0,0,0,0,0,0,0];
+        for(var i=0;i<12;i++)src[s][i]+=(v[i]||0);
       });
     });
   }
