@@ -3,22 +3,33 @@ var LDP = null;
 var ldpCharts = {};
 var ldpSelP = new Set();
 var ldpSelSku = new Set();
-var Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6;
+// LDP bucket indices (11-element): total,cncl,entry_err,upgrade,downgrade,active,inactive,lost_rev,switch,pend,no_pmt
+var LTi=0,LCi=1,LEi=2,LUi=3,LDi=4,LAi=5,LIi=6,LLRi=7,LSi=8,LPi=9,LNPi=10;
 
 function ldpSumArr(arr){
-  var o=[0,0,0,0,0,0,0];
-  for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<7;j++)o[j]+=(a[j]||0);}
+  var o=[0,0,0,0,0,0,0,0,0,0,0];
+  for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<11;j++)o[j]+=(a[j]||0);}
   return o;
 }
 
-function ldpGetCncl(cs){
-  cs=(cs||"").toLowerCase().trim();
-  if(cs.indexOf("upgrade")>=0)return"Upgrade";
-  if(cs.indexOf("downgrade")>=0)return"Downgrade";
-  if(cs.indexOf("switch")>=0)return"Switch";
-  if(cs.indexOf("entry error")>=0||cs.indexOf("error")>=0)return"Entry Error";
-  if(cs.indexOf("cncl")>=0||cs.indexOf("lrev")>=0)return"Cancelled";
-  return"Sale";
+// Compute Total Units (all orders net) from TM/TMS/TMP aggregates for LDP% context
+function ldpGetTotalUnits(r_, pcat_){
+  if(!LDP||!LDP.TM)return 0;
+  var df=r_.df,dt=r_.dt;
+  var arr=[];
+  if(ldpSelSku.size>0&&LDP.TMS){
+    ldpSelSku.forEach(function(sku){
+      var sd=LDP.TMS[sku]||{};
+      Object.keys(sd).forEach(function(m){if(m>=df&&m<=dt)arr.push(sd[m]);});
+    });
+  }else if(pcat_&&LDP.TMP&&LDP.TMP[pcat_]){
+    var pd=LDP.TMP[pcat_];
+    Object.keys(pd).forEach(function(m){if(m>=df&&m<=dt)arr.push(pd[m]);});
+  }else{
+    Object.keys(LDP.TM).forEach(function(m){if(m>=df&&m<=dt)arr.push(LDP.TM[m]);});
+  }
+  var tot=ldpSumArr(arr);
+  return Math.max(0,tot[LTi]-tot[LEi]-tot[LPi]-tot[LNPi]);
 }
 
 // ── Filters ───────────────────────────────────────────────
@@ -122,44 +133,68 @@ function ldpRender(){
   if(!LDP)return;
   ldpDestroyCharts();
   var rows=ldpGetRows();
-  var total=rows.length;
-  var cancelled=rows.filter(function(r){return r[10]==="Cancelled";}).length;
-  var entryErr=rows.filter(function(r){return r[10]==="Entry Error";}).length;
-  var upgrades=rows.filter(function(r){return r[10]==="Upgrade";}).length;
-  var downgrades=rows.filter(function(r){return r[10]==="Downgrade";}).length;
-  var active=rows.filter(function(r){return r[11]==="Active";}).length;
-  var inactive=rows.filter(function(r){return r[11]==="Inactive";}).length;
-  var validUnits=total-entryErr;
-  var cancelRate=validUnits>0?(cancelled/validUnits*100):0;
-  var totalInv=rows.reduce(function(s,r){return s+(r[7]||0);},0);
-  var totalPay=rows.reduce(function(s,r){return s+(r[8]||0);},0);
+  var r_=ldpGetRange(),pcat_=ldpGetPcat();
+
+  var ldpTotal=rows.length;
+  var ldpCncl=rows.filter(function(r){return r[10]==="Cancelled";}).length;
+  var ldpEE=rows.filter(function(r){return r[10]==="Entry Error";}).length;
+  var ldpUpg=rows.filter(function(r){return r[10]==="Upgrade";}).length;
+  var ldpDwn=rows.filter(function(r){return r[10]==="Downgrade";}).length;
+  var ldpPend=rows.filter(function(r){return r[10]==="Pend";}).length;
+  var ldpNoPmt=rows.filter(function(r){return r[10]==="No Pmt";}).length;
+  var ldpActive=rows.filter(function(r){return r[11]==="Active";}).length;
+  var ldpInactive=rows.filter(function(r){return r[11]==="Inactive";}).length;
+  var ldpValidUnits=Math.max(0,ldpTotal-ldpEE-ldpPend-ldpNoPmt);
+  var ldpCancelRate=ldpValidUnits>0?(ldpCncl/ldpValidUnits*100):0;
   var lostRev=rows.reduce(function(s,r){return s+(r[16]||0);},0);
-  var displayTotal=total-entryErr;
   var avgPmt=rows.length>0?rows.reduce(function(s,r){return s+(r[9]||0);},0)/rows.length:0;
+  var ldpUpgPct=ldpValidUnits>0?(ldpUpg/ldpValidUnits*100):0;
+  var ldpDwnPct=ldpValidUnits>0?(ldpDwn/ldpValidUnits*100):0;
 
-  document.getElementById("ldp-rcLbl").textContent=total.toLocaleString()+" LDP records";
+  var totalUnits=ldpGetTotalUnits(r_,pcat_);
+  var ldpPct=totalUnits>0?(ldpValidUnits/totalUnits*100):0;
 
-  // KPIs
+  document.getElementById("ldp-rcLbl").textContent=ldpTotal.toLocaleString()+" LDP records";
+
+  // KPIs — 4-row grouped layout
   document.getElementById("ldp-kpis").innerHTML=
-    '<div class="kpi k1"><div class="kl">Total LDP</div><div class="kv" style="color:#1a2332">'+displayTotal.toLocaleString()+'</div><div class="ks muted">excl. entry errors</div></div>'+
-    '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+active.toLocaleString()+'</div><div class="ks muted">'+(displayTotal>0?(active/displayTotal*100).toFixed(1):0)+'% continuing</div></div>'+
-    '<div class="kpi k3"><div class="kl">Inactive</div><div class="kv" style="color:#ef4444">'+inactive.toLocaleString()+'</div><div class="ks red">'+(displayTotal>0?(inactive/displayTotal*100).toFixed(1):0)+'% of total</div></div>'+
-    '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+cancelled.toLocaleString()+'</div><div class="ks red" style="color:#ef4444">'+cancelRate.toFixed(1)+'% cancel rate</div></div>'+
-    '<div class="kpi k4"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444;font-size:28px">'+cancelRate.toFixed(1)+'%</div><div class="ks red" style="color:#ef4444">excl. entry errors</div></div>'+
-    '<div class="kpi k6"><div class="kl">Upgrades</div><div class="kv" style="color:#16a34a">'+upgrades.toLocaleString()+'</div><div class="ks green">upgrade events</div></div>'+
-    '<div class="kpi k3"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:18px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks red">on cancellations</div></div>'+
-    '<div class="kpi k7"><div class="kl">Avg Down Pmt</div><div class="kv" style="color:#7c3aed">'+avgPmt.toFixed(1)+'%</div><div class="ks muted">avg % of program price</div></div>'+
-    '<div class="kpi k8"><div class="kl">Total Program Value</div><div class="kv" style="color:#16a34a;font-size:18px">$'+Math.round(totalInv).toLocaleString()+'</div><div class="ks muted">inv total</div></div>';
+    '<div class="kpi-row">'+
+    // Row 1: Overview context
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+      '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+totalUnits.toLocaleString()+'</div><div class="ks muted">all orders (excl. EE, Pend, No Pmt)</div></div>'+
+      '<div class="kpi k7"><div class="kl">Total LDP Units</div><div class="kv" style="color:#7c3aed">'+ldpValidUnits.toLocaleString()+'</div><div class="ks muted">≤10% down payment</div></div>'+
+      '<div class="kpi k7"><div class="kl">LDP %</div><div class="kv" style="color:#7c3aed">'+ldpPct.toFixed(1)+'%</div><div class="ks muted">of all units are LDP</div></div>'+
+    '</div>'+
+    // Row 2: Outcomes
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+      '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+ldpActive.toLocaleString()+'</div><div class="ks muted">'+(ldpValidUnits>0?(ldpActive/ldpValidUnits*100).toFixed(1):0)+'% of LDP units</div></div>'+
+      '<div class="kpi k3"><div class="kl">Inactive</div><div class="kv" style="color:#ef4444">'+ldpInactive.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpInactive/ldpValidUnits*100).toFixed(1):0)+'% of LDP units</div></div>'+
+      '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:20px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks red">on LDP cancellations</div></div>'+
+    '</div>'+
+    // Row 3: Cancellation focus
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'+
+      '<div class="kpi k4"><div class="kl">Cancelled LDP</div><div class="kv" style="color:#ef4444">'+ldpCncl.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpCncl/ldpValidUnits*100).toFixed(1):0)+'% of LDP units</div></div>'+
+      '<div class="kpi k4"><div class="kl">LDP Cancel Rate</div><div class="kv" style="color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div class="ks red">cancellations / LDP units</div></div>'+
+    '</div>'+
+    // Row 4: Payment metrics
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+      '<div class="kpi k7"><div class="kl">Avg Down Payment</div><div class="kv" style="color:#7c3aed">'+avgPmt.toFixed(1)+'%</div><div class="ks muted">avg % of program price paid</div></div>'+
+      '<div class="kpi k6"><div class="kl">LDP Upgrades %</div><div class="kv" style="color:#16a34a">'+ldpUpgPct.toFixed(1)+'%</div><div class="ks green">'+ldpUpg.toLocaleString()+' upgrades</div></div>'+
+      '<div class="kpi k3"><div class="kl">LDP Downgrades %</div><div class="kv" style="color:#7c3aed">'+ldpDwnPct.toFixed(1)+'%</div><div class="ks muted">'+ldpDwn.toLocaleString()+' downgrades</div></div>'+
+    '</div>'+
+    '</div>';
 
   // Monthly trend
   var byMonth={};
   rows.forEach(function(r){
-    var m=r[5]; // month at index 5
-    if(!byMonth[m])byMonth[m]={total:0,cancelled:0,entry_error:0,upgrade:0,active:0,inactive:0};
+    var m=r[5];
+    if(!byMonth[m])byMonth[m]={total:0,cancelled:0,entry_error:0,upgrade:0,active:0,inactive:0,pend:0,no_pmt:0};
     byMonth[m].total++;
     if(r[10]==="Cancelled")byMonth[m].cancelled++;
     else if(r[10]==="Entry Error")byMonth[m].entry_error++;
     else if(r[10]==="Upgrade")byMonth[m].upgrade++;
+    else if(r[10]==="Pend")byMonth[m].pend++;
+    else if(r[10]==="No Pmt")byMonth[m].no_pmt++;
     if(r[11]==="Active")byMonth[m].active++;
     else byMonth[m].inactive++;
   });
@@ -172,7 +207,7 @@ function ldpRender(){
       {label:"Cancelled",data:months.map(function(m){return byMonth[m].cancelled;}),backgroundColor:"rgba(248,81,73,0.8)",borderRadius:3,stack:"s"},
       {label:"Entry Error",data:months.map(function(m){return byMonth[m].entry_error;}),backgroundColor:"rgba(227,179,65,0.8)",borderRadius:3,stack:"s"},
       {label:"Upgrade",data:months.map(function(m){return byMonth[m].upgrade;}),backgroundColor:"rgba(63,185,80,0.8)",borderRadius:3,stack:"s"},
-      {label:"Cancel %",data:months.map(function(m){var v=byMonth[m].total-byMonth[m].entry_error;return v>0?+(byMonth[m].cancelled/v*100).toFixed(1):0;}),
+      {label:"Cancel %",data:months.map(function(m){var bm=byMonth[m];var v=bm.total-bm.entry_error-bm.pend-bm.no_pmt;return v>0?+(bm.cancelled/v*100).toFixed(1):0;}),
         type:"line",yAxisID:"y2",borderColor:"#f85149",backgroundColor:"rgba(248,81,73,0.07)",fill:true,tension:0.35,pointRadius:2,pointBackgroundColor:"#f85149",borderWidth:2}
     ]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:"index",intersect:false}},
@@ -230,8 +265,8 @@ function ldpRender(){
   });
 
   // Outcome donut
-  var outcomeData=[active,cancelled,entryErr,upgrades,downgrades].filter(function(v){return v>0;});
-  var outcomeLabels=["Active","Cancelled","Entry Error","Upgrades","Downgrades"].filter(function(_,i){return [active,cancelled,entryErr,upgrades,downgrades][i]>0;});
+  var outcomeData=[ldpActive,ldpCncl,ldpEE,ldpUpg,ldpDwn].filter(function(v){return v>0;});
+  var outcomeLabels=["Active","Cancelled","Entry Error","Upgrades","Downgrades"].filter(function(_,i){return [ldpActive,ldpCncl,ldpEE,ldpUpg,ldpDwn][i]>0;});
   ldpCharts.outcome=new Chart(document.getElementById("ldp-outcomeChart"),{
     type:"doughnut",
     data:{labels:outcomeLabels,datasets:[{data:outcomeData,backgroundColor:["#58a6ff","#f85149","#e3b341","#3fb950","#bc8cff"],borderWidth:0,hoverOffset:4}]},
@@ -246,20 +281,22 @@ function ldpRender(){
   var skuMap={};
   rows.forEach(function(r){
     var s=r[3];
-    if(!skuMap[s])skuMap[s]={total:0,active:0,inactive:0,cancelled:0,entry_error:0,upgrade:0,inv:0,pay:0};
+    if(!skuMap[s])skuMap[s]={total:0,active:0,inactive:0,cancelled:0,entry_error:0,upgrade:0,pend:0,no_pmt:0,inv:0,pay:0};
     skuMap[s].total++;
     if(r[11]==="Active")skuMap[s].active++;else skuMap[s].inactive++;
     if(r[10]==="Cancelled")skuMap[s].cancelled++;
     else if(r[10]==="Entry Error")skuMap[s].entry_error++;
     else if(r[10]==="Upgrade")skuMap[s].upgrade++;
+    else if(r[10]==="Pend")skuMap[s].pend++;
+    else if(r[10]==="No Pmt")skuMap[s].no_pmt++;
     skuMap[s].inv+=r[7];skuMap[s].pay+=r[8];
   });
   var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
-  var mx=Math.max.apply(null,skuArr.map(function(e){var v=e[1];var valid=v.total-v.entry_error;return valid>0?(v.cancelled/valid*100):0;}).concat([1]));
+  var mx=Math.max.apply(null,skuArr.map(function(e){var v=e[1];var valid=v.total-v.entry_error-v.pend-v.no_pmt;return valid>0?(v.cancelled/valid*100):0;}).concat([1]));
   var tRows="";
   skuArr.forEach(function(e){
     var s=e[0],v=e[1];
-    var valid=v.total-v.entry_error;
+    var valid=v.total-v.entry_error-v.pend-v.no_pmt;
     var rate=valid>0?(v.cancelled/valid*100):0;
     var avgPct=v.inv>0?(v.pay/v.inv*100).toFixed(1):0;
     var cl=rate>50?"#f85149":rate>30?"#e3b341":"#56d364";
@@ -277,7 +314,7 @@ function ldpRender(){
       "<td class='num'>$"+Math.round(v.inv).toLocaleString()+"</td></tr>";
   });
   document.getElementById("ldp-skuTbody").innerHTML=tRows;
-  document.getElementById("ldp-tblInfo").textContent=skuArr.length+" SKUs · "+total.toLocaleString()+" records";
+  document.getElementById("ldp-tblInfo").textContent=skuArr.length+" SKUs · "+ldpTotal.toLocaleString()+" records";
 
   // Records table (paginated)
   ldpRenderRecords(rows);

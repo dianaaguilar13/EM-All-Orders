@@ -255,15 +255,15 @@ def pif_classify(row):
 #  BUILD data.json  (Cancellation Dashboard)
 # ─────────────────────────────────────────────
 
-def build_cancellation_data(orders):
+def build_cancellation_data(orders, ldp_order_ids=None):
     print("⏳ Building data.json (Cancellation)...")
 
     # b[0]=Total  b[1]=Cancelled  b[2]=EntryError  b[3]=Upgrade  b[4]=Downgrade
-    # b[5]=Active b[6]=Inactive   b[7]=LostRev     b[8]=Switch   b[9]=Pend  b[10]=NoPmt
-    Ti,Ci,Ei,Ui,Di,Ai,Ii,CRi,Si,Pi,NPi = 0,1,2,3,4,5,6,7,8,9,10
-    def make_b(): return [0,0,0,0,0,0,0,0.0,0,0,0]
+    # b[5]=Active b[6]=Inactive   b[7]=LostRev     b[8]=Switch   b[9]=Pend  b[10]=NoPmt  b[11]=LDP_Cancelled
+    Ti,Ci,Ei,Ui,Di,Ai,Ii,CRi,Si,Pi,NPi,LDPi = 0,1,2,3,4,5,6,7,8,9,10,11
+    def make_b(): return [0,0,0,0,0,0,0,0.0,0,0,0,0]
     rows_by_sku = defaultdict(list)
-    def upd(b, cncl, active, lr):
+    def upd(b, cncl, active, lr, is_ldp=False):
         b[0] += 1
         if   cncl == "Cancelled":   b[1] += 1
         elif cncl == "Entry Error": b[2] += 1
@@ -275,6 +275,7 @@ def build_cancellation_data(orders):
         if active == "Active":      b[5] += 1
         else:                       b[6] += 1
         b[7] += lr
+        if is_ldp and cncl == "Cancelled": b[11] += 1
 
     M = defaultdict(make_b)   # monthly global
     S = defaultdict(make_b)   # by SKU
@@ -309,22 +310,24 @@ def build_cancellation_data(orders):
         rdate  = r.get("REFUND_CREDIT_DATE","")
         date   = r.get("DATE","")
         cs_raw = r.get("CREDIT_STATUS","") or ""
+        oid    = r.get("ID","")
+        is_ldp = bool(ldp_order_ids and oid in ldp_order_ids)
 
         if not month: continue
         skus.add(sku); parts.add(part); pcats.add(pcat)
 
-        upd(M[month],         cncl, active, lr)
+        upd(M[month],         cncl, active, lr, is_ldp)
         if month and len(month)>=7:
             _yr=int(month[:4]);_mo=int(month[5:7])
-            upd(QFY["FY'"+str(_yr)[2:]]["Q"+str((_mo-1)//3+1)],cncl,active,lr)
-        upd(S[sku],           cncl, active, lr)
-        upd(PC[pcat],         cncl, active, lr)
-        upd(P[part],          cncl, active, lr)
-        upd(PCM[pcat][month], cncl, active, lr)
-        upd(PM[part][month],  cncl, active, lr)
-        upd(GMSKU[month][sku],           cncl, active, lr)
-        upd(PCMSKU[pcat][month][sku],    cncl, active, lr)
-        upd(PMSKU[part][month][sku],     cncl, active, lr)
+            upd(QFY["FY'"+str(_yr)[2:]]["Q"+str((_mo-1)//3+1)],cncl,active,lr,is_ldp)
+        upd(S[sku],           cncl, active, lr, is_ldp)
+        upd(PC[pcat],         cncl, active, lr, is_ldp)
+        upd(P[part],          cncl, active, lr, is_ldp)
+        upd(PCM[pcat][month], cncl, active, lr, is_ldp)
+        upd(PM[part][month],  cncl, active, lr, is_ldp)
+        upd(GMSKU[month][sku],           cncl, active, lr, is_ldp)
+        upd(PCMSKU[pcat][month][sku],    cncl, active, lr, is_ldp)
+        upd(PMSKU[part][month][sku],     cncl, active, lr, is_ldp)
 
         # Refund days — include N/A for cancelled orders without a refund date
         if cncl == "Cancelled":
@@ -598,17 +601,51 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
 
     THRESHOLD = 0.10  # ≤ 10%
 
-    # 8-element bucket: [total, cncl, entry_err, upgrade, downgrade, active, inactive, lost_rev]
-    def make_b(): return [0,0,0,0,0,0,0,0.0]
+    # 11-element bucket: [total, cncl, entry_err, upgrade, downgrade, active, inactive, lost_rev, switch, pend, no_pmt]
+    def make_b(): return [0,0,0,0,0,0,0,0.0,0,0,0]
     def upd(b, cncl, active, lost):
         b[0] += 1
         if   cncl == "Cancelled":   b[1] += 1
         elif cncl == "Entry Error": b[2] += 1
         elif cncl == "Upgrade":     b[3] += 1
         elif cncl == "Downgrade":   b[4] += 1
+        elif cncl == "Switch":      b[8] += 1
+        elif cncl == "Pend":        b[9] += 1
+        elif cncl == "No Pmt":      b[10]+= 1
         if active == "Active": b[5] += 1
         else:                  b[6] += 1
         b[7] += lost
+
+    # Total-orders aggregates (same 11-elem format) for LDP% context in JS
+    def make_tb(): return [0,0,0,0,0,0,0,0.0,0,0,0]
+    def tupd(b, cncl_r, active_r):
+        b[0] += 1
+        if   cncl_r == "Cancelled":   b[1] += 1
+        elif cncl_r == "Entry Error": b[2] += 1
+        elif cncl_r == "Upgrade":     b[3] += 1
+        elif cncl_r == "Downgrade":   b[4] += 1
+        elif cncl_r == "Switch":      b[8] += 1
+        elif cncl_r == "Pend":        b[9] += 1
+        elif cncl_r == "No Pmt":      b[10]+= 1
+        if active_r == "Active": b[5] += 1
+        else:                    b[6] += 1
+
+    TM  = defaultdict(make_tb)                              # global by month
+    TMS = defaultdict(lambda: defaultdict(make_tb))          # by sku x month
+    TMP = defaultdict(lambda: defaultdict(make_tb))          # by pcat x month
+
+    for r_a in orders:
+        inv_a   = float(r_a.get("INV_TOTAL",0) or 0)
+        if inv_a <= 0: continue
+        month_a = str(r_a.get("DATE",""))[:7]
+        if not month_a: continue
+        sku_a   = r_a.get("SKU","") or "Unknown"
+        pcat_a  = r_a.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
+        cncl_a  = get_cncl(r_a.get("CREDIT_STATUS",""))
+        act_a   = get_active(cncl_a)
+        tupd(TM[month_a], cncl_a, act_a)
+        tupd(TMS[sku_a][month_a], cncl_a, act_a)
+        tupd(TMP[pcat_a][month_a], cncl_a, act_a)
 
     by_month = defaultdict(make_b)
     by_sku   = defaultdict(make_b)
@@ -627,10 +664,11 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         if not fd or fa <= 0: continue
         if fa / inv > THRESHOLD: continue
 
-        cncl   = get_cncl(r.get("CREDIT_STATUS",""))
-        active = get_active(cncl)
-        paid   = float(r.get("PAYMENTS_TOTAL",0) or 0)
-        lost   = max(0, round(inv - paid, 2)) if cncl == "Cancelled" else 0.0
+        cncl     = get_cncl(r.get("CREDIT_STATUS",""))
+        active   = get_active(cncl)
+        paid     = float(r.get("PAYMENTS_TOTAL",0) or 0)
+        refunds  = float(r.get("REFUNDS",0) or 0)
+        lost     = max(0, round(inv - paid + refunds, 2)) if cncl == "Cancelled" else 0.0
         pmt_pct = round(fa / inv * 100, 1)
         sku    = r.get("SKU","") or "Unknown"
         skucat = r.get("SKU_CATEGORY","") or ""
@@ -666,6 +704,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         "S":   {k: list(v) for k,v in by_sku.items()},
         "PC":  {k: list(v) for k,v in by_pcat.items()},
         "P":   {k: list(v) for k,v in by_part.items()},
+        "TM":  {k: list(v) for k,v in sorted(TM.items())},
+        "TMS": {s: {m: list(v) for m,v in mv.items()} for s,mv in TMS.items()},
+        "TMP": {p: {m: list(v) for m,v in mv.items()} for p,mv in TMP.items()},
         "FL":  {
             "skus":     sorted(s for s in all_skus  if s and s != "Unknown"),
             "partners": sorted(p for p in all_parts if p and p != "Unknown"),
@@ -1518,6 +1559,30 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
     }
 
 
+def pre_compute_ldp_ids(orders, payments_rows):
+    """Return set of order IDs whose first payment was ≤ 10% of INV_TOTAL."""
+    order_day_payments = defaultdict(lambda: defaultdict(float))
+    for row in (payments_rows or []):
+        oid  = str(row.get('Id', row.get('INVOICEID',''))).strip()
+        amt  = clean_money(row.get('Pay Amt', row.get('PAYAMT','')))
+        date = parse_date(str(row.get('Date', row.get('PAYDATE','')))[:10])
+        if oid and amt > 0 and date:
+            order_day_payments[oid][date] += amt
+
+    ldp_ids = set()
+    for r in orders:
+        oid = r.get("ID","").strip()
+        inv = float(r.get("INV_TOTAL",0) or 0)
+        if inv <= 0 or not oid: continue
+        days = order_day_payments.get(oid, {})
+        if not days: continue
+        fa = days[min(days.keys())]
+        if fa / inv <= 0.10:
+            ldp_ids.add(oid)
+    print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
+    return ldp_ids
+
+
 def main():
     print("=" * 55)
     print("  BTI Analytics Dashboard — Data Refresh")
@@ -1531,9 +1596,13 @@ def main():
     ar_invoices = fetch_ar_invoices(conn)
     conn.close()
 
-    # 2. Build and save each JSON
+    # 2. Pre-compute LDP IDs for cross-report metric
     print()
-    cancel_data = build_cancellation_data(orders)
+    ldp_ids = pre_compute_ldp_ids(orders, payments)
+
+    # 3. Build and save each JSON
+    print()
+    cancel_data = build_cancellation_data(orders, ldp_order_ids=ldp_ids)
     save_json(cancel_data, "data.json")
 
     print()

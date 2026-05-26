@@ -1,8 +1,8 @@
-var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10;
+var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10,LDPCi=11;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
-function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<11;j++)o[j]+=(a[j]||0);}return o;}
+function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<12;j++)o[j]+=(a[j]||0);}return o;}
 
 // ── Multi-select ──────────────────────────────────────────
 function toggleMs(e){e.stopPropagation();var dr=document.getElementById("msDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msQ").focus();renderMsItems();}}
@@ -409,8 +409,9 @@ function render(){
   var ts=getTimeSeries();
   var tot=sumArr(ts.map(function(x){return x.b;}));
   var T=tot[Ti],C=tot[Ci],E=tot[Ei],U=tot[Ui],Dv=tot[Di],AC=tot[Ai],IN=tot[Ii],LR=tot[CRi];
-  var Sw=tot[Si]||0,Pe=tot[Pi]||0,NP=tot[NPi]||0;
+  var Sw=tot[Si]||0,Pe=tot[Pi]||0,NP=tot[NPi]||0,LDPc=tot[LDPCi]||0;
   var net=T-E-Pe-NP, rate=net>0?(C/net*100):0;
+  var ldpCancelRate=C>0?(LDPc/C*100):0;
   var sale=Math.max(0,T-C-E-U-Dv-Sw-Pe-NP);
   var pcat=getPcat();
   document.getElementById("rcLbl").textContent=T.toLocaleString()+" records "+(selP.size>0?selP.size+" partner(s)":pcat||"all data");
@@ -420,7 +421,7 @@ function render(){
       '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+net.toLocaleString()+'</div><div class="ks muted">excl. entry error, pend, no pmt</div></div>'+
       '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+AC.toLocaleString()+'</div><div class="ks muted">'+(net>0?(AC/net*100).toFixed(1):0)+'% of units</div></div>'+
       '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+C.toLocaleString()+'</div><div class="ks red">'+(net>0?(C/net*100).toFixed(1):0)+'% of units</div></div>'+
-      '<div class="kpi k4"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+rate.toFixed(1)+'%</div><div class="ks red">cancellations / total units</div></div>'+
+      '<div class="kpi k4"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+rate.toFixed(1)+'%</div><div class="ks red">cancellations / total units</div>'+(LDPc>0?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid #fee2e2"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">LDP Cancel %</div><div style="font-size:16px;font-weight:700;color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div style="font-size:10px;color:#64748b">'+LDPc+' of '+C+' cancels</div></div>':'')+'</div>'+
       '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:22px">$'+Math.round(LR).toLocaleString()+'</div><div class="ks red">payments on cancels</div></div>'+
     '</div>'+
     '<div class="kpi-groups">'+
