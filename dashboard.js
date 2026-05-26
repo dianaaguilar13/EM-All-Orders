@@ -2,8 +2,34 @@ var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10,LDPCi=11;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
-// SKUs excluded from all dropdowns and from global "all-data" totals
-var EXCLUDED_SKUS=new Set(["5DC","BT-Dinner Ticket","CAP-2022-06-Ticket-Free","CAP-2022-06-Ticket-VIP Upgrade","CAP-2022-06-VIP Upgrade","CAP-Catapult","CCT Kit","DBL 2022-10 Package","DBL 2022-10 Ticket","DBL 2023-05 Package","DBL 2023-05 Ticket","DBL 2024-05 Package","DBL 2024-05 Ticket","DBL 2025-01 Package","DBL 2025-01 Ticket","DBL 2026-01 Package","DBL 2026-01 Ticket","DBLV 2022-01 Ticket","DBLV 2022-05 Ticket","DBLV 2022-10 Package","DBLV 2022-10 Ticket","DBLV 2023-01 Package","DBLV 2023-01 Ticket","DBLV 2023-09 Package","DBLV 2023-09 Ticket","DBLV 2024-01 Package","DBLV 2024-01 Ticket","DBLV 2024-09 Package","DBLV 2024-09 Ticket","DBLV 2025-01 Package","DBLV 2025-01 Ticket","DBLV 2025-05 Package","DBLV 2025-05 Ticket","DBLV 2025-09 Package","DBLV 2025-09 Ticket","DBLV 2026-05 Package","DBLV 2026-05 Ticket","Deferment","INTSV4ADD","LMI DB CMBO","LMI DB DG","LMI DB DG SP","LMI DB PH GB","LMI DBK PH","LMI IYG CMBO","LMI IYG DG","LMI IYG PH","LMI LM CMBO","LMI LM DG","LMI LMK PH","LMI WWL CMBO","LMI WWL DG","LMI WWL PH","Pending","Pending Order","Unknown"]);
+// SKUs excluded by default — extended from loaded data via patterns on init
+var EXCLUDED_SKUS=new Set(["5DC","CAP-2022-06-VIP Upgrade","CAP-Catapult","CAP-2022-06-Ticket-Alumni","DBL 2022-10 Package","DBL 2023-05 Package","DBL 2024-05 Package","DBL 2025-01 Package","DBL 2026-01 Package","Deferment","INTSV4ADD","LMI DB CMBO","LMI DB DG","LMI DB DG SP","LMI DB PH GB","LMI DBK PH","LMI IYG CMBO","LMI IYG DG","LMI IYG PH","LMI LM CMBO","LMI LM DG","LMI LMK PH","LMI WWL CMBO","LMI WWL DG","LMI WWL PH","Pending","Pending Order","Unknown","Affiliate Mailing","FullTime","F&F LIVE","IYG","No Sale"]);
+// Any SKU whose name contains one of these substrings (case-insensitive) is also excluded
+var EXCLUDED_SKU_PATTERNS=["dblv","ticket","kit","gift"];
+// Lookup tables built after data loads: pcat/partner → Set of SKU names present in that segment
+var PCAT_SKUS={},PARTNER_SKUS={};
+function buildExcludedAndMappings(){
+  // Extend EXCLUDED_SKUS with pattern matches from the loaded SKU list
+  (D.FL.skus||[]).forEach(function(s){
+    if(EXCLUDED_SKUS.has(s))return;
+    var sl=s.toLowerCase();
+    for(var i=0;i<EXCLUDED_SKU_PATTERNS.length;i++)if(sl.indexOf(EXCLUDED_SKU_PATTERNS[i])>=0){EXCLUDED_SKUS.add(s);return;}
+  });
+  // Build pcat → skus mapping from PCMSKU
+  PCAT_SKUS={};
+  Object.keys(D.PCMSKU||{}).forEach(function(pcat){
+    var s=new Set();
+    Object.keys(D.PCMSKU[pcat]).forEach(function(m){Object.keys(D.PCMSKU[pcat][m]||{}).forEach(function(sk){s.add(sk);});});
+    PCAT_SKUS[pcat]=s;
+  });
+  // Build partner → skus mapping from PMSKU
+  PARTNER_SKUS={};
+  Object.keys(D.PMSKU||{}).forEach(function(p){
+    var s=new Set();
+    Object.keys(D.PMSKU[p]).forEach(function(m){Object.keys(D.PMSKU[p][m]||{}).forEach(function(sk){s.add(sk);});});
+    PARTNER_SKUS[p]=s;
+  });
+}
 
 function sumArr(arr){var o=[0,0,0,0,0,0,0,0,0,0,0,0];for(var i=0;i<arr.length;i++){var a=arr[i];if(a)for(var j=0;j<12;j++)o[j]+=(a[j]||0);}return o;}
 
@@ -20,7 +46,21 @@ function updateMsBtn(){var btn=document.getElementById("msBtn");var cnt=document
 
 // ── SKU Multi-select ──────────────────────────────────────────
 function toggleMsSku(e){var dr=document.getElementById("msSkuDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("msSkuQ").focus();renderMsSkuItems();}}
-function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ").value.toLowerCase();var incl=D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});var excl=D.FL.skus.filter(function(s){return EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;});var h="";for(var i=0;i<incl.length;i++){var s=incl[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";}if(excl.length>0){h+='<div style="padding:5px 10px 3px;font-size:10px;color:#94a3b8;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">⚠ Excluded by default</div>';for(var i=0;i<excl.length;i++){var s=excl[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)" style="opacity:0.65"><input type="checkbox" '+ck+' onclick="return false"><span style="color:#94a3b8">'+esc+"</span></div>";}}document.getElementById("msSkuItems").innerHTML=h;}
+function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ").value.toLowerCase();
+  // When a pcat or partner filter is active, only show SKUs present in that segment
+  var validSkus=null;
+  if(selPcat.size>0||selP.size>0){
+    validSkus=new Set();
+    selPcat.forEach(function(pc){(PCAT_SKUS[pc]||new Set()).forEach(function(s){validSkus.add(s);});});
+    selP.forEach(function(p){(PARTNER_SKUS[p]||new Set()).forEach(function(s){validSkus.add(s);});});
+  }
+  var allVis=D.FL.skus.filter(function(s){
+    if(validSkus&&!validSkus.has(s))return false;
+    return s.toLowerCase().indexOf(q)>=0;
+  });
+  var incl=allVis.filter(function(s){return!EXCLUDED_SKUS.has(s);});
+  var excl=allVis.filter(function(s){return EXCLUDED_SKUS.has(s);});
+  var h="";for(var i=0;i<incl.length;i++){var s=incl[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";}if(excl.length>0){h+='<div style="padding:5px 10px 3px;font-size:10px;color:#94a3b8;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">⚠ Excluded by default</div>';for(var i=0;i<excl.length;i++){var s=excl[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)" style="opacity:0.65"><input type="checkbox" '+ck+' onclick="return false"><span style="color:#94a3b8">'+esc+"</span></div>";}}document.getElementById("msSkuItems").innerHTML=h;}
 function togSku(ev,el){ev.stopPropagation();var s=el.getAttribute("data-p");if(selSku.has(s))selSku.delete(s);else selSku.add(s);updateMsSkuBtn();renderMsSkuItems();}
 function skuAll(){var q=document.getElementById("msSkuQ").value.toLowerCase();D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;}).forEach(function(s){selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
 function skuClear(){selSku.clear();updateMsSkuBtn();renderMsSkuItems();}
@@ -708,4 +748,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1777494541").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1777494541").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
