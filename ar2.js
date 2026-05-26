@@ -1,4 +1,5 @@
 // ── AR v2 — ANALYTICS.MART.DIM_AR_ALL_INVOICES ─────────────────────────────
+if(typeof EXCLUDED_SKUS==="undefined")var EXCLUDED_SKUS=new Set([]);
 var AR2 = null;
 var ar2SelSku = new Set();
 var ar2Charts = {};

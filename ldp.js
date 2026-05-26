@@ -1,4 +1,5 @@
 // ── Less Down Payment Report ──────────────────────────────
+if(typeof EXCLUDED_SKUS==="undefined")var EXCLUDED_SKUS=new Set([]);
 var LDP = null;
 var ldpCharts = {};
 var ldpSelP = new Set();

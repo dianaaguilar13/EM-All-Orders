@@ -1,3 +1,4 @@
+if(typeof EXCLUDED_SKUS==="undefined")var EXCLUDED_SKUS=new Set([]);
 var PIF=null,pifCharts={},pifSelSku=new Set(),pifSelP=new Set();
 var PIF_ROWS=null; // lazy loaded detail records
 var pifExpandedSku=null; // currently expanded SKU row
