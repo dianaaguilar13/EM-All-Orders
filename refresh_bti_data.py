@@ -611,7 +611,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         fd = min(days.keys())
         return fd, days[fd]
 
-    THRESHOLD = 0.10  # ≤ 10%
+    THRESHOLD = 0.105  # ≤ 10.5%
 
     # 11-element bucket: [total, cncl, entry_err, upgrade, downgrade, active, inactive, lost_rev, switch, pend, no_pmt]
     def make_b(): return [0,0,0,0,0,0,0,0.0,0,0,0]
@@ -1575,7 +1575,7 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
 
 
 def pre_compute_ldp_ids(orders, payments_rows):
-    """Return set of order IDs whose first payment was ≤ 10% of INV_TOTAL."""
+    """Return set of order IDs whose first payment was ≤ 10.5% of INV_TOTAL."""
     order_day_payments = defaultdict(lambda: defaultdict(float))
     for row in (payments_rows or []):
         oid  = str(row.get('Id', row.get('INVOICEID',''))).strip()
@@ -1592,7 +1592,7 @@ def pre_compute_ldp_ids(orders, payments_rows):
         days = order_day_payments.get(oid, {})
         if not days: continue
         fa = days[min(days.keys())]
-        if fa / inv <= 0.10:
+        if fa / inv <= 0.105:
             ldp_ids.add(oid)
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
     return ldp_ids
