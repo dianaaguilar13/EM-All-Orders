@@ -821,6 +821,12 @@ function renderCohort(){
   var cohortRate=cohortPurchases>0?(cancelledInWindow/cohortPurchases*100):0;
   // LDP cancel rate = LDP cancelled ÷ ALL cohort units (not just LDP)
   var ldpRate=cohortPurchases>0?(ldpCancelledInWindow/cohortPurchases*100):0;
+  var ldpPct=cohortPurchases>0?(ldpInCohort/cohortPurchases*100):0;
+  // Full Pay (non-LDP)
+  var fullPayInCohort=cohortPurchases-ldpInCohort;
+  var fullPayCancelled=cancelledInWindow-ldpCancelledInWindow;
+  var fullPayRate=cohortPurchases>0?(fullPayCancelled/cohortPurchases*100):0;
+  var fullPayPct=cohortPurchases>0?(fullPayInCohort/cohortPurchases*100):0;
   // Upgrades & Downgrades
   var upgradeCount=0,downgradeCount=0;
   allRows.forEach(function(item){
@@ -963,11 +969,24 @@ function renderCohort(){
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Downgrades</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#7c3aed">'+downgradeCount.toLocaleString()+'</div><div class="ks purple">'+downgradeRate.toFixed(1)+'% of cohort units</div></div>'
     +'</div></div>'
     +'</div>'
-    // KPI row 2
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">'
-    +'<div class="kpi k2"><div class="kl">LDP in Cohort</div><div class="kv" style="color:#2563eb">'+ldpInCohort.toLocaleString()+'</div><div class="ks muted">less down payment orders</div></div>'
-    +'<div class="kpi k2"><div class="kl">LDP Cancelled in Window</div><div class="kv" style="color:#2563eb">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks muted">'+(win<0?"all time":"by "+rangeEndLabel+" or ≤"+winLabel+" from purchase")+'</div></div>'
-    +'<div class="kpi k2"><div class="kl">LDP Cancel Rate</div><div class="kv" style="color:#2563eb">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ all cohort units</div></div>'
+    // KPI row 2 — two groups: LDP + Full Pay
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px">'
+    // LDP group (blue)
+    +'<div style="border:1px solid #bfdbfe;background:#f0f7ff;border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1d4ed8;margin-bottom:10px">💳 Less Down Payment (LDP)</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2563eb"></div><div class="kl">LDP in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpInCohort.toLocaleString()+'</div><div class="ks blue">'+ldpPct.toFixed(1)+'% of purchases</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">LDP Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1d4ed8"></div><div class="kl">LDP Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ all units</div></div>'
+    +'</div></div>'
+    // Full Pay group (green)
+    +'<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;padding:12px 14px">'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#166534;margin-bottom:10px">✅ Full Down Payment</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#16a34a"></div><div class="kl">Full Pay in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayInCohort.toLocaleString()+'</div><div class="ks green">'+fullPayPct.toFixed(1)+'% of purchases</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">Full Pay Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+fullPayCancelled.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#166534"></div><div class="kl">Full Pay Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayRate.toFixed(1)+'%</div><div class="ks green">Full Pay cancelled ÷ all units</div></div>'
+    +'</div></div>'
     +'</div>'
     // Charts
     +'<div class="grid2" style="margin-bottom:16px">'
@@ -1297,4 +1316,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000012").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000013").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
