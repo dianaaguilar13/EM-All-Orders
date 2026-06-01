@@ -824,6 +824,15 @@ function renderCohort(){
   var nonLdpCancelled=cancelledInWindow-ldpCancelledInWindow;
   var nonLdpRate=nonLdpInCohort>0?(nonLdpCancelled/nonLdpInCohort*100):0;
 
+  // Collect orders with no refund date (cancelled but rd_days = -1)
+  var naOrders=[];
+  allRows.forEach(function(item){
+    var row=item.row;
+    if(row[4]==="Cancelled"&&((row[12]===undefined)||row[12]<0)){
+      naOrders.push({sku:item.sku,row:row});
+    }
+  });
+
   // Days-to-cancel buckets (counts ALL cancelled orders regardless of window)
   var bktLabels=["0–30d","31–60d","61–90d","91–180d","181–365d","365+d","N/A"];
   var bktCounts=[0,0,0,0,0,0,0];
@@ -840,9 +849,11 @@ function renderCohort(){
     else bktCounts[5]++;
   });
   var totalCancelled=bktCounts.reduce(function(a,b){return a+b;},0);
+  // Cumulative % denominator excludes N/A (only orders with a known refund date)
+  var totalWithDate=totalCancelled-bktCounts[6];
   var cumPct=[],running=0;
   bktCounts.forEach(function(c,i){
-    if(i<6){running+=c;cumPct.push(totalCancelled>0?parseFloat((running/totalCancelled*100).toFixed(1)):0);}
+    if(i<6){running+=c;cumPct.push(totalWithDate>0?parseFloat((running/totalWithDate*100).toFixed(1)):0);}
     else cumPct.push(null);
   });
 
@@ -944,6 +955,18 @@ function renderCohort(){
     +'<div class="card"><div class="ct">Days to Cancel</div><div class="cs">Count of cancelled orders by days-to-cancel bucket with cumulative % line</div><div style="height:230px;position:relative"><canvas id="cohortBucketChart"></canvas></div></div>'
     +'<div class="card"><div class="ct">LDP vs Non-LDP Cancel Rate</div><div class="cs">Cancel rate within the selected window: LDP orders vs standard orders</div><div style="height:230px;position:relative"><canvas id="cohortCompareChart"></canvas></div></div>'
     +'</div>'
+    // N/A orders warning panel
+    +(naOrders.length>0
+      ?'<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">'
+        +'<div style="display:flex;align-items:center;gap:10px">'
+        +'<span style="font-size:16px">⚠️</span>'
+        +'<div><div style="font-size:12px;font-weight:600;color:#92400e">'+naOrders.length.toLocaleString()+' cancelled order'+(naOrders.length>1?'s have':' has')+' no refund date on record</div>'
+        +'<div style="font-size:11px;color:#b45309;margin-top:2px">These are excluded from the Days to Cancel chart and the Cancelled in Window count. Review to determine if they should be included.</div></div>'
+        +'</div>'
+        +'<button onclick="toggleCohortNaOrders()" id="cohortNaBtn" style="font-size:11px;padding:4px 12px;border:1px solid #f59e0b;border-radius:6px;background:#fef3c7;color:#92400e;cursor:pointer;white-space:nowrap">View orders ▶</button>'
+        +'</div>'
+        +'<div id="cohortNaPanel" style="display:none;margin-bottom:16px"></div>'
+      :'')
     // SKU comparison chart
     +'<div class="card" style="margin-bottom:16px">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
@@ -1120,6 +1143,101 @@ function toggleCohortSkuDetail(e,sku){
   arrows.forEach(function(a){a.textContent="▼";});
 }
 
+function toggleCohortNaOrders(){
+  var panel=document.getElementById("cohortNaPanel");
+  var btn=document.getElementById("cohortNaBtn");
+  if(!panel)return;
+  if(panel.style.display!=="none"){panel.style.display="none";if(btn)btn.textContent="View orders ▶";return;}
+  // Build N/A orders from current cohort rows
+  var win=cohortWindow;
+  var r2=getRange();
+  var fAct=document.getElementById("fAct").value;
+  var fCncl=document.getElementById("fCncl").value;
+  var naList=[];
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(selSku.size>0&&!selSku.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      var dateM=row[2].slice(0,7);
+      if(dateM<r2.df||dateM>r2.dt)return;
+      if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
+      if(fAct&&row[3]!==fAct)return;
+      if(selPcat.size>0&&!selPcat.has(row[7]))return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      if(row[4]==="Cancelled"&&((row[12]===undefined)||row[12]<0)){
+        naList.push({sku:sku,row:row});
+      }
+    });
+  });
+  if(naList.length===0){panel.innerHTML='<div style="padding:12px;color:#64748b;font-size:12px">No N/A orders found.</div>';panel.style.display="";return;}
+  var h='<div class="card" style="border-color:#fcd34d">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'
+    +'<div><div class="ct" style="color:#92400e">Cancelled — No Refund Date ('+naList.length+')</div>'
+    +'<div class="cs">These orders are cancelled but have no refund/credit date in Snowflake. Excluded from Days to Cancel chart and window counts.</div></div>'
+    +'<button onclick="downloadNaCsv()" style="font-size:11px;padding:4px 10px;border:1px solid #f59e0b;border-radius:6px;background:#fef3c7;color:#92400e;cursor:pointer">⬇ Export CSV</button>'
+    +'</div>'
+    +'<div class="tbl-wrap"><table><thead><tr>'
+    +'<th style="text-align:left">Order ID</th>'
+    +'<th style="text-align:left">Contact ID</th>'
+    +'<th style="text-align:center">Date</th>'
+    +'<th style="text-align:left">SKU</th>'
+    +'<th style="text-align:left">Product</th>'
+    +'<th style="text-align:center">Invoice Total</th>'
+    +'<th style="text-align:center">Refunds</th>'
+    +'<th style="text-align:center">LDP</th>'
+    +'<th style="text-align:left">Partner Category</th>'
+    +'<th style="text-align:left">Partner</th>'
+    +'</tr></thead><tbody>';
+  naList.forEach(function(item){
+    var row=item.row,sku=item.sku;
+    var isLdp=(row[13]!==undefined?row[13]:0)===1;
+    h+='<tr>'
+      +'<td style="font-family:monospace;font-size:10px;color:#0ea5e9">'+(row[0]||"")+'</td>'
+      +'<td style="font-family:monospace;font-size:10px;color:#64748b">'+(row[1]||"")+'</td>'
+      +'<td style="text-align:center">'+(row[2]||"")+'</td>'
+      +'<td style="font-weight:500">'+(sku||"")+'</td>'
+      +'<td style="color:#64748b;font-size:11px">'+(row[9]||"")+'</td>'
+      +'<td style="text-align:center">$'+((row[5]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
+      +'<td style="text-align:center;color:#64748b">$'+((row[6]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
+      +'<td style="text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;background:'+(isLdp?"#dbeafe":"#f1f5f9")+';color:'+(isLdp?"#1d4ed8":"#64748b")+'">'+(isLdp?"Yes":"No")+'</span></td>'
+      +'<td>'+(row[7]||"")+'</td>'
+      +'<td style="color:#64748b">'+(row[8]||"")+'</td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></div></div>';
+  panel.innerHTML=h;
+  panel.style.display="";
+  if(btn)btn.textContent="Hide orders ▼";
+}
+
+function downloadNaCsv(){
+  var r2=getRange();
+  var fAct=document.getElementById("fAct").value;
+  var naList=[];
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(selSku.size>0&&!selSku.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      var dateM=row[2].slice(0,7);
+      if(dateM<r2.df||dateM>r2.dt)return;
+      if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
+      if(fAct&&row[3]!==fAct)return;
+      if(selPcat.size>0&&!selPcat.has(row[7]))return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      if(row[4]==="Cancelled"&&((row[12]===undefined)||row[12]<0))naList.push({sku:sku,row:row});
+    });
+  });
+  var csvRows=[["Order ID","Contact ID","Date","SKU","Product","Invoice Total","Refunds","LDP","Partner Category","Partner"]];
+  naList.forEach(function(item){
+    var row=item.row,sku=item.sku;
+    csvRows.push([row[0]||"",row[1]||"",row[2]||"",sku,row[9]||"",row[5]||0,row[6]||0,(row[13]===1?"Yes":"No"),row[7]||"",row[8]||""]);
+  });
+  var csv=csvRows.map(function(r){return r.map(function(v){var s=String(v==null?"":v);return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;}).join(",");}).join("\n");
+  var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="cancelled_no_refund_date_"+r2.df+"_"+r2.dt+".csv";a.click();
+}
+
 function downloadCohortCsv(){
   var win=cohortWindow;
   var cutoffMs=getRangeEndMs();
@@ -1156,4 +1274,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000010").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000011").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
