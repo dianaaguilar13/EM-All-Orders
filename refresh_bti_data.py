@@ -94,8 +94,31 @@ def connect_snowflake():
         conn_params["role"] = CONFIG["role"]
 
     conn = snowflake.connector.connect(**conn_params)
+    # Limit result batch size so large queries don't OOM on download
+    conn.cursor().execute("ALTER SESSION SET CLIENT_MEMORY_LIMIT = 256")
     print("✅ Connected to Snowflake")
     return conn
+
+
+def sf_fetch_rows(cur, batch_size=5000):
+    """Stream rows from an executed cursor in small batches — avoids large S3 batch OOM."""
+    cols = [c[0] for c in cur.description]
+    rows = []
+    while True:
+        chunk = cur.fetchmany(batch_size)
+        if not chunk:
+            break
+        for row in chunk:
+            d = dict(zip(cols, row))
+            for k, v in d.items():
+                if hasattr(v, 'strftime'):
+                    d[k] = v.strftime('%Y-%m-%d')
+                elif v is None:
+                    d[k] = ''
+                else:
+                    d[k] = str(v)
+            rows.append(d)
+    return rows
 
 
 def fetch_orders(conn):
@@ -118,9 +141,8 @@ def fetch_orders(conn):
     """
     cur = conn.cursor()
     cur.execute(sql)
-    cols = [c[0] for c in cur.description]
-    rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-    # Normalize: convert dates to strings
+    rows = sf_fetch_rows(cur)
+    # Normalize: convert dates to strings (already done in sf_fetch_rows, kept for safety)
     for r in rows:
         for k, v in r.items():
             if hasattr(v, 'strftime'):
@@ -143,31 +165,41 @@ def fetch_payments(conn):
         PAYDATE    → Date
     """
     print("⏳ Fetching payments from Snowflake...")
+    # Aggregate to ONE row per order using GROUP BY — avoids loading 400K+ individual
+    # transactions and is memory-safe. Columns returned:
+    #   "Id"            = INVOICEID (order ID)
+    #   "Pay Amt"       = sum of payments on the FIRST payment date (≈ down payment)
+    #   "Date"          = first payment date     (for LDP threshold check)
+    #   "LAST_PAY_DATE" = most recent payment date (for AR aging)
+    #   "PMT_COUNT"     = total number of payment records
     sql = """
         SELECT
-            INVOICEID   AS "Id",
-            CONTACTID   AS "Contact Id",
-            PAYTYPE     AS "Pay Type",
-            PAYAMT      AS "Pay Amt",
-            PAYDATE     AS "Date"
-        FROM ANALYTICS.MART.stg_inf_payments_combined
-        WHERE PAYAMT > 0
-          AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
-        ORDER BY PAYDATE ASC
+            m.INVOICEID                                                        AS "Id",
+            SUM(p.PAYAMT)                                                      AS "Pay Amt",
+            m.FIRST_DATE                                                       AS "Date",
+            m.LAST_DATE                                                        AS LAST_PAY_DATE,
+            m.CNT                                                              AS PMT_COUNT
+        FROM (
+            SELECT INVOICEID,
+                   MIN(PAYDATE) AS FIRST_DATE,
+                   MAX(PAYDATE) AS LAST_DATE,
+                   COUNT(*)     AS CNT
+            FROM ANALYTICS.MART.stg_inf_payments_combined
+            WHERE PAYAMT > 0
+              AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
+            GROUP BY INVOICEID
+        ) m
+        JOIN ANALYTICS.MART.stg_inf_payments_combined p
+          ON p.INVOICEID = m.INVOICEID
+         AND p.PAYDATE   = m.FIRST_DATE
+         AND p.PAYAMT    > 0
+         AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+        GROUP BY m.INVOICEID, m.FIRST_DATE, m.LAST_DATE, m.CNT
     """
     cur = conn.cursor()
     cur.execute(sql)
-    cols = [c[0] for c in cur.description]
-    rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-    for r in rows:
-        for k, v in r.items():
-            if hasattr(v, 'strftime'):
-                r[k] = v.strftime('%Y-%m-%d')
-            elif v is None:
-                r[k] = ''
-            else:
-                r[k] = str(v)
-    print(f"   → {len(rows):,} payment records fetched")
+    rows = sf_fetch_rows(cur)
+    print(f"   → {len(rows):,} orders with payment records fetched")
     return rows
 
 
@@ -1049,20 +1081,22 @@ def save_json(data, filename):
 #  BUILD ar_data.json  (AR / Arrears Dashboard)
 # ─────────────────────────────────────────────
 
-def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None):
+def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None, order_payments_prebuilt=None):
     print("⏳ Building ar_data.json (Arrears)...")
     from datetime import date as _date
     today = _date.today()
 
-    # Build last payment date per order from payments
-    order_payments = defaultdict(list)
-    if payments_rows:
+    # Build last payment date + count per order from aggregated payment rows
+    # Each row is already ONE-per-order with LAST_PAY_DATE and PMT_COUNT pre-computed
+    order_payments = order_payments_prebuilt or {}   # oid → (last_dt, pmt_count)
+    if payments_rows and not order_payments_prebuilt:
         for p in payments_rows:
-            oid  = str(p.get("Id", p.get("INVOICEID",""))).strip()
-            amt  = clean_money(p.get("Pay Amt", p.get("PAYAMT","")))
-            dt   = parse_date(str(p.get("Date", p.get("PAYDATE","")))[:10])
-            if oid and amt > 0 and dt:
-                order_payments[oid].append((dt, amt))
+            oid       = str(p.get("Id", p.get("INVOICEID",""))).strip()
+            last_str  = str(p.get("LAST_PAY_DATE",""))[:10]
+            pmt_count = int(p.get("PMT_COUNT", 1) or 1)
+            last_dt   = parse_date(last_str)
+            if oid and last_dt:
+                order_payments[oid] = (last_dt, pmt_count)
 
     def get_bucket(days):
         if days <= 30:    return "0-30d"
@@ -1089,9 +1123,9 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None)
         if bal <= 0 and status != "Cancelled": continue
 
         oid  = str(r.get("ID","")).strip()
-        pmts = order_payments.get(oid, [])
-        last_dt   = max((dt for dt,_ in pmts), default=None) if pmts else None
-        pmt_count = len(pmts)
+        pmts      = order_payments.get(oid)
+        last_dt   = pmts[0] if pmts else None
+        pmt_count = pmts[1] if pmts else 0
 
         if status == "Cancelled":
             bucket     = "Cancelled"
@@ -1165,14 +1199,14 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None)
             pd_r  = parse_date(str(r.get("DATE",""))[:10])
             if pd_r: pool.append((oid_r, inv_r, pd_r))
 
-        cum_pmts = {}
+        # Build per-order step lookup: paid = PAYMENTS_TOTAL once last_pay_date is reached
+        oid_to_total_paid = {str(r.get("ID","")).strip(): float(r.get("PAYMENTS_TOTAL",0) or 0) for r in orders}
+        order_pay_snap = {}  # oid → (last_pay_date, total_paid)
         for oid_r, _, _ in pool:
-            pmts_r = sorted(order_payments.get(oid_r, []))
-            if pmts_r:
-                d_list = [p[0] for p in pmts_r]
-                a_list = []; cum_a = 0.0
-                for _, a in pmts_r: cum_a += a; a_list.append(cum_a)
-                cum_pmts[oid_r] = (d_list, a_list)
+            pmt_info = order_payments.get(oid_r)
+            last_p   = pmt_info[0] if pmt_info else None
+            total_p  = oid_to_total_paid.get(oid_r, 0.0)
+            order_pay_snap[oid_r] = (last_p, total_p)
 
         snap_start = max(min((p[2] for p in pool), default=_date(2022,1,1)), _date(2022,1,1)) if pool else _date(2022,1,1)
         snap = snap_start
@@ -1180,17 +1214,13 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None)
             t_bal = 0.0; ov_bal = 0.0
             for oid_r, inv_r, pd_r in pool:
                 if pd_r > snap: continue
-                d_list, a_list = cum_pmts.get(oid_r, ([], []))
-                if d_list:
-                    idx = bisect.bisect_right(d_list, snap) - 1
-                    paid_r = a_list[idx] if idx >= 0 else 0.0
-                    last_p = d_list[idx] if idx >= 0 else None
-                else:
-                    paid_r = 0.0; last_p = None
-                bal_r = inv_r - paid_r
+                last_p, total_p = order_pay_snap.get(oid_r, (None, 0.0))
+                # Step function: full payment credited on last_pay_date
+                paid_r = total_p if (last_p and last_p <= snap) else 0.0
+                bal_r  = inv_r - paid_r
                 if bal_r <= 1.0: continue
                 t_bal += bal_r
-                days_r = (snap - last_p).days if last_p else (snap - pd_r).days
+                days_r = (snap - last_p).days if last_p and last_p <= snap else (snap - pd_r).days
                 if days_r > 30: ov_bal += bal_r
             ar_trend.append([str(snap), round(ov_bal/t_bal*100,2) if t_bal>0 else 0])
             snap += timedelta(days=7)
@@ -1223,17 +1253,12 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None)
                 t_bal = 0.0; ov_bal = 0.0
                 for oid_r, inv_r, pd_r in pc_pool:
                     if pd_r > snap: continue
-                    d_list, a_list = cum_pmts.get(oid_r, ([], []))
-                    if d_list:
-                        idx = bisect.bisect_right(d_list, snap) - 1
-                        paid_r = a_list[idx] if idx >= 0 else 0.0
-                        last_p = d_list[idx] if idx >= 0 else None
-                    else:
-                        paid_r = 0.0; last_p = None
-                    bal_r = inv_r - paid_r
+                    last_p, total_p = order_pay_snap.get(oid_r, (None, 0.0))
+                    paid_r = total_p if (last_p and last_p <= snap) else 0.0
+                    bal_r  = inv_r - paid_r
                     if bal_r <= 1.0: continue
                     t_bal += bal_r
-                    days_r = (snap - last_p).days if last_p else (snap - pd_r).days
+                    days_r = (snap - last_p).days if last_p and last_p <= snap else (snap - pd_r).days
                     if days_r > 30: ov_bal += bal_r
                 pc_trend.append([str(snap), round(ov_bal/t_bal*100,2) if t_bal>0 else 0])
                 snap += timedelta(days=7)
@@ -1646,31 +1671,46 @@ def main():
     pif_rows = None; gc.collect()
 
     print()
-    # Filter payments to LDP orders only — reduces memory inside build_ldp_data
-    ldp_payments = [p for p in payments
-                    if str(p.get('Id', p.get('INVOICEID',''))).strip() in ldp_ids]
-    ldp_data = build_ldp_data(orders, payments_rows=ldp_payments, payments_csv_path=CONFIG.get("payments_csv"))
-    ldp_payments = None; ldp_ids = None; gc.collect()
+    ldp_data = build_ldp_data(orders, payments_rows=payments, payments_csv_path=CONFIG.get("payments_csv"))
+    ldp_ids = None; gc.collect()
     save_json(ldp_data, "ldp_data.json")
     ldp_data = None; gc.collect()
 
-    print()
-    asana_rows = fetch_asana_tasks()
-    cr_data = build_cr_data(orders, asana_rows)
-    if cr_data:
-        save_json(cr_data, "cr_data.json")
-    cr_data = None; asana_rows = None; gc.collect()
+    # Pre-extract only what AR needs from payments, then free the 270K-row list
+    ar_pmts = {}
+    for p in (payments or []):
+        oid      = str(p.get("Id", p.get("INVOICEID",""))).strip()
+        last_str = str(p.get("LAST_PAY_DATE",""))[:10]
+        cnt      = int(p.get("PMT_COUNT", 1) or 1)
+        last_dt  = parse_date(last_str)
+        if oid and last_dt:
+            ar_pmts[oid] = (last_dt, cnt)
+    payments = None; gc.collect()
 
+    # Build AR before Asana fetch — frees cancel slices & payment data before Asana
     print()
     _cancel_slim = {"GMSKU": cancel_gmsku, "PCM": cancel_pcm, "PCMSKU": cancel_pcmsku}
-    ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_qfy, cancel_data=_cancel_slim)
+    ar_data = build_ar_data(orders, payments_rows=None, cancel_qfy=cancel_qfy,
+                            cancel_data=_cancel_slim, order_payments_prebuilt=ar_pmts)
+    ar_pmts = None; cancel_qfy = None; cancel_gmsku = None
+    cancel_pcm = None; cancel_pcmsku = None; _cancel_slim = None; gc.collect()
     save_json(ar_data, "ar_data.json")
+    ar_data = None; gc.collect()
 
     print()
     ar_trend_v2 = load_ar_trend_history()
     ar_trend_v2 = append_weekly_ar_trend(ar_trend_v2, ar_invoices)
     ar2_data = build_ar_v2_data(ar_invoices, trend_v2=ar_trend_v2)
     save_json(ar2_data, "ar2_data.json")
+    ar_trend_v2 = None; ar2_data = None; ar_invoices = None; gc.collect()
+
+    # Asana / CRS last — most memory freed by now, only orders remains
+    print()
+    asana_rows = fetch_asana_tasks()
+    cr_data = build_cr_data(orders, asana_rows)
+    if cr_data:
+        save_json(cr_data, "cr_data.json")
+    cr_data = None; asana_rows = None; gc.collect()
 
     print()
     print("=" * 55)
