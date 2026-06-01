@@ -900,16 +900,16 @@ function renderCohort(){
     +'</div></div>'
     +'<div style="margin-bottom:14px;font-size:11px;color:#64748b">Inherited filters: '+pills+'</div>'
     // KPI row 1
-    +'<div class="kpi-row" style="margin-bottom:10px">'
-    +'<div class="kpi"><div class="kv">'+cohortPurchases.toLocaleString()+'</div><div class="kl">Cohort Purchases</div></div>'
-    +'<div class="kpi"><div class="kv">'+cancelledInWindow.toLocaleString()+'</div><div class="kl">Cancelled in '+winLabel+'</div></div>'
-    +'<div class="kpi" style="border-left:3px solid #f85149"><div class="kv" style="color:#f85149">'+cohortRate.toFixed(1)+'%</div><div class="kl">Cohort Cancel Rate</div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">'
+    +'<div class="kpi k1"><div class="kl">Cohort Purchases</div><div class="kv">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range &amp; filters</div></div>'
+    +'<div class="kpi k4"><div class="kl">Cancelled in '+winLabel+'</div><div class="kv" style="color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">cancelled within window of purchase</div></div>'
+    +'<div class="kpi k4"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ cohort purchases</div></div>'
     +'</div>'
     // KPI row 2
-    +'<div class="kpi-row" style="margin-bottom:18px">'
-    +'<div class="kpi"><div class="kv">'+ldpInCohort.toLocaleString()+'</div><div class="kl">LDP in Cohort</div></div>'
-    +'<div class="kpi"><div class="kv">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="kl">LDP Cancelled in '+winLabel+'</div></div>'
-    +'<div class="kpi" style="border-left:3px solid #3b82f6"><div class="kv" style="color:#3b82f6">'+ldpRate.toFixed(1)+'%</div><div class="kl">LDP Cohort Cancel Rate</div></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">'
+    +'<div class="kpi k2"><div class="kl">LDP in Cohort</div><div class="kv" style="color:#2563eb">'+ldpInCohort.toLocaleString()+'</div><div class="ks muted">less down payment orders</div></div>'
+    +'<div class="kpi k2"><div class="kl">LDP Cancelled in '+winLabel+'</div><div class="kv" style="color:#2563eb">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks muted">LDP cancels within window</div></div>'
+    +'<div class="kpi k2"><div class="kl">LDP Cohort Cancel Rate</div><div class="kv" style="color:#2563eb">'+ldpRate.toFixed(1)+'%</div><div class="ks muted">LDP cancelled ÷ LDP in cohort</div></div>'
     +'</div>'
     // Charts
     +'<div class="grid2" style="margin-bottom:16px">'
@@ -1081,4 +1081,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000004").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000005").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
