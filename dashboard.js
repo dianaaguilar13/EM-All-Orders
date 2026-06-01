@@ -1,5 +1,6 @@
 var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10,LDPCi=11;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
+var cohortWindow=90;
 var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
 // SKUs excluded by default — extended from loaded data via patterns on init
@@ -706,6 +707,7 @@ document.getElementById("skuTbody").innerHTML=rows;
       }
     });
   }
+  renderCohort();
 }
 
 // ── CSV Download ───────────────────────────────────────────
@@ -743,9 +745,340 @@ function downloadCancelCsv(){
 }
 
 
+// ── Cohort Cancel Rate ─────────────────────────────────────
+function getCohortRows(){
+  var r=getRange();
+  var fAct=document.getElementById("fAct").value;
+  var fCncl=document.getElementById("fCncl").value;
+  var result=[];
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(selSku.size>0&&!selSku.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      var dateM=row[2].slice(0,7);
+      if(dateM<r.df||dateM>r.dt)return;
+      if(fAct&&row[3]!==fAct)return;
+      if(fCncl&&row[4]!==fCncl)return;
+      if(selPcat.size>0&&!selPcat.has(row[7]))return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      result.push({sku:sku,row:row});
+    });
+  });
+  return result;
+}
+
+function isInCohortWindow(row,win){
+  if(row[4]!=="Cancelled")return false;
+  if(win<0)return true;
+  var d=(row[12]!==undefined)?row[12]:-1;
+  return d>=0&&d<=win;
+}
+
+function renderCohort(){
+  var sec=document.getElementById("cohortSection");
+  if(!sec||!D)return;
+  if(charts.cohortBucket){charts.cohortBucket.destroy();charts.cohortBucket=null;}
+  if(charts.cohortCompare){charts.cohortCompare.destroy();charts.cohortCompare=null;}
+
+  var win=cohortWindow;
+  var allRows=getCohortRows();
+
+  var cohortPurchases=allRows.length;
+  var cancelledInWindow=0,ldpInCohort=0,ldpCancelledInWindow=0;
+  allRows.forEach(function(item){
+    var row=item.row;
+    var inWin=isInCohortWindow(row,win);
+    if(inWin)cancelledInWindow++;
+    if((row[13]!==undefined?row[13]:0)===1){
+      ldpInCohort++;
+      if(inWin)ldpCancelledInWindow++;
+    }
+  });
+  var cohortRate=cohortPurchases>0?(cancelledInWindow/cohortPurchases*100):0;
+  var ldpRate=ldpInCohort>0?(ldpCancelledInWindow/ldpInCohort*100):0;
+  var nonLdpInCohort=cohortPurchases-ldpInCohort;
+  var nonLdpCancelled=cancelledInWindow-ldpCancelledInWindow;
+  var nonLdpRate=nonLdpInCohort>0?(nonLdpCancelled/nonLdpInCohort*100):0;
+
+  // Days-to-cancel buckets
+  var bktLabels=["0–30d","31–60d","61–90d","91–180d","181–365d","365+d","N/A"];
+  var bktCounts=[0,0,0,0,0,0,0];
+  allRows.forEach(function(item){
+    var row=item.row;
+    if(row[4]!=="Cancelled")return;
+    var d=(row[12]!==undefined)?row[12]:-1;
+    if(d<0)bktCounts[6]++;
+    else if(d<=30)bktCounts[0]++;
+    else if(d<=60)bktCounts[1]++;
+    else if(d<=90)bktCounts[2]++;
+    else if(d<=180)bktCounts[3]++;
+    else if(d<=365)bktCounts[4]++;
+    else bktCounts[5]++;
+  });
+  var totalCancelled=bktCounts.reduce(function(a,b){return a+b;},0);
+  var cumPct=[],running=0;
+  bktCounts.forEach(function(c,i){
+    if(i<6){running+=c;cumPct.push(totalCancelled>0?parseFloat((running/totalCancelled*100).toFixed(1)):0);}
+    else cumPct.push(null);
+  });
+
+  // SKU breakdown
+  var skuMap={};
+  allRows.forEach(function(item){
+    var sku=item.sku,row=item.row;
+    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0};
+    skuMap[sku].total++;
+    var inWin=isInCohortWindow(row,win);
+    if(inWin)skuMap[sku].cancelled++;
+    if((row[13]!==undefined?row[13]:0)===1){
+      skuMap[sku].ldp++;
+      if(inWin)skuMap[sku].ldpCancelled++;
+    }
+  });
+  var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
+
+  // Filter pills
+  var r2=getRange();
+  var pills='<span style="background:#eff6ff;color:#1d4ed8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+r2.df+' → '+r2.dt+'</span>';
+  if(selSku.size>0)pills+='<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+selSku.size+' SKU'+(selSku.size>1?'s':'')+'</span>';
+  if(selPcat.size>0)pills+='<span style="background:#fdf4ff;color:#6b21a8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+selPcat.size+' category(s)</span>';
+  if(selP.size>0)pills+='<span style="background:#fff7ed;color:#9a3412;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+selP.size+' partner(s)</span>';
+  var fAct2=document.getElementById("fAct").value;
+  var fCncl2=document.getElementById("fCncl").value;
+  if(fAct2)pills+='<span style="background:#f0fdf4;color:#166534;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+fAct2+'</span>';
+  if(fCncl2)pills+='<span style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+fCncl2+'</span>';
+
+  var winLabel=win<0?"All time":win+" days";
+
+  // SKU table rows
+  var tRows='';
+  skuArr.forEach(function(e){
+    var s=e[0],d=e[1];
+    var rate=d.total>0?(d.cancelled/d.total*100):0;
+    var ldpR=d.ldp>0?(d.ldpCancelled/d.ldp*100):0;
+    var barW=Math.min(100,Math.round(rate));
+    var sEsc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    var safeId=s.replace(/[^a-zA-Z0-9]/g,"_");
+    tRows+='<tr class="cohort-sku-row" style="cursor:pointer" onclick="toggleCohortSkuDetail(event,\''+s.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
+      +'<td style="text-align:left"><span class="cohort-arrow-'+safeId+'" style="font-size:11px;color:#94a3b8;margin-right:6px">▶</span>'+sEsc+'</td>'
+      +'<td style="text-align:center">'+d.total.toLocaleString()+'</td>'
+      +'<td style="text-align:center">'+d.cancelled.toLocaleString()+'</td>'
+      +'<td style="text-align:center">'+d.ldp.toLocaleString()+'</td>'
+      +'<td style="text-align:center">'+d.ldpCancelled.toLocaleString()+'</td>'
+      +'<td style="text-align:center">'+rate.toFixed(1)+'%</td>'
+      +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+barW+'%;height:100%;background:#f85149;border-radius:3px"></div></div><span style="font-size:10px;color:#64748b">'+rate.toFixed(1)+'%</span></div></td>'
+      +'</tr>'
+      +'<tr id="cohort-detail-'+safeId+'" style="display:none"><td colspan="7" style="padding:0"></td></tr>';
+  });
+  var totBarW=Math.min(100,Math.round(cohortRate));
+  var tFoot='<tr class="tfoot">'
+    +'<td style="text-align:left">TOTAL</td>'
+    +'<td style="text-align:center">'+cohortPurchases.toLocaleString()+'</td>'
+    +'<td style="text-align:center">'+cancelledInWindow.toLocaleString()+'</td>'
+    +'<td style="text-align:center">'+ldpInCohort.toLocaleString()+'</td>'
+    +'<td style="text-align:center">'+ldpCancelledInWindow.toLocaleString()+'</td>'
+    +'<td style="text-align:center">'+cohortRate.toFixed(1)+'%</td>'
+    +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+totBarW+'%;height:100%;background:#f85149;border-radius:3px"></div></div><span style="font-size:10px;color:#64748b">'+cohortRate.toFixed(1)+'%</span></div></td>'
+    +'</tr>';
+
+  sec.innerHTML=
+    '<div class="card full" style="margin-top:16px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">'
+    +'<div><div class="ct">Cohort Cancel Rate</div>'
+    +'<div class="cs">Of orders purchased in the filtered date range, what % cancelled within the selected window after purchase</div></div>'
+    +'<div style="display:flex;align-items:center;gap:8px">'
+    +'<label style="font-size:11px;color:#64748b;font-weight:600">Cancel Window</label>'
+    +'<select id="cohortWindowSel" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;background:#fff" onchange="cohortWindow=parseInt(this.value);renderCohort()">'
+    +'<option value="30"'+(win===30?' selected':'')+'>30 days</option>'
+    +'<option value="60"'+(win===60?' selected':'')+'>60 days</option>'
+    +'<option value="90"'+(win===90?' selected':'')+'>90 days</option>'
+    +'<option value="180"'+(win===180?' selected':'')+'>180 days</option>'
+    +'<option value="365"'+(win===365?' selected':'')+'>365 days</option>'
+    +'<option value="-1"'+(win===-1?' selected':'')+'>All time</option>'
+    +'</select>'
+    +'<button onclick="downloadCohortCsv()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ Export CSV</button>'
+    +'</div></div>'
+    +'<div style="margin-bottom:14px;font-size:11px;color:#64748b">Inherited filters: '+pills+'</div>'
+    // KPI row 1
+    +'<div class="kpi-row" style="margin-bottom:10px">'
+    +'<div class="kpi"><div class="kv">'+cohortPurchases.toLocaleString()+'</div><div class="kl">Cohort Purchases</div></div>'
+    +'<div class="kpi"><div class="kv">'+cancelledInWindow.toLocaleString()+'</div><div class="kl">Cancelled in '+winLabel+'</div></div>'
+    +'<div class="kpi" style="border-left:3px solid #f85149"><div class="kv" style="color:#f85149">'+cohortRate.toFixed(1)+'%</div><div class="kl">Cohort Cancel Rate</div></div>'
+    +'</div>'
+    // KPI row 2
+    +'<div class="kpi-row" style="margin-bottom:18px">'
+    +'<div class="kpi"><div class="kv">'+ldpInCohort.toLocaleString()+'</div><div class="kl">LDP in Cohort</div></div>'
+    +'<div class="kpi"><div class="kv">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="kl">LDP Cancelled in '+winLabel+'</div></div>'
+    +'<div class="kpi" style="border-left:3px solid #3b82f6"><div class="kv" style="color:#3b82f6">'+ldpRate.toFixed(1)+'%</div><div class="kl">LDP Cohort Cancel Rate</div></div>'
+    +'</div>'
+    // Charts
+    +'<div class="grid2" style="margin-bottom:16px">'
+    +'<div class="card"><div class="ct">Days to Cancel</div><div class="cs">Count of cancelled orders by days-to-cancel bucket with cumulative % line</div><div style="height:230px;position:relative"><canvas id="cohortBucketChart"></canvas></div></div>'
+    +'<div class="card"><div class="ct">LDP vs Non-LDP Cancel Rate</div><div class="cs">Cancel rate within the selected window: LDP orders vs standard orders</div><div style="height:230px;position:relative"><canvas id="cohortCompareChart"></canvas></div></div>'
+    +'</div>'
+    // Table
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+    +'<div class="ct" style="margin-bottom:0">SKU Cohort Summary</div>'
+    +'<div style="font-size:11px;color:#8b949e">Click a row to see individual orders</div>'
+    +'</div>'
+    +'<div class="tbl-wrap"><table><thead><tr>'
+    +'<th style="text-align:left">SKU</th>'
+    +'<th style="text-align:center">Purchases</th>'
+    +'<th style="text-align:center">Cancelled in Window</th>'
+    +'<th style="text-align:center">LDP Orders</th>'
+    +'<th style="text-align:center">LDP Cancelled</th>'
+    +'<th style="text-align:center">Cancel Rate %</th>'
+    +'<th style="text-align:center">Cancel Rate</th>'
+    +'</tr></thead><tbody>'+tRows+'</tbody>'
+    +'<tfoot>'+tFoot+'</tfoot></table></div>'
+    +'</div>';
+
+  // Render bucket chart
+  var bktEl=document.getElementById("cohortBucketChart");
+  if(bktEl){
+    charts.cohortBucket=new Chart(bktEl.getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:bktLabels,
+        datasets:[
+          {label:"Cancelled",data:bktCounts,backgroundColor:bktCounts.map(function(_,i){return i===6?"#cbd5e1":"#f85149";}),borderRadius:4,yAxisID:"y",order:2},
+          {label:"Cumulative %",data:cumPct,type:"line",borderColor:"#388bfd",backgroundColor:"transparent",borderWidth:2,pointRadius:4,pointBackgroundColor:"#388bfd",yAxisID:"y2",order:1,spanGaps:false}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{position:"top",labels:{color:"#64748b",font:{size:11},boxWidth:12,padding:10}},
+          tooltip:{callbacks:{label:function(ctx){return ctx.datasetIndex===1?"Cumulative: "+(ctx.raw!=null?ctx.raw.toFixed(1)+"%":"N/A"):"Count: "+ctx.raw;}}}
+        },
+        scales:{
+          x:{ticks:{color:"#64748b",font:{size:10}},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10}},grid:{color:"#f1f5f9"},title:{display:true,text:"Count",color:"#94a3b8",font:{size:10}}},
+          y2:{beginAtZero:true,max:100,position:"right",ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // Render compare chart
+  var cmpEl=document.getElementById("cohortCompareChart");
+  if(cmpEl){
+    var maxRate=Math.max(ldpRate,nonLdpRate);
+    charts.cohortCompare=new Chart(cmpEl.getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:["LDP Orders","Non-LDP Orders"],
+        datasets:[{label:"Cancel Rate %",data:[parseFloat(ldpRate.toFixed(1)),parseFloat(nonLdpRate.toFixed(1))],backgroundColor:["#3b82f6","#64748b"],borderRadius:6,maxBarThickness:80}]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:function(ctx){return ctx.raw.toFixed(1)+"%";}}}
+        },
+        scales:{
+          x:{ticks:{color:"#64748b",font:{size:12}},grid:{display:false}},
+          y:{beginAtZero:true,max:maxRate*1.3+5,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"}}
+        }
+      }
+    });
+  }
+}
+
+function toggleCohortSkuDetail(e,sku){
+  var safeId=sku.replace(/[^a-zA-Z0-9]/g,"_");
+  var detailRow=document.getElementById("cohort-detail-"+safeId);
+  if(!detailRow)return;
+  var isOpen=detailRow.style.display!=="none";
+  var arrows=document.querySelectorAll(".cohort-arrow-"+safeId);
+  if(isOpen){
+    detailRow.style.display="none";
+    arrows.forEach(function(a){a.textContent="▶";});
+    return;
+  }
+  var win=cohortWindow;
+  var r2=getRange();
+  var fAct=document.getElementById("fAct").value;
+  var fCncl=document.getElementById("fCncl").value;
+  var rows=(D.order_rows[sku]||[]).filter(function(row){
+    var dateM=row[2].slice(0,7);
+    if(dateM<r2.df||dateM>r2.dt)return false;
+    if(fAct&&row[3]!==fAct)return false;
+    if(fCncl&&row[4]!==fCncl)return false;
+    if(selPcat.size>0&&!selPcat.has(row[7]))return false;
+    if(selP.size>0&&!selP.has(row[8]))return false;
+    return true;
+  });
+  var h='<td colspan="7" style="padding:0 0 6px 28px">'
+    +'<table style="width:100%;font-size:11px;border-collapse:collapse">'
+    +'<thead><tr style="background:#f8fafc">'
+    +'<th style="padding:5px 8px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Order ID</th>'
+    +'<th style="padding:5px 8px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Contact ID</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Date</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Active Status</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Cancel Status</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Invoice Total</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Refunds</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Days to Cancel</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">LDP</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">In Window</th>'
+    +'</tr></thead><tbody>';
+  rows.forEach(function(row){
+    var inWin=isInCohortWindow(row,win);
+    var rdD=(row[12]!==undefined)?row[12]:-1;
+    var rdDisp=rdD>=0?rdD+"d":"N/A";
+    var isLdp=(row[13]!==undefined?row[13]:0)===1;
+    h+='<tr style="border-top:1px solid #f1f5f9">'
+      +'<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#0ea5e9">'+(row[0]||"")+'</td>'
+      +'<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#64748b">'+(row[1]||"")+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#1e293b">'+(row[2]||"")+'</td>'
+      +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:'+(row[3]==="Active"?"#dcfce7":"#fee2e2")+';color:'+(row[3]==="Active"?"#166534":"#991b1b")+'">'+(row[3]||"")+'</span></td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+(row[4]||"")+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#1e293b">$'+((row[5]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#64748b">$'+((row[6]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+rdDisp+'</td>'
+      +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;background:'+(isLdp?"#dbeafe":"#f1f5f9")+';color:'+(isLdp?"#1d4ed8":"#64748b")+'">'+(isLdp?"Yes":"No")+'</span></td>'
+      +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:'+(inWin?"#dcfce7":"#f1f5f9")+';color:'+(inWin?"#166534":"#64748b")+'">'+(inWin?"✓ Yes":"No")+'</span></td>'
+      +'</tr>';
+  });
+  h+='</tbody></table></td>';
+  detailRow.innerHTML=h;
+  detailRow.style.display="";
+  arrows.forEach(function(a){a.textContent="▼";});
+}
+
+function downloadCohortCsv(){
+  var win=cohortWindow;
+  var winLabel=win<0?"AllTime":win+"d";
+  var r2=getRange();
+  var allRows=getCohortRows();
+  var csvRows=[["SKU","Order ID","Contact ID","Date","Active Status","Cancel Status","Invoice Total","Refunds","Days to Cancel","LDP","In Window ("+winLabel+")","Partner Category","Partner","Product"]];
+  allRows.forEach(function(item){
+    var sku=item.sku,row=item.row;
+    var inWin=isInCohortWindow(row,win);
+    var rdD=(row[12]!==undefined)?row[12]:-1;
+    var isLdp=(row[13]!==undefined?row[13]:0)===1;
+    csvRows.push([
+      sku,row[0]||"",row[1]||"",row[2]||"",row[3]||"",row[4]||"",
+      row[5]||0,row[6]||0,rdD>=0?rdD:"N/A",
+      isLdp?"Yes":"No",inWin?"Yes":"No",
+      row[7]||"",row[8]||"",row[9]||""
+    ]);
+  });
+  var csv=csvRows.map(function(r){return r.map(function(v){
+    var s=String(v==null?"":v);
+    return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(",");}).join("\n");
+  var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="cohort_cancel_"+r2.df+"_"+r2.dt+"_"+winLabel+".csv";
+  a.click();
+}
+
 function initDashboard(){
-  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div></div>';
+  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div><div id="cohortSection"></div></div>';
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1777494541").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000004").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});

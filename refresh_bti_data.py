@@ -223,6 +223,15 @@ def get_rd(refund_date, date):
         return ">90d"
     except: return "N/A"
 
+def get_rd_days(refund_date, date):
+    """Return integer days between purchase date and refund/credit date, or -1 if unavailable."""
+    if not refund_date or not date: return -1
+    try:
+        d1 = datetime.strptime(str(date)[:10],        "%Y-%m-%d")
+        d2 = datetime.strptime(str(refund_date)[:10], "%Y-%m-%d")
+        return abs((d2 - d1).days)
+    except: return -1
+
 def pif_classify(row):
     """Classify order as PIF (within 30d), PIF_LATE (after 30d), or PP."""
     pmt    = (row.get("PMT_STATUS","") or "").strip()
@@ -337,9 +346,10 @@ def build_cancellation_data(orders, ldp_order_ids=None):
             PMRD[part][month][rd]  += 1
             SKURD[sku][rd]         += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd]
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd, rd_days, is_ldp]
         order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
         order_rd = get_rd(rdate, date) if cncl == "Cancelled" else "—"
+        rd_days  = get_rd_days(rdate, date) if cncl == "Cancelled" else -1
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
@@ -353,6 +363,8 @@ def build_cancellation_data(orders, ldp_order_ids=None):
             r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT",""),
             order_lr,
             order_rd,
+            rd_days,             # index 12: integer days to cancel, -1 if N/A
+            1 if is_ldp else 0,  # index 13: LDP flag
         ])
 
         # Cancel reasons
