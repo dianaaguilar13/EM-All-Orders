@@ -800,7 +800,7 @@ function renderCohort(){
   var sec=document.getElementById("cohortSection");
   if(!sec||!D)return;
   if(charts.cohortBucket){charts.cohortBucket.destroy();charts.cohortBucket=null;}
-  if(charts.cohortCompare){charts.cohortCompare.destroy();charts.cohortCompare=null;}
+  if(charts.cohortUpgrade){charts.cohortUpgrade.destroy();charts.cohortUpgrade=null;}
   if(charts.cohortSku){charts.cohortSku.destroy();charts.cohortSku=null;}
 
   var win=cohortWindow;
@@ -819,10 +819,17 @@ function renderCohort(){
     }
   });
   var cohortRate=cohortPurchases>0?(cancelledInWindow/cohortPurchases*100):0;
-  var ldpRate=ldpInCohort>0?(ldpCancelledInWindow/ldpInCohort*100):0;
-  var nonLdpInCohort=cohortPurchases-ldpInCohort;
-  var nonLdpCancelled=cancelledInWindow-ldpCancelledInWindow;
-  var nonLdpRate=nonLdpInCohort>0?(nonLdpCancelled/nonLdpInCohort*100):0;
+  // LDP cancel rate = LDP cancelled ÷ ALL cohort units (not just LDP)
+  var ldpRate=cohortPurchases>0?(ldpCancelledInWindow/cohortPurchases*100):0;
+  // Upgrades & Downgrades
+  var upgradeCount=0,downgradeCount=0;
+  allRows.forEach(function(item){
+    var c=item.row[4];
+    if(c==="Upgrade")upgradeCount++;
+    else if(c==="Downgrade")downgradeCount++;
+  });
+  var upgradeRate=cohortPurchases>0?(upgradeCount/cohortPurchases*100):0;
+  var downgradeRate=cohortPurchases>0?(downgradeCount/cohortPurchases*100):0;
 
   // Collect orders with no refund date (cancelled but rd_days = -1)
   var naOrders=[];
@@ -938,22 +945,34 @@ function renderCohort(){
     +'<button onclick="downloadCohortCsv()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ Export CSV</button>'
     +'</div></div>'
     +'<div style="margin-bottom:14px;font-size:11px;color:#64748b">Inherited filters: '+pills+'</div>'
-    // KPI row 1
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">'
-    +'<div class="kpi k1"><div class="kl">Cohort Purchases</div><div class="kv">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range &amp; filters</div></div>'
-    +'<div class="kpi k4"><div class="kl">Cancelled in Window</div><div class="kv" style="color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"by "+rangeEndLabel+" or ≤"+winLabel+" from purchase")+'</div></div>'
-    +'<div class="kpi k4"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ cohort purchases</div></div>'
+    // KPI row 1 — two group cards
+    +'<div style="display:grid;grid-template-columns:3fr 2fr;gap:10px;margin-bottom:10px">'
+    // Cancel metrics group
+    +'<div style="border-radius:8px;padding:14px 16px;border:1px solid #ef444455;background:#fff8f8">'
+    +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#991b1b;margin-bottom:12px">🚫 COHORT CANCEL METRICS</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Purchases</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cancelled in Window</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"≤"+winLabel+" from purchase")+'</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ purchases</div></div>'
+    +'</div></div>'
+    // Upgrades & Downgrades group
+    +'<div style="border-radius:8px;padding:14px 16px;border:1px solid #16a34a44;background:#f0fdf4">'
+    +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#166534;margin-bottom:12px">📈 UPGRADES &amp; DOWNGRADES</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Upgrades</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#16a34a">'+upgradeCount.toLocaleString()+'</div><div class="ks green">'+upgradeRate.toFixed(1)+'% of cohort units</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Downgrades</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#7c3aed">'+downgradeCount.toLocaleString()+'</div><div class="ks purple">'+downgradeRate.toFixed(1)+'% of cohort units</div></div>'
+    +'</div></div>'
     +'</div>'
     // KPI row 2
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">'
     +'<div class="kpi k2"><div class="kl">LDP in Cohort</div><div class="kv" style="color:#2563eb">'+ldpInCohort.toLocaleString()+'</div><div class="ks muted">less down payment orders</div></div>'
     +'<div class="kpi k2"><div class="kl">LDP Cancelled in Window</div><div class="kv" style="color:#2563eb">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks muted">'+(win<0?"all time":"by "+rangeEndLabel+" or ≤"+winLabel+" from purchase")+'</div></div>'
-    +'<div class="kpi k2"><div class="kl">LDP Cohort Cancel Rate</div><div class="kv" style="color:#2563eb">'+ldpRate.toFixed(1)+'%</div><div class="ks muted">LDP cancelled ÷ LDP in cohort</div></div>'
+    +'<div class="kpi k2"><div class="kl">LDP Cancel Rate</div><div class="kv" style="color:#2563eb">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ all cohort units</div></div>'
     +'</div>'
     // Charts
     +'<div class="grid2" style="margin-bottom:16px">'
     +'<div class="card"><div class="ct">Days to Cancel</div><div class="cs">Count of cancelled orders by days-to-cancel bucket with cumulative % line</div><div style="height:230px;position:relative"><canvas id="cohortBucketChart"></canvas></div></div>'
-    +'<div class="card"><div class="ct">LDP vs Non-LDP Cancel Rate</div><div class="cs">Cancel rate within the selected window: LDP orders vs standard orders</div><div style="height:230px;position:relative"><canvas id="cohortCompareChart"></canvas></div></div>'
+    +'<div class="card"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div><div class="ct">Upgrades &amp; Downgrades</div><div class="cs">Unit counts (bars) · Rate % of cohort (line, right axis)</div></div><div class="legend"><div class="li"><div class="ld" style="background:#16a34a"></div>Upgrades</div><div class="li"><div class="ld" style="background:#7c3aed"></div>Downgrades</div><div class="li"><div class="ld" style="background:#64748b;width:18px;height:2px;border-radius:0"></div>Rate %</div></div></div><div style="height:200px;position:relative"><canvas id="cohortUpgradeChart"></canvas></div></div>'
     +'</div>'
     // N/A orders warning panel
     +(naOrders.length>0
@@ -1019,25 +1038,29 @@ function renderCohort(){
     });
   }
 
-  // Render compare chart
-  var cmpEl=document.getElementById("cohortCompareChart");
-  if(cmpEl){
-    var maxRate=Math.max(ldpRate,nonLdpRate);
-    charts.cohortCompare=new Chart(cmpEl.getContext("2d"),{
+  // Render upgrades & downgrades chart
+  var upgradeEl=document.getElementById("cohortUpgradeChart");
+  if(upgradeEl){
+    var maxUDRate=Math.max(upgradeRate,downgradeRate);
+    charts.cohortUpgrade=new Chart(upgradeEl.getContext("2d"),{
       type:"bar",
       data:{
-        labels:["LDP Orders","Non-LDP Orders"],
-        datasets:[{label:"Cancel Rate %",data:[parseFloat(ldpRate.toFixed(1)),parseFloat(nonLdpRate.toFixed(1))],backgroundColor:["#3b82f6","#64748b"],borderRadius:6,maxBarThickness:80}]
+        labels:["Upgrades","Downgrades"],
+        datasets:[
+          {label:"Units",data:[upgradeCount,downgradeCount],backgroundColor:["#16a34a88","#7c3aed88"],borderColor:["#16a34a","#7c3aed"],borderWidth:1,borderRadius:6,maxBarThickness:90,yAxisID:"y",order:2},
+          {label:"Rate %",data:[parseFloat(upgradeRate.toFixed(1)),parseFloat(downgradeRate.toFixed(1))],type:"line",borderColor:"#64748b",backgroundColor:"transparent",borderWidth:2,pointRadius:8,pointBackgroundColor:["#16a34a","#7c3aed"],pointBorderColor:"#fff",pointBorderWidth:2,yAxisID:"y2",order:1}
+        ]
       },
       options:{
         responsive:true,maintainAspectRatio:false,
         plugins:{
           legend:{display:false},
-          tooltip:{callbacks:{label:function(ctx){return ctx.raw.toFixed(1)+"%";}}}
+          tooltip:{callbacks:{label:function(ctx){return ctx.datasetIndex===0?"Units: "+ctx.raw:ctx.raw.toFixed(1)+"% of cohort";}}}
         },
         scales:{
-          x:{ticks:{color:"#64748b",font:{size:12}},grid:{display:false}},
-          y:{beginAtZero:true,max:maxRate*1.3+5,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"}}
+          x:{ticks:{color:"#64748b",font:{size:12,weight:"600"}},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10}},grid:{color:"#f1f5f9"},title:{display:true,text:"Units",color:"#94a3b8",font:{size:10}}},
+          y2:{beginAtZero:true,max:Math.max(maxUDRate*1.5,5),position:"right",ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{display:false},title:{display:true,text:"% of cohort",color:"#94a3b8",font:{size:10}}}
         }
       }
     });
@@ -1274,4 +1297,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000011").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000012").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
