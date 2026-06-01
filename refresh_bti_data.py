@@ -12,6 +12,7 @@ Setup:
 """
 
 import os
+import sys
 import json
 import csv
 import re
@@ -19,6 +20,12 @@ import bisect
 import urllib.request
 from datetime import datetime, timedelta
 from collections import defaultdict
+
+# Fix Windows console encoding so emoji/unicode in print() doesn't crash
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 # ─────────────────────────────────────────────
 #  CONFIG — Fill these in
@@ -1615,31 +1622,48 @@ def main():
     print()
     ldp_ids = pre_compute_ldp_ids(orders, payments)
 
-    # 3. Build and save each JSON
+    # 3. Build and save each JSON — free memory after each save
+    import gc
+
     print()
     cancel_data = build_cancellation_data(orders, ldp_order_ids=ldp_ids)
     save_json(cancel_data, "data.json")
+    # Keep only the slices ar_data needs; free the rest
+    cancel_qfy   = cancel_data.get("QFY",   {})
+    cancel_gmsku = cancel_data.get("GMSKU", {})
+    cancel_pcm   = cancel_data.get("PCM",   {})
+    cancel_pcmsku= cancel_data.get("PCMSKU",{})
+    cancel_data = None; gc.collect()
 
     print()
     pif_data = build_pif_data(orders)
     save_json(pif_data, "pif_data.json")
+    pif_data = None; gc.collect()
 
     print()
     pif_rows = build_pif_rows(orders)
     save_json(pif_rows, "pif_rows.json")
+    pif_rows = None; gc.collect()
 
     print()
-    ldp_data = build_ldp_data(orders, payments_rows=payments, payments_csv_path=CONFIG.get("payments_csv"))
+    # Filter payments to LDP orders only — reduces memory inside build_ldp_data
+    ldp_payments = [p for p in payments
+                    if str(p.get('Id', p.get('INVOICEID',''))).strip() in ldp_ids]
+    ldp_data = build_ldp_data(orders, payments_rows=ldp_payments, payments_csv_path=CONFIG.get("payments_csv"))
+    ldp_payments = None; ldp_ids = None; gc.collect()
     save_json(ldp_data, "ldp_data.json")
+    ldp_data = None; gc.collect()
 
     print()
     asana_rows = fetch_asana_tasks()
     cr_data = build_cr_data(orders, asana_rows)
     if cr_data:
         save_json(cr_data, "cr_data.json")
+    cr_data = None; asana_rows = None; gc.collect()
 
     print()
-    ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_data.get("QFY"), cancel_data=cancel_data)
+    _cancel_slim = {"GMSKU": cancel_gmsku, "PCM": cancel_pcm, "PCMSKU": cancel_pcmsku}
+    ar_data = build_ar_data(orders, payments_rows=payments, cancel_qfy=cancel_qfy, cancel_data=_cancel_slim)
     save_json(ar_data, "ar_data.json")
 
     print()
