@@ -1091,7 +1091,7 @@ function renderCohort(){
     var top15=skuArr.slice(0,15);
     var skuLabels=top15.map(function(e){var s=e[0];return s.length>20?s.slice(0,18)+"…":s;});
     var skuCancelRates=top15.map(function(e){var d=e[1];return d.total>0?parseFloat((d.cancelled/d.total*100).toFixed(1)):0;});
-    var skuLdpRates=top15.map(function(e){var d=e[1];return d.ldp>0?parseFloat((d.ldpCancelled/d.ldp*100).toFixed(1)):null;});
+    var skuLdpRates=top15.map(function(e){var d=e[1];return d.total>0?parseFloat((d.ldpCancelled/d.total*100).toFixed(1)):null;});
     var skuAvgDays=top15.map(function(e){var d=e[1];return d.countDays>0?parseFloat((d.sumDays/d.countDays).toFixed(1)):null;});
     charts.cohortSku=new Chart(skuEl.getContext("2d"),{
       type:"bar",
@@ -1316,4 +1316,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000013").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000014").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
