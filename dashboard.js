@@ -757,6 +757,8 @@ function getCohortRows(){
     (D.order_rows[sku]||[]).forEach(function(row){
       var dateM=row[2].slice(0,7);
       if(dateM<r.df||dateM>r.dt)return;
+      // Exclude same statuses as top KPI "Net Units" (Entry Error, Pend, No Pmt)
+      if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
       if(fAct&&row[3]!==fAct)return;
       if(fCncl&&row[4]!==fCncl)return;
       if(selPcat.size>0&&!selPcat.has(row[7]))return;
@@ -1154,4 +1156,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000009").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000010").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
