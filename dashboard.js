@@ -779,6 +779,7 @@ function renderCohort(){
   if(!sec||!D)return;
   if(charts.cohortBucket){charts.cohortBucket.destroy();charts.cohortBucket=null;}
   if(charts.cohortCompare){charts.cohortCompare.destroy();charts.cohortCompare=null;}
+  if(charts.cohortSku){charts.cohortSku.destroy();charts.cohortSku=null;}
 
   var win=cohortWindow;
   var allRows=getCohortRows();
@@ -826,7 +827,7 @@ function renderCohort(){
   var skuMap={};
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
-    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0};
+    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0};
     skuMap[sku].total++;
     var inWin=isInCohortWindow(row,win);
     if(inWin)skuMap[sku].cancelled++;
@@ -834,6 +835,8 @@ function renderCohort(){
       skuMap[sku].ldp++;
       if(inWin)skuMap[sku].ldpCancelled++;
     }
+    var rdD=(row[12]!==undefined)?row[12]:-1;
+    if(row[4]==="Cancelled"&&rdD>=0){skuMap[sku].sumDays+=rdD;skuMap[sku].countDays++;}
   });
   var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
 
@@ -916,6 +919,14 @@ function renderCohort(){
     +'<div class="card"><div class="ct">Days to Cancel</div><div class="cs">Count of cancelled orders by days-to-cancel bucket with cumulative % line</div><div style="height:230px;position:relative"><canvas id="cohortBucketChart"></canvas></div></div>'
     +'<div class="card"><div class="ct">LDP vs Non-LDP Cancel Rate</div><div class="cs">Cancel rate within the selected window: LDP orders vs standard orders</div><div style="height:230px;position:relative"><canvas id="cohortCompareChart"></canvas></div></div>'
     +'</div>'
+    // SKU comparison chart
+    +'<div class="card" style="margin-bottom:16px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'
+    +'<div><div class="ct">SKU Comparison</div><div class="cs">Cancel rate % &amp; LDP cancel rate % (bars) · Avg days to cancel (line) — top 15 SKUs by volume</div></div>'
+    +'<div class="legend"><div class="li"><div class="ld" style="background:#f85149"></div>Cancel Rate %</div><div class="li"><div class="ld" style="background:#3b82f6"></div>LDP Cancel Rate %</div><div class="li"><div class="ld" style="background:#f59e0b;width:18px;height:2px;border-radius:0"></div>Avg Days to Cancel</div></div>'
+    +'</div>'
+    +'<div style="height:300px;position:relative"><canvas id="cohortSkuChart"></canvas></div>'
+    +'</div>'
     // Table
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
     +'<div class="ct" style="margin-bottom:0">SKU Cohort Summary</div>'
@@ -979,6 +990,42 @@ function renderCohort(){
         scales:{
           x:{ticks:{color:"#64748b",font:{size:12}},grid:{display:false}},
           y:{beginAtZero:true,max:maxRate*1.3+5,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"}}
+        }
+      }
+    });
+  }
+
+  // Render SKU comparison chart
+  var skuEl=document.getElementById("cohortSkuChart");
+  if(skuEl){
+    var top15=skuArr.slice(0,15);
+    var skuLabels=top15.map(function(e){var s=e[0];return s.length>20?s.slice(0,18)+"…":s;});
+    var skuCancelRates=top15.map(function(e){var d=e[1];return d.total>0?parseFloat((d.cancelled/d.total*100).toFixed(1)):0;});
+    var skuLdpRates=top15.map(function(e){var d=e[1];return d.ldp>0?parseFloat((d.ldpCancelled/d.ldp*100).toFixed(1)):null;});
+    var skuAvgDays=top15.map(function(e){var d=e[1];return d.countDays>0?parseFloat((d.sumDays/d.countDays).toFixed(1)):null;});
+    charts.cohortSku=new Chart(skuEl.getContext("2d"),{
+      type:"bar",
+      data:{
+        labels:skuLabels,
+        datasets:[
+          {label:"Cancel Rate %",data:skuCancelRates,backgroundColor:"#f8514988",borderColor:"#f85149",borderWidth:1,borderRadius:3,yAxisID:"y",order:2},
+          {label:"LDP Cancel Rate %",data:skuLdpRates,backgroundColor:"#3b82f688",borderColor:"#3b82f6",borderWidth:1,borderRadius:3,yAxisID:"y",order:3},
+          {label:"Avg Days to Cancel",data:skuAvgDays,type:"line",borderColor:"#f59e0b",backgroundColor:"transparent",borderWidth:2,pointRadius:4,pointBackgroundColor:"#f59e0b",yAxisID:"y2",order:1,spanGaps:false}
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:function(ctx){
+            if(ctx.datasetIndex===2)return "Avg Days: "+(ctx.raw!=null?ctx.raw.toFixed(1)+"d":"N/A");
+            return ctx.dataset.label+": "+(ctx.raw!=null?ctx.raw.toFixed(1)+"%":"N/A");
+          }}}
+        },
+        scales:{
+          x:{ticks:{color:"#64748b",font:{size:10},maxRotation:40,minRotation:30},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"},title:{display:true,text:"Cancel Rate %",color:"#94a3b8",font:{size:10}}},
+          y2:{beginAtZero:true,position:"right",ticks:{color:"#f59e0b",font:{size:10},callback:function(v){return v+"d";}},grid:{display:false},title:{display:true,text:"Avg Days",color:"#f59e0b",font:{size:10}}}
         }
       }
     });
@@ -1081,4 +1128,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000006").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000007").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
