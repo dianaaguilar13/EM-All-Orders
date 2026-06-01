@@ -789,11 +789,11 @@ function isInCohortWindow(row,win,rangeEndMs){
   if(rdD<0)return false; // No refund date recorded
   var purchaseMs=new Date(row[2]).getTime();
   var cancelMs=purchaseMs+rdD*86400000;
-  // Per-order cutoff = MAX(date range end, purchase date + window days)
-  // Early purchases: judged against range end date
-  // Late purchases (near end of range): get at least "window" days from their purchase
-  var perOrderCutoff=Math.max(rangeEndMs, purchaseMs+win*86400000);
-  return cancelMs<=perOrderCutoff;
+  // Cutoff = date range end + X days (applies to every order equally)
+  // Early purchases: judged against range end + window days
+  // Late purchases (near end of range): also get range end + window days = their full window
+  var cutoff=rangeEndMs+win*86400000;
+  return cancelMs<=cutoff;
 }
 
 function renderCohort(){
@@ -900,7 +900,9 @@ function renderCohort(){
 
   var winLabel=win<0?"All time":win+" days";
   var rangeEndLabel=formatCutoffDate(cutoffMs); // cutoffMs = range end here
-  var windowNote=win<0?"all cancelled orders":"cancelled by "+rangeEndLabel+" (or within "+winLabel+" of purchase for orders near the end of range)";
+  var hardCutoffMs=win<0?cutoffMs:cutoffMs+win*86400000;
+  var hardCutoffLabel=formatCutoffDate(hardCutoffMs);
+  var windowNote=win<0?"all cancelled orders":"cancelled on or before "+hardCutoffLabel+" ("+rangeEndLabel+" + "+winLabel+")";
 
   // SKU table rows
   var tRows='';
@@ -958,7 +960,7 @@ function renderCohort(){
     +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#991b1b;margin-bottom:12px">🚫 COHORT CANCEL METRICS</div>'
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Purchases</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range</div></div>'
-    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cancelled in Window</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"≤"+winLabel+" from purchase")+'</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cancelled in Window</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"on or before "+hardCutoffLabel)+'</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ purchases</div></div>'
     +'</div></div>'
     // Upgrades & Downgrades group
@@ -1316,4 +1318,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000014").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000015").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
