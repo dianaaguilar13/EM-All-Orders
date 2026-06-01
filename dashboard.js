@@ -767,11 +767,29 @@ function getCohortRows(){
   return result;
 }
 
-function isInCohortWindow(row,win){
+function getCohortCutoffMs(win){
+  // Returns the fixed cutoff timestamp: last day of the selected date range + win days
+  if(win<0)return null;
+  var r=getRange();
+  var dt=r.dt; // YYYY-MM
+  var y=parseInt(dt.slice(0,4)),m=parseInt(dt.slice(5,7));
+  var lastDayMs=new Date(y,m,0).getTime(); // day 0 of next month = last day of this month
+  return lastDayMs+win*86400000;
+}
+function formatCutoffDate(ms){
+  if(!ms)return"";
+  var d=new Date(ms);
+  var mo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return mo[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear();
+}
+function isInCohortWindow(row,win,cutoffMs){
   if(row[4]!=="Cancelled")return false;
-  if(win<0)return true;
-  var d=(row[12]!==undefined)?row[12]:-1;
-  return d>=0&&d<=win;
+  if(win<0)return true; // All time: include all cancelled
+  var rdD=(row[12]!==undefined)?row[12]:-1;
+  if(rdD<0)return false; // No refund date recorded
+  // Fixed cutoff: cancellation date = purchase date + rd_days; must be <= date range end + window
+  var cancelMs=new Date(row[2]).getTime()+rdD*86400000;
+  return cancelMs<=cutoffMs;
 }
 
 function renderCohort(){
@@ -782,13 +800,14 @@ function renderCohort(){
   if(charts.cohortSku){charts.cohortSku.destroy();charts.cohortSku=null;}
 
   var win=cohortWindow;
+  var cutoffMs=getCohortCutoffMs(win);
   var allRows=getCohortRows();
 
   var cohortPurchases=allRows.length;
   var cancelledInWindow=0,ldpInCohort=0,ldpCancelledInWindow=0;
   allRows.forEach(function(item){
     var row=item.row;
-    var inWin=isInCohortWindow(row,win);
+    var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)cancelledInWindow++;
     if((row[13]!==undefined?row[13]:0)===1){
       ldpInCohort++;
@@ -801,7 +820,7 @@ function renderCohort(){
   var nonLdpCancelled=cancelledInWindow-ldpCancelledInWindow;
   var nonLdpRate=nonLdpInCohort>0?(nonLdpCancelled/nonLdpInCohort*100):0;
 
-  // Days-to-cancel buckets
+  // Days-to-cancel buckets (counts ALL cancelled orders regardless of window)
   var bktLabels=["0–30d","31–60d","61–90d","91–180d","181–365d","365+d","N/A"];
   var bktCounts=[0,0,0,0,0,0,0];
   allRows.forEach(function(item){
@@ -829,7 +848,7 @@ function renderCohort(){
     var sku=item.sku,row=item.row;
     if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0};
     skuMap[sku].total++;
-    var inWin=isInCohortWindow(row,win);
+    var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)skuMap[sku].cancelled++;
     if((row[13]!==undefined?row[13]:0)===1){
       skuMap[sku].ldp++;
@@ -852,6 +871,7 @@ function renderCohort(){
   if(fCncl2)pills+='<span style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px">'+fCncl2+'</span>';
 
   var winLabel=win<0?"All time":win+" days";
+  var cutoffLabel=cutoffMs?"by "+formatCutoffDate(cutoffMs):"all time";
 
   // SKU table rows
   var tRows='';
@@ -888,7 +908,7 @@ function renderCohort(){
     '<div class="card full" style="margin-top:16px">'
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">'
     +'<div><div class="ct">Cohort Cancel Rate</div>'
-    +'<div class="cs">Of orders purchased in the filtered date range, what % cancelled within the selected window after purchase</div></div>'
+    +'<div class="cs">Of orders purchased in the selected date range, what % cancelled on or before <strong>'+cutoffLabel+'</strong> (date range end + window)</div></div>'
     +'<div style="display:flex;align-items:center;gap:8px">'
     +'<label style="font-size:11px;color:#64748b;font-weight:600">Cancel Window</label>'
     +'<select id="cohortWindowSel" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;background:#fff" onchange="cohortWindow=parseInt(this.value);renderCohort()">'
@@ -905,13 +925,13 @@ function renderCohort(){
     // KPI row 1
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px">'
     +'<div class="kpi k1"><div class="kl">Cohort Purchases</div><div class="kv">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range &amp; filters</div></div>'
-    +'<div class="kpi k4"><div class="kl">Cancelled in '+winLabel+'</div><div class="kv" style="color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">cancelled within window of purchase</div></div>'
+    +'<div class="kpi k4"><div class="kl">Cancelled — '+cutoffLabel+'</div><div class="kv" style="color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">cancellation date on or before cutoff</div></div>'
     +'<div class="kpi k4"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ cohort purchases</div></div>'
     +'</div>'
     // KPI row 2
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">'
     +'<div class="kpi k2"><div class="kl">LDP in Cohort</div><div class="kv" style="color:#2563eb">'+ldpInCohort.toLocaleString()+'</div><div class="ks muted">less down payment orders</div></div>'
-    +'<div class="kpi k2"><div class="kl">LDP Cancelled in '+winLabel+'</div><div class="kv" style="color:#2563eb">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks muted">LDP cancels within window</div></div>'
+    +'<div class="kpi k2"><div class="kl">LDP Cancelled — '+cutoffLabel+'</div><div class="kv" style="color:#2563eb">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks muted">LDP cancels on or before cutoff</div></div>'
     +'<div class="kpi k2"><div class="kl">LDP Cohort Cancel Rate</div><div class="kv" style="color:#2563eb">'+ldpRate.toFixed(1)+'%</div><div class="ks muted">LDP cancelled ÷ LDP in cohort</div></div>'
     +'</div>'
     // Charts
@@ -1044,6 +1064,7 @@ function toggleCohortSkuDetail(e,sku){
     return;
   }
   var win=cohortWindow;
+  var cutoffMs=getCohortCutoffMs(win);
   var r2=getRange();
   var fAct=document.getElementById("fAct").value;
   var fCncl=document.getElementById("fCncl").value;
@@ -1071,7 +1092,7 @@ function toggleCohortSkuDetail(e,sku){
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">In Window</th>'
     +'</tr></thead><tbody>';
   rows.forEach(function(row){
-    var inWin=isInCohortWindow(row,win);
+    var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var rdDisp=rdD>=0?rdD+"d":"N/A";
     var isLdp=(row[13]!==undefined?row[13]:0)===1;
@@ -1096,13 +1117,15 @@ function toggleCohortSkuDetail(e,sku){
 
 function downloadCohortCsv(){
   var win=cohortWindow;
+  var cutoffMs=getCohortCutoffMs(win);
   var winLabel=win<0?"AllTime":win+"d";
   var r2=getRange();
   var allRows=getCohortRows();
-  var csvRows=[["SKU","Order ID","Contact ID","Date","Active Status","Cancel Status","Invoice Total","Refunds","Days to Cancel","LDP","In Window ("+winLabel+")","Partner Category","Partner","Product"]];
+  var cutoffStr=cutoffMs?"by "+formatCutoffDate(cutoffMs):"All time";
+  var csvRows=[["SKU","Order ID","Contact ID","Date","Active Status","Cancel Status","Invoice Total","Refunds","Days to Cancel","LDP","Cancelled ("+cutoffStr+")","Partner Category","Partner","Product"]];
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
-    var inWin=isInCohortWindow(row,win);
+    var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var isLdp=(row[13]!==undefined?row[13]:0)===1;
     csvRows.push([
@@ -1128,4 +1151,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000007").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000008").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
