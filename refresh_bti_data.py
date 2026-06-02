@@ -81,23 +81,28 @@ def connect_snowflake():
     )
 
     conn_params = {
-        "account":    CONFIG["account"],
-        "user":       CONFIG["user"],
-        "private_key": private_key_bytes,
-        "warehouse":  CONFIG["warehouse"],
-        "database":   CONFIG["database"],
-        "schema":     CONFIG["schema"],
+        "account":      CONFIG["account"],
+        "user":         CONFIG["user"],
+        "private_key":  private_key_bytes,
+        "warehouse":    CONFIG["warehouse"],
+        "database":     CONFIG["database"],
+        "schema":       CONFIG["schema"],
+        "login_timeout": 60,   # fail fast if Snowflake unreachable
+        "network_timeout": 120,
         # Force JSON result format — avoids Arrow/nanoarrow bug on Python 3.13
         "session_parameters": {"PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON"},
     }
     if CONFIG.get("role"):
         conn_params["role"] = CONFIG["role"]
 
+    print("Connecting to Snowflake...", flush=True)
     conn = snowflake.connector.connect(**conn_params)
-    # Shrink S3 result chunks: default 160 MB causes chardet OOM; 16 MB is the minimum
+    print("  Connected. Setting session parameters...", flush=True)
+    # Shrink S3 result chunks from default 160 MB to 16 MB (minimum)
+    # This prevents chardet charset-detection OOM on large batch downloads
     cur = conn.cursor()
-    cur.execute("ALTER SESSION SET CLIENT_RESULT_CHUNK_SIZE = 16")
     cur.execute("ALTER SESSION SET CLIENT_MEMORY_LIMIT = 128")
+    cur.execute("ALTER SESSION SET CLIENT_RESULT_CHUNK_SIZE = 16")
     cur.close()
     print("Connected to Snowflake", flush=True)
     return conn
