@@ -88,20 +88,18 @@ def connect_snowflake():
         "database":   CONFIG["database"],
         "schema":     CONFIG["schema"],
         # Force JSON result format — avoids Arrow/nanoarrow bug on Python 3.13
-        # CLIENT_RESULT_CHUNK_SIZE: shrink S3 batch size from default 160 MB → 16 MB (minimum)
-        # so the connector's chardet charset-detection step doesn't OOM on a single large chunk
-        "session_parameters": {
-            "PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON",
-            "CLIENT_RESULT_CHUNK_SIZE": 16,
-        },
+        "session_parameters": {"PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON"},
     }
     if CONFIG.get("role"):
         conn_params["role"] = CONFIG["role"]
 
     conn = snowflake.connector.connect(**conn_params)
-    # CLIENT_MEMORY_LIMIT: cap how much memory the connector pre-fetches from S3
-    conn.cursor().execute("ALTER SESSION SET CLIENT_MEMORY_LIMIT = 128")
-    print("✅ Connected to Snowflake")
+    # Shrink S3 result chunks: default 160 MB causes chardet OOM; 16 MB is the minimum
+    cur = conn.cursor()
+    cur.execute("ALTER SESSION SET CLIENT_RESULT_CHUNK_SIZE = 16")
+    cur.execute("ALTER SESSION SET CLIENT_MEMORY_LIMIT = 128")
+    cur.close()
+    print("Connected to Snowflake", flush=True)
     return conn
 
 
@@ -128,7 +126,7 @@ def sf_fetch_rows(cur, batch_size=5000):
 
 def fetch_orders(conn):
     """Pull all orders from DIM_ALL_ORDERS."""
-    print("⏳ Fetching orders from Snowflake...")
+    print("Fetching orders from Snowflake...", flush=True)
     sql = f"""
         SELECT
             ID, UNIQUE_ORDER_ID, CONTACTID, SKU, DATE, MONTH,
@@ -1636,10 +1634,10 @@ def pre_compute_ldp_ids(orders, payments_rows):
 
 
 def main():
-    print("=" * 55)
-    print("  BTI Analytics Dashboard — Data Refresh")
-    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("=" * 55)
+    print("=" * 55, flush=True)
+    print("  BTI Analytics Dashboard - Data Refresh", flush=True)
+    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M')}", flush=True)
+    print("=" * 55, flush=True)
 
     # 1. Connect & fetch from Snowflake
     conn        = connect_snowflake()
