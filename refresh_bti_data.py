@@ -88,14 +88,19 @@ def connect_snowflake():
         "database":   CONFIG["database"],
         "schema":     CONFIG["schema"],
         # Force JSON result format — avoids Arrow/nanoarrow bug on Python 3.13
-        "session_parameters": {"PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON"},
+        # CLIENT_RESULT_CHUNK_SIZE: shrink S3 batch size from default 160 MB → 16 MB (minimum)
+        # so the connector's chardet charset-detection step doesn't OOM on a single large chunk
+        "session_parameters": {
+            "PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON",
+            "CLIENT_RESULT_CHUNK_SIZE": 16,
+        },
     }
     if CONFIG.get("role"):
         conn_params["role"] = CONFIG["role"]
 
     conn = snowflake.connector.connect(**conn_params)
-    # Limit result batch size so large queries don't OOM on download
-    conn.cursor().execute("ALTER SESSION SET CLIENT_MEMORY_LIMIT = 256")
+    # CLIENT_MEMORY_LIMIT: cap how much memory the connector pre-fetches from S3
+    conn.cursor().execute("ALTER SESSION SET CLIENT_MEMORY_LIMIT = 128")
     print("✅ Connected to Snowflake")
     return conn
 
