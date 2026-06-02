@@ -827,15 +827,20 @@ function renderCohort(){
   var fullPayCancelled=cancelledInWindow-ldpCancelledInWindow;
   var fullPayRate=fullPayInCohort>0?(fullPayCancelled/fullPayInCohort*100):0;
   var fullPayPct=cohortPurchases>0?(fullPayInCohort/cohortPurchases*100):0;
-  // Upgrades & Downgrades
-  var upgradeCount=0,downgradeCount=0;
+  // Upgrades & Downgrades — split by LDP vs Full Pay
+  var upgradeCount=0,downgradeCount=0,ldpUpgrades=0,ldpDowngrades=0,fpUpgrades=0,fpDowngrades=0;
   allRows.forEach(function(item){
     var c=item.row[4];
-    if(c==="Upgrade")upgradeCount++;
-    else if(c==="Downgrade")downgradeCount++;
+    var isLdp=(item.row[13]!==undefined?item.row[13]:0)===1;
+    if(c==="Upgrade"){upgradeCount++;if(isLdp)ldpUpgrades++;else fpUpgrades++;}
+    else if(c==="Downgrade"){downgradeCount++;if(isLdp)ldpDowngrades++;else fpDowngrades++;}
   });
   var upgradeRate=cohortPurchases>0?(upgradeCount/cohortPurchases*100):0;
   var downgradeRate=cohortPurchases>0?(downgradeCount/cohortPurchases*100):0;
+  var ldpUpgradeRate=ldpInCohort>0?(ldpUpgrades/ldpInCohort*100):0;
+  var ldpDowngradeRate=ldpInCohort>0?(ldpDowngrades/ldpInCohort*100):0;
+  var fpUpgradeRate=fullPayInCohort>0?(fpUpgrades/fullPayInCohort*100):0;
+  var fpDowngradeRate=fullPayInCohort>0?(fpDowngrades/fullPayInCohort*100):0;
 
   // Collect orders with no refund date (cancelled but rd_days = -1)
   var naOrders=[];
@@ -980,6 +985,16 @@ function renderCohort(){
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2563eb"></div><div class="kl">LDP in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpInCohort.toLocaleString()+'</div><div class="ks blue">'+ldpPct.toFixed(1)+'% of purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">LDP Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1d4ed8"></div><div class="kl">LDP Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ LDP units</div></div>'
+    +'</div>'
+    +'<div style="margin-top:8px;display:flex;gap:8px">'
+    +'<div style="flex:1;display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:8px 12px">'
+    +'<div style="font-size:20px;font-weight:700;color:#16a34a;letter-spacing:-0.5px">'+ldpUpgrades.toLocaleString()+'</div>'
+    +'<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#166534">Upgrades</div><div style="font-size:10px;color:#16a34a">'+ldpUpgradeRate.toFixed(1)+'% of LDP</div></div>'
+    +'</div>'
+    +'<div style="flex:1;display:flex;align-items:center;gap:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:7px;padding:8px 12px">'
+    +'<div style="font-size:20px;font-weight:700;color:#7c3aed;letter-spacing:-0.5px">'+ldpDowngrades.toLocaleString()+'</div>'
+    +'<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b21a8">Downgrades</div><div style="font-size:10px;color:#7c3aed">'+ldpDowngradeRate.toFixed(1)+'% of LDP</div></div>'
+    +'</div>'
     +'</div></div>'
     // Full Pay group (green)
     +'<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;padding:12px 14px">'
@@ -988,6 +1003,16 @@ function renderCohort(){
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#16a34a"></div><div class="kl">Full Pay in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayInCohort.toLocaleString()+'</div><div class="ks green">'+fullPayPct.toFixed(1)+'% of purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">Full Pay Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+fullPayCancelled.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#166534"></div><div class="kl">Full Pay Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayRate.toFixed(1)+'%</div><div class="ks green">FP cancelled ÷ FP units</div></div>'
+    +'</div>'
+    +'<div style="margin-top:8px;display:flex;gap:8px">'
+    +'<div style="flex:1;display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:8px 12px">'
+    +'<div style="font-size:20px;font-weight:700;color:#16a34a;letter-spacing:-0.5px">'+fpUpgrades.toLocaleString()+'</div>'
+    +'<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#166534">Upgrades</div><div style="font-size:10px;color:#16a34a">'+fpUpgradeRate.toFixed(1)+'% of FDP</div></div>'
+    +'</div>'
+    +'<div style="flex:1;display:flex;align-items:center;gap:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:7px;padding:8px 12px">'
+    +'<div style="font-size:20px;font-weight:700;color:#7c3aed;letter-spacing:-0.5px">'+fpDowngrades.toLocaleString()+'</div>'
+    +'<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b21a8">Downgrades</div><div style="font-size:10px;color:#7c3aed">'+fpDowngradeRate.toFixed(1)+'% of FDP</div></div>'
+    +'</div>'
     +'</div></div>'
     +'</div>'
     // Charts
@@ -1322,4 +1347,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000016").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000017").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
