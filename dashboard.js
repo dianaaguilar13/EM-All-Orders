@@ -819,13 +819,13 @@ function renderCohort(){
     }
   });
   var cohortRate=cohortPurchases>0?(cancelledInWindow/cohortPurchases*100):0;
-  // LDP cancel rate = LDP cancelled ÷ ALL cohort units (not just LDP)
-  var ldpRate=cohortPurchases>0?(ldpCancelledInWindow/cohortPurchases*100):0;
+  // LDP cancel rate = LDP cancelled ÷ LDP in cohort
+  var ldpRate=ldpInCohort>0?(ldpCancelledInWindow/ldpInCohort*100):0;
   var ldpPct=cohortPurchases>0?(ldpInCohort/cohortPurchases*100):0;
   // Full Pay (non-LDP)
   var fullPayInCohort=cohortPurchases-ldpInCohort;
   var fullPayCancelled=cancelledInWindow-ldpCancelledInWindow;
-  var fullPayRate=cohortPurchases>0?(fullPayCancelled/cohortPurchases*100):0;
+  var fullPayRate=fullPayInCohort>0?(fullPayCancelled/fullPayInCohort*100):0;
   var fullPayPct=cohortPurchases>0?(fullPayInCohort/cohortPurchases*100):0;
   // Upgrades & Downgrades
   var upgradeCount=0,downgradeCount=0;
@@ -979,7 +979,7 @@ function renderCohort(){
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2563eb"></div><div class="kl">LDP in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpInCohort.toLocaleString()+'</div><div class="ks blue">'+ldpPct.toFixed(1)+'% of purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">LDP Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
-    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1d4ed8"></div><div class="kl">LDP Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ all units</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1d4ed8"></div><div class="kl">LDP Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ LDP units</div></div>'
     +'</div></div>'
     // Full Pay group (green)
     +'<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;padding:12px 14px">'
@@ -987,7 +987,7 @@ function renderCohort(){
     +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#16a34a"></div><div class="kl">Full Pay in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayInCohort.toLocaleString()+'</div><div class="ks green">'+fullPayPct.toFixed(1)+'% of purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">Full Pay Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+fullPayCancelled.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
-    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#166534"></div><div class="kl">Full Pay Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayRate.toFixed(1)+'%</div><div class="ks green">Full Pay cancelled ÷ all units</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#166534"></div><div class="kl">Full Pay Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayRate.toFixed(1)+'%</div><div class="ks green">FP cancelled ÷ FP units</div></div>'
     +'</div></div>'
     +'</div>'
     // Charts
@@ -1161,6 +1161,7 @@ function toggleCohortSkuDetail(e,sku){
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Refunds</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Days to Cancel</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">LDP</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#1d4ed8;font-weight:600;border-bottom:1px solid #e2e8f0">LDP Deposit</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">In Window</th>'
     +'</tr></thead><tbody>';
   rows.forEach(function(row){
@@ -1168,6 +1169,8 @@ function toggleCohortSkuDetail(e,sku){
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var rdDisp=rdD>=0?rdD+"d":"N/A";
     var isLdp=(row[13]!==undefined?row[13]:0)===1;
+    var ldpDep=(row[14]!==undefined&&row[14]>0)?row[14]:0;
+    var ldpDepDisp=isLdp&&ldpDep>0?'$'+ldpDep.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
     h+='<tr style="border-top:1px solid #f1f5f9">'
       +'<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#0ea5e9">'+(row[0]||"")+'</td>'
       +'<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#64748b">'+(row[1]||"")+'</td>'
@@ -1178,6 +1181,7 @@ function toggleCohortSkuDetail(e,sku){
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">$'+((row[6]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+rdDisp+'</td>'
       +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;background:'+(isLdp?"#dbeafe":"#f1f5f9")+';color:'+(isLdp?"#1d4ed8":"#64748b")+'">'+(isLdp?"Yes":"No")+'</span></td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#1d4ed8;font-weight:600">'+ldpDepDisp+'</td>'
       +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:'+(inWin?"#dcfce7":"#f1f5f9")+';color:'+(inWin?"#166534":"#64748b")+'">'+(inWin?"✓ Yes":"No")+'</span></td>'
       +'</tr>';
   });
@@ -1318,4 +1322,4 @@ function initDashboard(){
   renderMsItems();renderMsSkuItems();render();
 }
 
-fetch("data.json?v=1780000015").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});
+fetch("data.json?v=1780000016").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(data){D=data;buildExcludedAndMappings();initDashboard();}).catch(function(err){document.getElementById("mainContent").innerHTML='<div class="loading"><div style="color:#f85149">Failed to load data.json: '+err.message+"</div></div>";});

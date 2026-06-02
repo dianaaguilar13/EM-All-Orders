@@ -302,7 +302,7 @@ def pif_classify(row):
 #  BUILD data.json  (Cancellation Dashboard)
 # ─────────────────────────────────────────────
 
-def build_cancellation_data(orders, ldp_order_ids=None):
+def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
     print("⏳ Building data.json (Cancellation)...")
 
     # b[0]=Total  b[1]=Cancelled  b[2]=EntryError  b[3]=Upgrade  b[4]=Downgrade
@@ -384,10 +384,11 @@ def build_cancellation_data(orders, ldp_order_ids=None):
             PMRD[part][month][rd]  += 1
             SKURD[sku][rd]         += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd, rd_days, is_ldp]
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd, rd_days, is_ldp, ldp_deposit]
         order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
         order_rd = get_rd(rdate, date) if cncl == "Cancelled" else "—"
         rd_days  = get_rd_days(rdate, date) if cncl == "Cancelled" else -1
+        ldp_deposit = round(ldp_first_pay.get(oid, 0.0), 2) if (is_ldp and ldp_first_pay) else 0.0
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
@@ -403,6 +404,7 @@ def build_cancellation_data(orders, ldp_order_ids=None):
             order_rd,
             rd_days,             # index 12: integer days to cancel, -1 if N/A
             1 if is_ldp else 0,  # index 13: LDP flag
+            ldp_deposit,         # index 14: first payment amount (LDP orders only, else 0)
         ])
 
         # Cancel reasons
@@ -1606,7 +1608,8 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
 
 
 def pre_compute_ldp_ids(orders, payments_rows):
-    """Return set of order IDs whose first payment was ≤ 10.5% of INV_TOTAL."""
+    """Return (ldp_ids set, ldp_first_pay dict {oid: first_pay_amount}) for orders whose
+    first payment was <= 10.5% of INV_TOTAL."""
     order_day_payments = defaultdict(lambda: defaultdict(float))
     for row in (payments_rows or []):
         oid  = str(row.get('Id', row.get('INVOICEID',''))).strip()
@@ -1616,6 +1619,7 @@ def pre_compute_ldp_ids(orders, payments_rows):
             order_day_payments[oid][date] += amt
 
     ldp_ids = set()
+    ldp_first_pay = {}  # oid -> first payment amount
     for r in orders:
         oid = r.get("ID","").strip()
         inv = float(r.get("INV_TOTAL",0) or 0)
@@ -1625,8 +1629,9 @@ def pre_compute_ldp_ids(orders, payments_rows):
         fa = days[min(days.keys())]
         if fa / inv <= 0.105:
             ldp_ids.add(oid)
+            ldp_first_pay[oid] = round(fa, 2)
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
-    return ldp_ids
+    return ldp_ids, ldp_first_pay
 
 
 def main():
@@ -1644,13 +1649,13 @@ def main():
 
     # 2. Pre-compute LDP IDs for cross-report metric
     print()
-    ldp_ids = pre_compute_ldp_ids(orders, payments)
+    ldp_ids, ldp_first_pay = pre_compute_ldp_ids(orders, payments)
 
     # 3. Build and save each JSON — free memory after each save
     import gc
 
     print()
-    cancel_data = build_cancellation_data(orders, ldp_order_ids=ldp_ids)
+    cancel_data = build_cancellation_data(orders, ldp_order_ids=ldp_ids, ldp_first_pay=ldp_first_pay)
     save_json(cancel_data, "data.json")
     # Keep only the slices ar_data needs; free the rest
     cancel_qfy   = cancel_data.get("QFY",   {})
