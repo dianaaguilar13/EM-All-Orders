@@ -81,17 +81,19 @@ def connect_snowflake():
     )
 
     conn_params = {
-        "account":    CONFIG["account"],
-        "user":       CONFIG["user"],
-        "private_key": private_key_bytes,
-        "warehouse":  CONFIG["warehouse"],
-        "database":   CONFIG["database"],
-        "schema":     CONFIG["schema"],
+        "account":       CONFIG["account"],
+        "user":          CONFIG["user"],
+        "private_key":   private_key_bytes,
+        "warehouse":     CONFIG["warehouse"],
+        "database":      CONFIG["database"],
+        "schema":        CONFIG["schema"],
+        "login_timeout": 30,
         "session_parameters": {"PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON"},
     }
     if CONFIG.get("role"):
         conn_params["role"] = CONFIG["role"]
 
+    print("Connecting to Snowflake...", flush=True)
     conn = snowflake.connector.connect(**conn_params)
     print("Connected to Snowflake", flush=True)
     return conn
