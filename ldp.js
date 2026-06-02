@@ -179,31 +179,41 @@ function ldpRender(){
 
   document.getElementById("ldp-rcLbl").textContent=ldpTotal.toLocaleString()+" LDP records";
 
-  // KPIs — 4-row grouped layout
+  // KPIs — Option C: unified card · General row on top · LDP Outcomes row below
   document.getElementById("ldp-kpis").innerHTML=
-    '<div class="kpi-row">'+
-    // Row 1: Overview context
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
-      '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+totalUnits.toLocaleString()+'</div><div class="ks muted">all orders (excl. EE, Pend, No Pmt)</div></div>'+
-      '<div class="kpi k7"><div class="kl">Total LDP Units</div><div class="kv" style="color:#7c3aed">'+ldpValidUnits.toLocaleString()+'</div><div class="ks muted">≤10% down payment</div></div>'+
-      '<div class="kpi k7"><div class="kl">LDP %</div><div class="kv" style="color:#7c3aed">'+ldpPct.toFixed(1)+'%</div><div class="ks muted">of all units are LDP</div></div>'+
+    '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'+
+    // ── General row ──
+    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:8px">📋 All Orders</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">'+
+      '<div class="kpi" style="border-top:3px solid #94a3b8"><div class="kl">Total Units</div><div class="kv" style="color:#475569">'+totalUnits.toLocaleString()+'</div><div class="ks muted">all orders (excl. EE, Pend, No Pmt)</div></div>'+
+      '<div class="kpi" style="border-top:3px solid #7c3aed"><div class="kl">Total LDP Units</div><div class="kv" style="color:#7c3aed">'+ldpValidUnits.toLocaleString()+'</div><div class="ks" style="color:#7c3aed">'+ldpPct.toFixed(1)+'% of all orders</div></div>'+
+      '<div class="kpi" style="border-top:3px solid #d97706"><div class="kl">Avg Down Payment</div><div class="kv" style="color:#d97706">'+avgPmt.toFixed(1)+'%</div><div class="ks muted">avg % of program price paid</div></div>'+
     '</div>'+
-    // Row 2: Outcomes
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
-      '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+ldpActive.toLocaleString()+'</div><div class="ks muted">'+(ldpValidUnits>0?(ldpActive/ldpValidUnits*100).toFixed(1):0)+'% of LDP units</div></div>'+
-      '<div class="kpi k3"><div class="kl">Inactive</div><div class="kv" style="color:#ef4444">'+ldpInactive.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpInactive/ldpValidUnits*100).toFixed(1):0)+'% of LDP units</div></div>'+
-      '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:20px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks red">on LDP cancellations</div></div>'+
+    // ── Divider with LDP label ──
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+
+      '<div style="height:1px;background:#ddd6fe;flex:1"></div>'+
+      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7c3aed">💳 LDP Outcomes</span>'+
+      '<div style="height:1px;background:#ddd6fe;flex:1"></div>'+
     '</div>'+
-    // Row 3: Cancellation focus
-    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">'+
-      '<div class="kpi k4"><div class="kl">Cancelled LDP</div><div class="kv" style="color:#ef4444">'+ldpCncl.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpCncl/ldpValidUnits*100).toFixed(1):0)+'% of LDP units</div></div>'+
-      '<div class="kpi k4"><div class="kl">LDP Cancel Rate</div><div class="kv" style="color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div class="ks red">cancellations / LDP units</div></div>'+
-    '</div>'+
-    // Row 4: Payment metrics
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
-      '<div class="kpi k7"><div class="kl">Avg Down Payment</div><div class="kv" style="color:#7c3aed">'+avgPmt.toFixed(1)+'%</div><div class="ks muted">avg % of program price paid</div></div>'+
-      '<div class="kpi k6"><div class="kl">LDP Upgrades %</div><div class="kv" style="color:#16a34a">'+ldpUpgPct.toFixed(1)+'%</div><div class="ks green">'+ldpUpg.toLocaleString()+' upgrades</div></div>'+
-      '<div class="kpi k3"><div class="kl">LDP Downgrades %</div><div class="kv" style="color:#7c3aed">'+ldpDwnPct.toFixed(1)+'%</div><div class="ks muted">'+ldpDwn.toLocaleString()+' downgrades</div></div>'+
+    // ── LDP Outcomes row: 5 KPIs + upgrade/downgrade chips ──
+    '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">'+
+      '<div class="kpi" style="border-top:3px solid #2563eb"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+ldpActive.toLocaleString()+'</div><div class="ks muted">'+(ldpValidUnits>0?(ldpActive/ldpValidUnits*100).toFixed(1):0)+'% of LDP</div></div>'+
+      '<div class="kpi" style="border-top:3px solid #94a3b8"><div class="kl">Inactive</div><div class="kv" style="color:#64748b">'+ldpInactive.toLocaleString()+'</div><div class="ks muted">'+(ldpValidUnits>0?(ldpInactive/ldpValidUnits*100).toFixed(1):0)+'% of LDP</div></div>'+
+      '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+ldpCncl.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpCncl/ldpValidUnits*100).toFixed(1):0)+'%</div></div>'+
+      '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div class="ks muted">cancellations ÷ LDP</div></div>'+
+      '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:19px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks muted">on LDP cancels</div></div>'+
+      '<div style="display:flex;flex-direction:column;gap:5px">'+
+        '<div style="flex:1;display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:6px 10px">'+
+          '<div style="font-size:18px;font-weight:700;color:#16a34a;letter-spacing:-0.5px">'+ldpUpg.toLocaleString()+'</div>'+
+          '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#166534">↑ Upgrades</div>'+
+          '<div style="font-size:10px;color:#16a34a">'+ldpUpgPct.toFixed(1)+'% of LDP</div></div>'+
+        '</div>'+
+        '<div style="flex:1;display:flex;align-items:center;gap:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:7px;padding:6px 10px">'+
+          '<div style="font-size:18px;font-weight:700;color:#7c3aed;letter-spacing:-0.5px">'+ldpDwn.toLocaleString()+'</div>'+
+          '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b21a8">↓ Downgrades</div>'+
+          '<div style="font-size:10px;color:#7c3aed">'+ldpDwnPct.toFixed(1)+'% of LDP</div></div>'+
+        '</div>'+
+      '</div>'+
     '</div>'+
     '</div>';
 
@@ -341,6 +351,9 @@ function ldpRender(){
 
   // Records table (paginated)
   ldpRenderRecords(rows);
+
+  // Payment tracker
+  ldpRenderTracker(rows);
 }
 
 function ldpRenderRecords(rows){
@@ -398,6 +411,184 @@ function ldpDownloadCsv(){
   a.href=URL.createObjectURL(blob);
   a.download="ldp_records_"+range.df+"_"+range.dt+".csv";
   a.click();
+}
+
+// ── LDP Payment Tracker ───────────────────────────────────────────────────────
+function ldpRenderTracker(rows) {
+  var el = document.getElementById("ldp-tracker-section");
+  if (!el) return;
+
+  // Check if new fields exist (requires data refresh after code update)
+  var hasTracking = rows.length > 0 && rows[0].length > 17;
+  if (!hasTracking) {
+    el.innerHTML = '<div style="padding:20px;color:#94a3b8;font-size:13px;text-align:center">⚠ Payment tracking data not yet available. Please run the data refresh (Run.bat) to populate tracking fields.</div>';
+    return;
+  }
+
+  // Risk level colors and order
+  var RISK_ORDER = ["No Payment","Overdue +30","Overdue +15","On Track","Paid in Full","Cancelled","Downgrade","Upgrade","Entry Error","Pend","Switch","Inactive"];
+  var RISK_COLOR = {
+    "Paid in Full": {bg:"#dcfce7",txt:"#15803d",border:"#86efac"},
+    "On Track":     {bg:"#f0fdf4",txt:"#16a34a",border:"#bbf7d0"},
+    "Overdue +15":  {bg:"#fffbeb",txt:"#b45309",border:"#fde68a"},
+    "Overdue +30":  {bg:"#fff1f2",txt:"#b91c1c",border:"#fecaca"},
+    "No Payment":   {bg:"#3b0764",txt:"#ffffff",border:"#6d28d9"},
+    "Cancelled":    {bg:"#f1f5f9",txt:"#475569",border:"#cbd5e1"},
+    "Downgrade":    {bg:"#f5f3ff",txt:"#6d28d9",border:"#ddd6fe"},
+    "Upgrade":      {bg:"#ecfdf5",txt:"#059669",border:"#6ee7b7"},
+  };
+
+  // Count by risk
+  var riskCounts = {};
+  var riskInv = {};
+  var riskBal = {};
+  rows.forEach(function(r) {
+    var risk = r[21] || "Unknown";
+    riskCounts[risk] = (riskCounts[risk] || 0) + 1;
+    riskInv[risk]    = (riskInv[risk]    || 0) + (r[7] || 0);
+    riskBal[risk]    = (riskBal[risk]    || 0) + (r[22] || 0);
+  });
+
+  // KPI summary chips
+  var kpiDefs = [
+    {key:"No Payment",  label:"No Payment",   icon:"⛔"},
+    {key:"Overdue +30", label:"Overdue +30d",  icon:"🔴"},
+    {key:"Overdue +15", label:"Overdue +15d",  icon:"🟡"},
+    {key:"On Track",    label:"On Track",      icon:"🟢"},
+    {key:"Paid in Full",label:"Paid in Full",  icon:"✅"},
+    {key:"Cancelled",   label:"Cancelled",     icon:"⚫"},
+    {key:"Downgrade",   label:"Downgrade",     icon:"🔽"},
+  ];
+
+  var kpiHtml = kpiDefs.map(function(k) {
+    var cnt  = riskCounts[k.key] || 0;
+    var col  = RISK_COLOR[k.key] || {bg:"#f8fafc",txt:"#475569",border:"#e2e8f0"};
+    var bal  = riskBal[k.key] || 0;
+    var balStr = bal > 0 ? '<div style="font-size:10px;margin-top:2px;opacity:.75">$'+Math.round(bal).toLocaleString()+' outstanding</div>' : '';
+    return '<div style="background:'+col.bg+';border:1px solid '+col.border+';border-radius:8px;padding:10px 14px;min-width:110px;text-align:center">'
+      +'<div style="font-size:20px;font-weight:700;color:'+col.txt+'">'+cnt.toLocaleString()+'</div>'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col.txt+';margin-top:2px">'+k.icon+' '+k.label+'</div>'
+      +balStr
+      +'</div>';
+  }).join("");
+
+  // Sort / filter state for table
+  var trackerSort  = el._sort  || {col:20, asc:false};  // default: sort by days_since desc
+  var trackerRisk  = el._riskF || "";
+  var trackerSearch= el._srch  || "";
+
+  // Filter rows for table
+  var tRows = rows.filter(function(r) {
+    if (trackerRisk && r[21] !== trackerRisk) return false;
+    if (trackerSearch) {
+      var q = trackerSearch.toLowerCase();
+      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  tRows.sort(function(a, b) {
+    var av = a[trackerSort.col], bv = b[trackerSort.col];
+    if (av === null || av === undefined) av = trackerSort.asc ? Infinity : -Infinity;
+    if (bv === null || bv === undefined) bv = trackerSort.asc ? Infinity : -Infinity;
+    if (av < bv) return trackerSort.asc ? -1 :  1;
+    if (av > bv) return trackerSort.asc ?  1 : -1;
+    return 0;
+  });
+
+  function thSort(col, label) {
+    var arrow = trackerSort.col === col ? (trackerSort.asc ? " ▲" : " ▼") : "";
+    return '<th onclick="ldpTrackerSort('+col+')" style="cursor:pointer;white-space:nowrap;user-select:none">'+label+arrow+'</th>';
+  }
+
+  var SHOW = Math.min(300, tRows.length);
+  var tbodyHtml = tRows.slice(0, SHOW).map(function(r) {
+    var risk = r[21] || "";
+    var col  = RISK_COLOR[risk] || {bg:"",txt:"#475569",border:""};
+    var riskBadge = '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+col.bg+';color:'+col.txt+';border:1px solid '+col.border+'">'+risk+'</span>';
+    var dayCell = (r[20]!==null && r[20]!==undefined) ? r[20]+'d' : '—';
+    var dayColor = r[20]>=30?"#b91c1c":r[20]>=15?"#b45309":"#374151";
+    var balFmt = r[22]>0 ? '$'+Math.round(r[22]).toLocaleString() : '—';
+    var paidFmt = r[17]>0 ? '$'+Math.round(r[17]).toLocaleString() : '—';
+    var rowBg = risk==="No Payment"?"#fdf4ff":risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":"";
+    return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
+      '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
+      '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
+      '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
+      '<td style="font-size:11px">'+r[6]+'</td>'+
+      '<td style="font-size:11px;color:#6d28d9">$'+r[8].toLocaleString()+'</td>'+
+      '<td style="font-size:11px;color:#64748b">'+r[9].toFixed(1)+'%</td>'+
+      '<td style="font-size:11px">'+paidFmt+'</td>'+
+      '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
+      '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
+      '<td style="font-size:11px;color:#64748b">'+(r[19]||'—')+'</td>'+
+      '<td>'+riskBadge+'</td>'+
+      '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
+      '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
+      '</tr>';
+  }).join("");
+
+  // Risk filter buttons
+  var riskFilterHtml = ['', 'No Payment','Overdue +30','Overdue +15','On Track','Paid in Full','Cancelled','Downgrade'].map(function(rk) {
+    var label = rk === '' ? 'All' : rk;
+    var active = trackerRisk === rk;
+    var col = rk ? (RISK_COLOR[rk] || {bg:"#f1f5f9",txt:"#475569"}) : {bg:"#1d4ed8",txt:"#fff"};
+    var style = active
+      ? 'background:'+col.bg+';color:'+col.txt+';border:2px solid '+col.txt+';font-weight:700'
+      : 'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
+    return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:rows.length)+')</button>';
+  }).join("");
+
+  el.innerHTML =
+    '<div style="padding:14px 18px 10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0">'
+    +'<span style="font-size:12px;font-weight:700;color:#0d1b3e;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">RISK SUMMARY</span>'
+    +kpiHtml+'</div>'
+    +'<div style="padding:10px 18px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #e2e8f0">'
+    +'<span style="font-size:11px;color:#64748b;margin-right:4px">Filter:</span>'+riskFilterHtml
+    +'<input id="ldp-tracker-search" placeholder="Search order, contact, EM…" oninput="ldpTrackerSearch(this.value)" value="'+trackerSearch.replace(/"/g,'&quot;')+'" style="margin-left:auto;padding:5px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:5px;width:220px">'
+    +'</div>'
+    +'<div style="overflow-x:auto">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<thead style="background:#1a3566;color:#fff"><tr>'
+    +thSort(1,'Invoice ID')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
+    +thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')
+    +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')+'<th>Risk</th>'
+    +'<th>EM</th><th>Partner</th>'
+    +'</tr></thead>'
+    +'<tbody>'+tbodyHtml+'</tbody>'
+    +'</table>'
+    +(tRows.length>SHOW?'<div style="padding:8px 18px;font-size:11px;color:#94a3b8">Showing '+SHOW+' of '+tRows.length+' records — use filters to narrow down</div>':'')
+    +'</div>';
+
+  // Store state on element for re-renders
+  el._sort  = trackerSort;
+  el._riskF = trackerRisk;
+  el._srch  = trackerSearch;
+}
+
+function ldpTrackerSort(col) {
+  var el = document.getElementById("ldp-tracker-section");
+  if (!el) return;
+  var cur = el._sort || {col:20, asc:false};
+  el._sort = {col:col, asc: cur.col===col ? !cur.asc : false};
+  // Re-render tracker only (avoid full re-render)
+  ldpRenderTracker(ldpGetRows());
+}
+
+function ldpTrackerRiskFilter(rk) {
+  var el = document.getElementById("ldp-tracker-section");
+  if (!el) return;
+  el._riskF = rk;
+  ldpRenderTracker(ldpGetRows());
+}
+
+function ldpTrackerSearch(q) {
+  var el = document.getElementById("ldp-tracker-section");
+  if (!el) return;
+  el._srch = q;
+  ldpRenderTracker(ldpGetRows());
 }
 
 // Load data and init
