@@ -804,7 +804,7 @@ def fetch_asana_tasks():
     while url:
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
         with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read())
+            data = json.load(resp)
         all_tasks.extend(data["data"])
         nxt = data.get("next_page")
         url = (base_url + "&offset=" + nxt["offset"]) if nxt else None
