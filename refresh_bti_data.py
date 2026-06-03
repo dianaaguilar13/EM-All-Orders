@@ -132,7 +132,7 @@ def fetch_orders(conn):
             ENROLLMENT_MENTOR, SKU_CATEGORY, DIVISION,
             LOST_REVENUE, REFUNDS, CREDITS,
             PRODUCTS, NORMALIZED_PRODUCT,
-            HEAVEN_DATE, INVOICE_ACTUAL
+            HEAVEN_DATE
         FROM ANALYTICS.MART.DIM_ALL_ORDERS
         WHERE DATE >= '{CONFIG["start_date"]}'
           AND PAYMENTS_TOTAL > 0
@@ -364,7 +364,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
         inv_total_val  = float(r.get("INV_TOTAL",0) or 0)
         payments_val   = float(r.get("PAYMENTS_TOTAL",0) or 0)
         refunds_val    = float(r.get("REFUNDS",0) or 0)
-        inv_actual_val = float(r.get("INVOICE_ACTUAL",0) or 0)
+        inv_actual_val = float(r.get("ACTUAL_INV_SALE_TOTAL",0) or 0)
         lr = max(0.0, inv_total_val - payments_val + refunds_val) if cncl == "Cancelled" else 0.0
         rdate  = r.get("REFUND_CREDIT_DATE","")
         date   = r.get("DATE","")
@@ -419,7 +419,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             ldp_deposit,                   # index 14: first payment amount (LDP orders only, else 0)
             get_div_label(r.get("UNIQUE_ORDER_ID","")),  # index 15: division label
             eff_date,                      # index 16: HEAVEN_DATE (fallback DATE) — used by JS date filter
-            round(inv_actual_val, 2),      # index 17: INVOICE_ACTUAL (Net Invoice)
+            round(inv_actual_val, 2),      # index 17: ACTUAL_INV_SALE_TOTAL (Net Invoice)
         ])
 
         # Cancel reasons
@@ -761,7 +761,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         pcat     = r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
         part     = r.get("REFERRAL_PARTNER","") or "Unknown"
         em       = r.get("ENROLLMENT_MENTOR","") or ""
-        inv_actual = round(float(r.get("INVOICE_ACTUAL",0) or 0), 2)
+        inv_actual = round(float(r.get("ACTUAL_INV_SALE_TOTAL",0) or 0), 2)
         # Use HEAVEN_DATE for month grouping; keep original DATE for export
         orig_date  = str(r.get("DATE",""))[:10]
         heaven_str = (r.get("HEAVEN_DATE","") or "")[:10]
@@ -827,7 +827,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _risk,         # [21] risk level string
             _balance,      # [22] outstanding balance
             orig_date,     # [23] original purchase date (DATE) — for export
-            inv_actual,    # [24] INVOICE_ACTUAL (Net Invoice)
+            inv_actual,    # [24] ACTUAL_INV_SALE_TOTAL (Net Invoice)
         ])
 
     total   = sum(v[0] for v in by_month.values())
