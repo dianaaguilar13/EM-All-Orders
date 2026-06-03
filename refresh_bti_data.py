@@ -160,35 +160,51 @@ def fetch_payments(conn):
     Joining through DIM_ALL_ORDERS:
       1. Resolves cross-account INVOICEID collisions (different Infusionsoft accounts
          can share the same short INVOICEID; the DATE range guard filters stale matches).
-      2. Allows computing the LDP deposit as SUM of payments UP TO HEAVEN_DATE
-         (not just the first-day payment).
+      2. LDP deposit = sum of payments within first 4 days (MIN(PAYDATE) + 3 days).
+         Multiple card payments on day 0 all count; anything after day 3 is excluded.
     Columns returned:
       "UID"           = UNIQUE_ORDER_ID (globally unique — primary lookup key)
       "Id"            = raw INVOICEID   (kept for AR backward-compatibility)
-      "Deposit"       = sum of payments where PAYDATE <= HEAVEN_DATE (or DATE if null)
+      "Deposit"       = sum of payments from MIN(PAYDATE) through MIN(PAYDATE)+3 days
       "First_Date"    = first payment date
       "LAST_PAY_DATE" = most recent payment date (for AR aging / tracker)
       "PMT_COUNT"     = total number of payment records
     """
     print("⏳ Fetching payments from Snowflake...")
     sql = f"""
+        WITH order_payments AS (
+            SELECT
+                o.UNIQUE_ORDER_ID,
+                o.ID            AS order_id,
+                p.PAYDATE,
+                p.PAYAMT
+            FROM ANALYTICS.MART.stg_inf_payments_combined p
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
+              ON p.INVOICEID = o.ID
+             AND p.PAYDATE  >= DATEADD(day, -30, o.DATE)
+            WHERE p.PAYAMT > 0
+              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+              AND o.DATE >= '{CONFIG["start_date"]}'
+              AND o.SKU IS NOT NULL AND o.SKU != ''
+        ),
+        order_first_pmt AS (
+            SELECT UNIQUE_ORDER_ID, order_id, MIN(PAYDATE) AS first_date
+            FROM order_payments
+            GROUP BY UNIQUE_ORDER_ID, order_id
+        )
         SELECT
-            o.UNIQUE_ORDER_ID                                                  AS "UID",
-            o.ID                                                               AS "Id",
-            SUM(CASE WHEN p.PAYDATE = COALESCE(NULLIF(TRIM(CAST(o.HEAVEN_DATE AS VARCHAR)),''), o.DATE)
-                     THEN p.PAYAMT ELSE 0 END)                                AS "Deposit",
-            MIN(p.PAYDATE)                                                     AS "First_Date",
-            MAX(p.PAYDATE)                                                     AS LAST_PAY_DATE,
+            op.UNIQUE_ORDER_ID                                                 AS "UID",
+            op.order_id                                                        AS "Id",
+            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 3, fp.first_date)
+                     THEN op.PAYAMT ELSE 0 END)                               AS "Deposit",
+            fp.first_date                                                      AS "First_Date",
+            MAX(op.PAYDATE)                                                    AS LAST_PAY_DATE,
             COUNT(*)                                                           AS PMT_COUNT
-        FROM ANALYTICS.MART.stg_inf_payments_combined p
-        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
-          ON p.INVOICEID = o.ID
-         AND p.PAYDATE  >= DATEADD(day, -30, o.DATE)
-        WHERE p.PAYAMT > 0
-          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-          AND o.DATE >= '{CONFIG["start_date"]}'
-          AND o.SKU IS NOT NULL AND o.SKU != ''
-        GROUP BY o.UNIQUE_ORDER_ID, o.ID
+        FROM order_payments op
+        JOIN order_first_pmt fp
+          ON op.UNIQUE_ORDER_ID = fp.UNIQUE_ORDER_ID
+         AND op.order_id        = fp.order_id
+        GROUP BY op.UNIQUE_ORDER_ID, op.order_id, fp.first_date
     """
     cur = conn.cursor()
     cur.execute(sql)
