@@ -175,7 +175,7 @@ def fetch_payments(conn):
         SELECT
             o.UNIQUE_ORDER_ID                                                  AS "UID",
             o.ID                                                               AS "Id",
-            SUM(CASE WHEN p.PAYDATE <= COALESCE(NULLIF(TRIM(CAST(o.HEAVEN_DATE AS VARCHAR)),''), o.DATE)
+            SUM(CASE WHEN p.PAYDATE = COALESCE(NULLIF(TRIM(CAST(o.HEAVEN_DATE AS VARCHAR)),''), o.DATE)
                      THEN p.PAYAMT ELSE 0 END)                                AS "Deposit",
             MIN(p.PAYDATE)                                                     AS "First_Date",
             MAX(p.PAYDATE)                                                     AS LAST_PAY_DATE,
