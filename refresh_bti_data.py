@@ -887,8 +887,21 @@ def fetch_asana_tasks():
     url = base_url
     while url:
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(req) as resp:
-            data = json.load(resp)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                raw = b""
+                while True:
+                    chunk = resp.read(1 << 20)  # 1 MB chunks
+                    if not chunk:
+                        break
+                    raw += chunk
+            data = json.loads(raw)
+        except MemoryError:
+            print("   ⚠️  MemoryError reading Asana response — skipping remaining CRS pages")
+            break
+        except Exception as e:
+            print(f"   ⚠️  Error reading Asana response: {e} — skipping remaining CRS pages")
+            break
         all_tasks.extend(data["data"])
         nxt = data.get("next_page")
         url = (base_url + "&offset=" + nxt["offset"]) if nxt else None
@@ -1794,11 +1807,16 @@ def main():
 
     # Asana / CRS last — most memory freed by now, only orders remains
     print()
-    asana_rows = fetch_asana_tasks()
-    cr_data = build_cr_data(orders, asana_rows)
-    if cr_data:
-        save_json(cr_data, "cr_data.json")
-    cr_data = None; asana_rows = None; gc.collect()
+    try:
+        asana_rows = fetch_asana_tasks()
+        cr_data = build_cr_data(orders, asana_rows)
+        if cr_data:
+            save_json(cr_data, "cr_data.json")
+        cr_data = None; asana_rows = None; gc.collect()
+    except MemoryError:
+        print("   ⚠️  MemoryError in Asana/CRS step — skipping CRS, all other data saved")
+    except Exception as e:
+        print(f"   ⚠️  Error in Asana/CRS step: {e} — skipping CRS, all other data saved")
 
     print()
     print("=" * 55)
