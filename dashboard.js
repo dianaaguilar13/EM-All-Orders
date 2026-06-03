@@ -1,5 +1,7 @@
 var D=null,Ti=0,Ci=1,Ei=2,Ui=3,Di=4,Ai=5,Ii=6,CRi=7,Si=8,Pi=9,NPi=10,LDPCi=11;
 var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
+var fDiv="";        // active division filter string ("" = all)
+var DIV_SKUS={};    // division → Set of SKUs (built from D.sku_div on load)
 var cohortWindow=-1;
 var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
@@ -29,6 +31,13 @@ function buildExcludedAndMappings(){
     var s=new Set();
     Object.keys(D.PMSKU[p]).forEach(function(m){Object.keys(D.PMSKU[p][m]||{}).forEach(function(sk){s.add(sk);});});
     PARTNER_SKUS[p]=s;
+  });
+  // Build division → skus mapping from D.sku_div
+  DIV_SKUS={};
+  Object.keys(D.sku_div||{}).forEach(function(sku){
+    var d=D.sku_div[sku];
+    if(!DIV_SKUS[d])DIV_SKUS[d]=new Set();
+    DIV_SKUS[d].add(sku);
   });
 }
 
@@ -313,10 +322,21 @@ function renderDecompBC(){
 }
 
 
+function getEffectiveSkus(){
+  // Compute effective SKU set combining division filter + manual SKU filter
+  var divSet=fDiv?(DIV_SKUS[fDiv]||new Set()):null;
+  if(divSet&&selSku.size>0){
+    var inter=new Set();selSku.forEach(function(s){if(divSet.has(s))inter.add(s);});return inter.size>0?inter:divSet;
+  }
+  if(divSet)return divSet;
+  if(selSku.size>0)return selSku;
+  return null;
+}
 function getTimeSeries(){
   var r=getRange(),byM={};
   var e12=function(){return[0,0,0,0,0,0,0,0,0,0,0,0];};
-  var skus=selSku.size>0?Array.from(selSku):null;
+  var effSkus=getEffectiveSkus();
+  var skus=effSkus?Array.from(effSkus):null;
   var pcats=selPcat.size>0?Array.from(selPcat):null;
 
   function addToByM(src,skuKey){
@@ -363,7 +383,8 @@ function getTimeSeries(){
 }
 function getSkuBuckets(){
   var r=getRange(),src={};
-  var skus=selSku.size>0?Array.from(selSku):null;
+  var effSkus=getEffectiveSkus();
+  var skus=effSkus?Array.from(effSkus):null;
   var pcats=selPcat.size>0?Array.from(selPcat):null;
 
   function addSrc(monthSkuMap){
@@ -411,8 +432,19 @@ function getRdCounts(){
   return m;
 }
 function destroyCharts(){Object.values(charts).forEach(function(c){try{c.destroy();}catch(e){}});charts={};}
-function applyFilters(){["msDrop","msSkuDrop","msPcatDrop"].forEach(function(id){document.getElementById(id).classList.remove("open");});render();}
-function resetFilters(){document.getElementById("df").value="2022-01-01";document.getElementById("dt").value="2026-04-20";["fAct","fCncl"].forEach(function(id){document.getElementById(id).value="";});selP.clear();updateMsBtn();selSku.clear();updateMsSkuBtn();selPcat.clear();updateMsPcatBtn();render();}
+function applyFilters(){
+  ["msDrop","msSkuDrop","msPcatDrop"].forEach(function(id){document.getElementById(id).classList.remove("open");});
+  fDiv=document.getElementById("fDiv")?document.getElementById("fDiv").value:"";
+  render();
+}
+function resetFilters(){
+  document.getElementById("df").value="2022-01-01";
+  document.getElementById("dt").value="2026-04-20";
+  ["fAct","fCncl"].forEach(function(id){document.getElementById(id).value="";});
+  var fd=document.getElementById("fDiv");if(fd)fd.value="";
+  fDiv="";
+  selP.clear();updateMsBtn();selSku.clear();updateMsSkuBtn();selPcat.clear();updateMsPcatBtn();render();
+}
 
 
 function toggleSkuReasons(id){
@@ -441,6 +473,7 @@ function getSkuDetailRows(sku){
     if(fCncl&&row[4]!==fCncl)return false;
     if(selPcat.size>0&&!selPcat.has(row[7]))return false;
     if(selP.size>0&&!selP.has(row[8]))return false;
+    if(fDiv&&row[15]!==fDiv)return false;
     return true;
   });
 }
@@ -763,6 +796,7 @@ function getCohortRows(){
       if(fCncl&&row[4]!==fCncl)return;
       if(selPcat.size>0&&!selPcat.has(row[7]))return;
       if(selP.size>0&&!selP.has(row[8]))return;
+      if(fDiv&&row[15]!==fDiv)return;
       result.push({sku:sku,row:row});
     });
   });

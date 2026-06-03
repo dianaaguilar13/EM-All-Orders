@@ -248,6 +248,15 @@ def get_division(uid):
     if "zu201" in uid: return "HWB"
     return "Other"
 
+def get_div_label(uid):
+    """User-facing division names for the dashboard Division filter."""
+    uid = (uid or "").lower()
+    if "jj969" in uid: return "LT/LCC"
+    if "ho175" in uid: return "B&L"
+    if "zu201" in uid: return "HWB"
+    if "it175" in uid: return "MYM"
+    return "Other"
+
 def get_rd(refund_date, date):
     if not refund_date or not date: return "N/A"
     try:
@@ -342,6 +351,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
     SKURD    = defaultdict(lambda: defaultdict(int))       # sku x rd_bucket
 
     skus=set(); parts=set(); pcats=set()
+    sku_div = {}  # SKU → division label (for JS Division filter)
 
     for r in orders:
         cncl   = get_cncl(r.get("CREDIT_STATUS",""))
@@ -350,6 +360,8 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
         sku    = r.get("SKU","") or "Unknown"
         pcat   = r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
         part   = r.get("REFERRAL_PARTNER","") or "Unknown"
+        if sku not in sku_div:
+            sku_div[sku] = get_div_label(r.get("UNIQUE_ORDER_ID",""))
         inv_total_val  = float(r.get("INV_TOTAL",0) or 0)
         payments_val   = float(r.get("PAYMENTS_TOTAL",0) or 0)
         refunds_val    = float(r.get("REFUNDS",0) or 0)
@@ -405,6 +417,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             rd_days,             # index 12: integer days to cancel, -1 if N/A
             1 if is_ldp else 0,  # index 13: LDP flag
             ldp_deposit,         # index 14: first payment amount (LDP orders only, else 0)
+            get_div_label(r.get("UNIQUE_ORDER_ID","")),  # index 15: division label
         ])
 
         # Cancel reasons
@@ -434,6 +447,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             "partners": sorted(p for p in parts if p and p != "Unknown"),
             "pcats":    sorted(p for p in pcats if p and p != "Unknown"),
         },
+        "sku_div": sku_div,  # SKU → division label for JS Division filter
         # Keep RM, RD, CR, PT, PCT, GT stubs (rebuilt by pif/ldp builders)
         "RD": {}, "RM": {}, "CR": {}, "PT": {}, "PCT": {}, "GT": {},
         # Order-level rows grouped by SKU for drill-down table

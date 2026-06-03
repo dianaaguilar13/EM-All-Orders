@@ -206,11 +206,12 @@ function pwCheck(){
       </div>
     </div>
   </div>
+  <div class="fg"><span class="fl">Division</span><select id="fDiv"><option value="">All Divisions</option><option>LT/LCC</option><option>HWB</option><option>B&amp;L</option><option>MYM</option><option>Other</option></select></div>
   <div class="fg"><span class="fl">Active Status</span><select id="fAct"><option value="">All</option><option>Active</option><option>Inactive</option></select></div>
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option><option>Pend</option><option>No Pmt</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
-<script src="dashboard.js?v=1780000017"></script>
+<script src="dashboard.js?v=1780000030"></script>
 
 <!-- LDP Tab Content -->
 <div id="ldp-panel" style="display:none">
@@ -236,6 +237,10 @@ function pwCheck(){
           <div id="ldp-skuItems"></div>
         </div>
       </div>
+    </div>
+    <div class="fg">
+      <span class="fl">Division</span>
+      <select id="ldp-div"><option value="">All Divisions</option><option>LT/LCC</option><option>HWB</option><option>B&amp;L</option><option>MYM</option><option>Other</option></select>
     </div>
     <div class="fg">
       <span class="fl">Partner Category</span>
@@ -446,7 +451,7 @@ function pwCheck(){
   </div>
 </div>
 
-<script src="ldp.js?v=1780000020"></script>
+<script src="ldp.js?v=1780000030"></script>
 <script>
 function showLdpTab(){
   hideAllPanels();

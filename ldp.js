@@ -4,6 +4,15 @@ var LDP = null;
 var ldpCharts = {};
 var ldpSelP = new Set();
 var ldpSelSku = new Set();
+var ldpSelDiv = "";  // division filter ("" = all)
+function ldpGetDiv(uid){
+  uid=(uid||"").toLowerCase();
+  if(uid.indexOf("jj969")>=0)return"LT/LCC";
+  if(uid.indexOf("ho175")>=0)return"B&L";
+  if(uid.indexOf("zu201")>=0)return"HWB";
+  if(uid.indexOf("it175")>=0)return"MYM";
+  return"Other";
+}
 // LDP bucket indices (11-element): total,cncl,entry_err,upgrade,downgrade,active,inactive,lost_rev,switch,pend,no_pmt
 var LTi=0,LCi=1,LEi=2,LUi=3,LDi=4,LAi=5,LIi=6,LLRi=7,LSi=8,LPi=9,LNPi=10;
 
@@ -136,17 +145,23 @@ function ldpGetRows(){
     if(ldpSelSku.size>0&&!ldpSelSku.has(row[3]))return false; // sku
     if(pcat&&row[13]!==pcat)return false; // pcat
     if(ldpSelP.size>0&&!ldpSelP.has(row[14]))return false; // partner
+    if(ldpSelDiv&&ldpGetDiv(row[0])!==ldpSelDiv)return false; // division
     return true;
   });
 }
 
 function ldpDestroyCharts(){Object.values(ldpCharts).forEach(function(c){try{c.destroy();}catch(e){}});ldpCharts={};}
 
-function ldpApply(){document.getElementById("ldp-msDrop").classList.remove("open");ldpRender();}
+function ldpApply(){
+  document.getElementById("ldp-msDrop").classList.remove("open");
+  var dd=document.getElementById("ldp-div");if(dd)ldpSelDiv=dd.value;
+  ldpRender();
+}
 function ldpReset(){
   document.getElementById("ldp-df").value="2022-01-01";
   document.getElementById("ldp-dt").value="2026-04-26";
-  ["ldp-pcat"].forEach(function(id){document.getElementById(id).value="";});
+  ["ldp-pcat","ldp-div"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
+  ldpSelDiv="";
   ldpSelP.clear();ldpUpdateMsBtn();
   ldpSelSku.clear();ldpUpdateSkuBtn();
   ldpRender();
