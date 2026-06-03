@@ -211,7 +211,7 @@ function pwCheck(){
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option><option>Pend</option><option>No Pmt</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
-<script src="dashboard.js?v=1780000030"></script>
+<script src="dashboard.js?v=1790000010"></script>
 
 <!-- LDP Tab Content -->
 <div id="ldp-panel" style="display:none">
@@ -311,7 +311,7 @@ function pwCheck(){
           <thead><tr>
             <th>SKU</th><th>Total LDP</th><th>Active</th><th>Inactive</th>
             <th>Cancelled</th><th>Entry Error</th><th>Upgrade</th>
-            <th>Cancel %</th><th>Avg Down Pmt %</th><th>Total Inv Value</th>
+            <th>Cancel %</th><th>Avg Down Pmt %</th><th>Total Inv Value</th><th style="color:#7c3aed">Net Invoice</th>
           </tr></thead>
           <tbody id="ldp-skuTbody"></tbody>
         </table>
@@ -325,7 +325,8 @@ function pwCheck(){
         <table>
           <thead><tr>
             <th>Order ID</th><th>Contact ID</th><th>SKU</th><th>SKU Category</th>
-            <th>Purchase Date</th><th>Inv Total</th><th>Paid</th>
+            <th style="color:#0d9488">Heaven Date</th><th>Purchase Date</th>
+            <th>Inv Total</th><th style="color:#7c3aed">Net Invoice</th><th>Paid</th>
             <th>Pmt %</th><th>CNCL Status</th><th>Active Status</th>
             <th>Refund Days</th><th>Partner Cat</th><th>Partner</th><th>EM</th><th>Lost Rev</th>
           </tr></thead>
@@ -451,7 +452,7 @@ function pwCheck(){
   </div>
 </div>
 
-<script src="ldp.js?v=1780000030"></script>
+<script src="ldp.js?v=1790000010"></script>
 <script>
 function showLdpTab(){
   hideAllPanels();

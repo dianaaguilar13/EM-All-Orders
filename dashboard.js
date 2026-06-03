@@ -460,14 +460,15 @@ function toggleSkuReasons(id){
   }
 }
 
-// row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner]
+// row: [id,contactid,date(2),active,cncl,inv_total,refunds,pcat,partner,...,division(15),heaven_date(16),invoice_actual(17)]
 function getSkuDetailRows(sku){
   var r=getRange();
   var fAct=document.getElementById("fAct").value;
   var fCncl=document.getElementById("fCncl").value;
   var allRows=(D.order_rows&&D.order_rows[sku])||[];
   return allRows.filter(function(row){
-    var dateM=row[2].slice(0,7);
+    // row[16]=HEAVEN_DATE (effective date for filter); row[2]=original DATE (fallback)
+    var dateM=(row[16]||row[2]).slice(0,7);
     if(dateM<r.df||dateM>r.dt)return false;
     if(fAct&&row[3]!==fAct)return false;
     if(fCncl&&row[4]!==fCncl)return false;
@@ -480,10 +481,10 @@ function getSkuDetailRows(sku){
 
 function downloadSkuDetailCsv(){
   var skuBkts=getSkuBuckets();
-  var csvRows=[["SKU","Order ID","Contact ID","Date","Product Name","Status","Cancel Status","Refund Days","Invoice Total","Lost Revenue","Partner Category","Referral Partner"]];
+  var csvRows=[["SKU","Order ID","Contact ID","Heaven Date","Purchase Date","Product Name","Status","Cancel Status","Refund Days","Invoice Total","Net Invoice","Lost Revenue","Partner Category","Referral Partner"]];
   Object.keys(skuBkts).sort().forEach(function(sku){
     getSkuDetailRows(sku).forEach(function(row){
-      csvRows.push([sku,row[0],row[1],row[2],row[9]||"",row[3],row[4],row[11]||"",row[5],row[10]||0,row[7],row[8]]);
+      csvRows.push([sku,row[0],row[1],row[16]||"",row[2],row[9]||"",row[3],row[4],row[11]||"",row[5],row[17]||0,row[10]||0,row[7],row[8]]);
     });
   });
   var csv=csvRows.map(function(r){return r.map(function(v){
@@ -788,7 +789,8 @@ function getCohortRows(){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
-      var dateM=row[2].slice(0,7);
+      // row[16] = HEAVEN_DATE (effective date); row[2] = original DATE (fallback)
+      var dateM=(row[16]||row[2]).slice(0,7);
       if(dateM<r.df||dateM>r.dt)return;
       // Exclude same statuses as top KPI "Net Units" (Entry Error, Pend, No Pmt)
       if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
@@ -911,9 +913,10 @@ function renderCohort(){
 
   // SKU breakdown
   var skuMap={};
+  var totalNetInv=0;
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
-    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0};
+    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0};
     skuMap[sku].total++;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)skuMap[sku].cancelled++;
@@ -923,6 +926,8 @@ function renderCohort(){
     }
     var rdD=(row[12]!==undefined)?row[12]:-1;
     if(row[4]==="Cancelled"&&rdD>=0){skuMap[sku].sumDays+=rdD;skuMap[sku].countDays++;}
+    var ni=(row[17]!==undefined&&row[17]>0)?row[17]:0;
+    skuMap[sku].netInv+=ni;totalNetInv+=ni;
   });
   var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
 
@@ -952,6 +957,7 @@ function renderCohort(){
     var barW=Math.min(100,Math.round(rate));
     var sEsc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     var safeId=s.replace(/[^a-zA-Z0-9]/g,"_");
+    var niDisp=d.netInv>0?'$'+Math.round(d.netInv).toLocaleString():'—';
     tRows+='<tr class="cohort-sku-row" style="cursor:pointer" onclick="toggleCohortSkuDetail(event,\''+s.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
       +'<td style="text-align:left"><span class="cohort-arrow-'+safeId+'" style="font-size:11px;color:#94a3b8;margin-right:6px">▶</span>'+sEsc+'</td>'
       +'<td style="text-align:center">'+d.total.toLocaleString()+'</td>'
@@ -960,10 +966,12 @@ function renderCohort(){
       +'<td style="text-align:center">'+d.ldpCancelled.toLocaleString()+'</td>'
       +'<td style="text-align:center">'+rate.toFixed(1)+'%</td>'
       +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+barW+'%;height:100%;background:#f85149;border-radius:3px"></div></div><span style="font-size:10px;color:#64748b">'+rate.toFixed(1)+'%</span></div></td>'
+      +'<td style="text-align:center;color:#7c3aed;font-weight:600">'+niDisp+'</td>'
       +'</tr>'
-      +'<tr id="cohort-detail-'+safeId+'" style="display:none"><td colspan="7" style="padding:0"></td></tr>';
+      +'<tr id="cohort-detail-'+safeId+'" style="display:none"><td colspan="8" style="padding:0"></td></tr>';
   });
   var totBarW=Math.min(100,Math.round(cohortRate));
+  var totalNIDisp=totalNetInv>0?'$'+Math.round(totalNetInv).toLocaleString():'—';
   var tFoot='<tr class="tfoot">'
     +'<td style="text-align:left">TOTAL</td>'
     +'<td style="text-align:center">'+cohortPurchases.toLocaleString()+'</td>'
@@ -972,6 +980,7 @@ function renderCohort(){
     +'<td style="text-align:center">'+ldpCancelledInWindow.toLocaleString()+'</td>'
     +'<td style="text-align:center">'+cohortRate.toFixed(1)+'%</td>'
     +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+totBarW+'%;height:100%;background:#f85149;border-radius:3px"></div></div><span style="font-size:10px;color:#64748b">'+cohortRate.toFixed(1)+'%</span></div></td>'
+    +'<td style="text-align:center;color:#7c3aed;font-weight:600">'+totalNIDisp+'</td>'
     +'</tr>';
 
   sec.innerHTML=
@@ -997,10 +1006,11 @@ function renderCohort(){
     // Cancel metrics group
     +'<div style="border-radius:8px;padding:14px 16px;border:1px solid #ef444455;background:#fff8f8">'
     +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#991b1b;margin-bottom:12px">🚫 COHORT CANCEL METRICS</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Purchases</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cancelled in Window</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"on or before "+hardCutoffLabel)+'</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ purchases</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04);border-top:3px solid #7c3aed"><div class="kl">Net Invoice</div><div class="kv" style="font-size:20px;letter-spacing:-0.5px;color:#7c3aed">'+(totalNetInv>0?'$'+Math.round(totalNetInv).toLocaleString():'—')+'</div><div class="ks" style="color:#7c3aed">sum of INVOICE_ACTUAL</div></div>'
     +'</div></div>'
     // Upgrades & Downgrades group
     +'<div style="border-radius:8px;padding:14px 16px;border:1px solid #16a34a44;background:#f0fdf4">'
@@ -1087,6 +1097,7 @@ function renderCohort(){
     +'<th style="text-align:center">LDP Cancelled</th>'
     +'<th style="text-align:center">Cancel Rate %</th>'
     +'<th style="text-align:center">Cancel Rate</th>'
+    +'<th style="text-align:center;color:#7c3aed">Net Invoice</th>'
     +'</tr></thead><tbody>'+tRows+'</tbody>'
     +'<tfoot>'+tFoot+'</tfoot></table></div>'
     +'</div>';
@@ -1200,7 +1211,8 @@ function toggleCohortSkuDetail(e,sku){
   var fAct=document.getElementById("fAct").value;
   var fCncl=document.getElementById("fCncl").value;
   var rows=(D.order_rows[sku]||[]).filter(function(row){
-    var dateM=row[2].slice(0,7);
+    // Use HEAVEN_DATE (row[16]) for date filter; fall back to DATE (row[2])
+    var dateM=(row[16]||row[2]).slice(0,7);
     if(dateM<r2.df||dateM>r2.dt)return false;
     if(fAct&&row[3]!==fAct)return false;
     if(fCncl&&row[4]!==fCncl)return false;
@@ -1208,15 +1220,17 @@ function toggleCohortSkuDetail(e,sku){
     if(selP.size>0&&!selP.has(row[8]))return false;
     return true;
   });
-  var h='<td colspan="7" style="padding:0 0 6px 28px">'
+  var h='<td colspan="8" style="padding:0 0 6px 28px">'
     +'<table style="width:100%;font-size:11px;border-collapse:collapse">'
     +'<thead><tr style="background:#f8fafc">'
     +'<th style="padding:5px 8px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Order ID</th>'
     +'<th style="padding:5px 8px;text-align:left;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Contact ID</th>'
-    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Date</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#0d9488;font-weight:600;border-bottom:1px solid #e2e8f0">Heaven Date</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Purchase Date</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Active Status</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Cancel Status</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Invoice Total</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#7c3aed;font-weight:600;border-bottom:1px solid #e2e8f0">Net Invoice</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Refunds</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Days to Cancel</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">LDP</th>'
@@ -1230,13 +1244,18 @@ function toggleCohortSkuDetail(e,sku){
     var isLdp=(row[13]!==undefined?row[13]:0)===1;
     var ldpDep=(row[14]!==undefined&&row[14]>0)?row[14]:0;
     var ldpDepDisp=isLdp&&ldpDep>0?'$'+ldpDep.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
+    var heavenDate=row[16]||"";
+    var netInv=row[17]||0;
+    var netInvDisp=netInv>0?'$'+netInv.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
     h+='<tr style="border-top:1px solid #f1f5f9">'
       +'<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#0ea5e9">'+(row[0]||"")+'</td>'
       +'<td style="padding:4px 8px;font-family:monospace;font-size:10px;color:#64748b">'+(row[1]||"")+'</td>'
-      +'<td style="padding:4px 8px;text-align:center;color:#1e293b">'+(row[2]||"")+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#0d9488;font-weight:600">'+heavenDate+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#94a3b8">'+(row[2]||"")+'</td>'
       +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:'+(row[3]==="Active"?"#dcfce7":"#fee2e2")+';color:'+(row[3]==="Active"?"#166534":"#991b1b")+'">'+(row[3]||"")+'</span></td>'
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+(row[4]||"")+'</td>'
       +'<td style="padding:4px 8px;text-align:center;color:#1e293b">$'+((row[5]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#7c3aed;font-weight:600">'+netInvDisp+'</td>'
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">$'+((row[6]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+rdDisp+'</td>'
       +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;background:'+(isLdp?"#dbeafe":"#f1f5f9")+';color:'+(isLdp?"#1d4ed8":"#64748b")+'">'+(isLdp?"Yes":"No")+'</span></td>'
@@ -1265,7 +1284,7 @@ function toggleCohortNaOrders(){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
-      var dateM=row[2].slice(0,7);
+      var dateM=(row[16]||row[2]).slice(0,7);
       if(dateM<r2.df||dateM>r2.dt)return;
       if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
       if(fAct&&row[3]!==fAct)return;
@@ -1352,15 +1371,15 @@ function downloadCohortCsv(){
   var r2=getRange();
   var allRows=getCohortRows();
   var cutoffStr=cutoffMs?"by "+formatCutoffDate(cutoffMs):"All time";
-  var csvRows=[["SKU","Order ID","Contact ID","Date","Active Status","Cancel Status","Invoice Total","Refunds","Days to Cancel","LDP","Cancelled ("+cutoffStr+")","Partner Category","Partner","Product"]];
+  var csvRows=[["SKU","Order ID","Contact ID","Heaven Date","Purchase Date","Active Status","Cancel Status","Invoice Total","Net Invoice","Refunds","Days to Cancel","LDP","Cancelled ("+cutoffStr+")","Partner Category","Partner","Product"]];
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var isLdp=(row[13]!==undefined?row[13]:0)===1;
     csvRows.push([
-      sku,row[0]||"",row[1]||"",row[2]||"",row[3]||"",row[4]||"",
-      row[5]||0,row[6]||0,rdD>=0?rdD:"N/A",
+      sku,row[0]||"",row[1]||"",row[16]||"",row[2]||"",row[3]||"",row[4]||"",
+      row[5]||0,row[17]||0,row[6]||0,rdD>=0?rdD:"N/A",
       isLdp?"Yes":"No",inWin?"Yes":"No",
       row[7]||"",row[8]||"",row[9]||""
     ]);

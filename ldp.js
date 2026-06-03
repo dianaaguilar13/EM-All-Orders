@@ -329,7 +329,7 @@ function ldpRender(){
   var skuMap={};
   rows.forEach(function(r){
     var s=r[3];
-    if(!skuMap[s])skuMap[s]={total:0,active:0,inactive:0,cancelled:0,entry_error:0,upgrade:0,pend:0,no_pmt:0,inv:0,pay:0};
+    if(!skuMap[s])skuMap[s]={total:0,active:0,inactive:0,cancelled:0,entry_error:0,upgrade:0,pend:0,no_pmt:0,inv:0,pay:0,netInv:0};
     skuMap[s].total++;
     if(r[11]==="Active")skuMap[s].active++;else skuMap[s].inactive++;
     if(r[10]==="Cancelled")skuMap[s].cancelled++;
@@ -338,6 +338,7 @@ function ldpRender(){
     else if(r[10]==="Pend")skuMap[s].pend++;
     else if(r[10]==="No Pmt")skuMap[s].no_pmt++;
     skuMap[s].inv+=r[7];skuMap[s].pay+=r[8];
+    if(r[24]>0)skuMap[s].netInv+=r[24];
   });
   var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
   var mx=Math.max.apply(null,skuArr.map(function(e){var v=e[1];var valid=v.total-v.entry_error-v.pend-v.no_pmt;return valid>0?(v.cancelled/valid*100):0;}).concat([1]));
@@ -349,6 +350,7 @@ function ldpRender(){
     var avgPct=v.inv>0?(v.pay/v.inv*100).toFixed(1):0;
     var cl=rate>50?"#f85149":rate>30?"#e3b341":"#56d364";
     var bg=rate>50?"#f85149":rate>30?"#e3b341":"#388bfd";
+    var niDisp=v.netInv>0?"$"+Math.round(v.netInv).toLocaleString():"—";
     tRows+="<tr><td><span class='pill'>"+s+"</span></td>"+
       "<td class='num'>"+v.total+"</td>"+
       "<td class='num' style='color:#58a6ff'>"+v.active+"</td>"+
@@ -359,7 +361,8 @@ function ldpRender(){
       "<td><div class='bw'><div class='bb'><div class='bf' style='width:"+(rate/mx*100).toFixed(0)+"%;background:"+bg+"'></div></div>"+
       "<span class='num' style='min-width:38px;font-size:11px;color:"+cl+"'>"+rate.toFixed(1)+"%</span></div></td>"+
       "<td class='num' style='color:#8b949e'>"+avgPct+"%</td>"+
-      "<td class='num'>$"+Math.round(v.inv).toLocaleString()+"</td></tr>";
+      "<td class='num'>$"+Math.round(v.inv).toLocaleString()+"</td>"+
+      "<td class='num' style='color:#7c3aed;font-weight:600'>"+niDisp+"</td></tr>";
   });
   document.getElementById("ldp-skuTbody").innerHTML=tRows;
   document.getElementById("ldp-tblInfo").textContent=skuArr.length+" SKUs · "+ldpTotal.toLocaleString()+" records";
@@ -379,13 +382,18 @@ function ldpRenderRecords(rows){
   var h=top.map(function(r){
     var cColor=cnclColors[r[10]]||"#64748b";
     var aColor=r[11]==="Active"?"#2563eb":"#ef4444";
+    var heavenDate=r[6]||"";   // [6]=effective date (HEAVEN_DATE or DATE)
+    var origDate=r[23]||"";    // [23]=original purchase date
+    var netInv=r[24]||0;       // [24]=INVOICE_ACTUAL
     return "<tr>"+
       "<td class='num' style='font-size:10px;color:#64748b'>"+r[1]+"</td>"+
       "<td style='font-size:10px;color:#64748b'>"+r[2]+"</td>"+
       "<td><span class='pill'>"+r[3]+"</span></td>"+
       "<td style='font-size:10px;color:#64748b'>"+r[4]+"</td>"+
-      "<td class='num' style='color:#64748b'>"+r[6]+"</td>"+
+      "<td class='num' style='color:#0d9488;font-weight:600'>"+heavenDate+"</td>"+
+      "<td class='num' style='color:#94a3b8'>"+origDate+"</td>"+
       "<td class='num'>$"+r[7].toLocaleString()+"</td>"+
+      "<td class='num' style='color:#7c3aed;font-weight:600'>"+(netInv>0?"$"+Math.round(netInv).toLocaleString():"—")+"</td>"+
       "<td class='num'>$"+r[8].toLocaleString()+"</td>"+
       "<td class='num' style='color:"+(r[9]<3?"#ef4444":r[9]<7?"#f59e0b":"#16a34a")+"'>"+r[9].toFixed(1)+"%</td>"+
       "<td><span style='font-size:10px;font-weight:600;color:"+cColor+"'>"+r[10]+"</span></td>"+
@@ -405,14 +413,17 @@ function ldpRenderRecords(rows){
 // ── CSV Download ─────────────────────────────────────────
 function ldpDownloadCsv(){
   var rows=ldpGetRows();
-  var headers=["Order ID","Contact ID","SKU","SKU Category","Purchase Date","Inv Total","Paid","Pmt %","CNCL Status","Active Status","Refund Days","Partner Cat","Partner","EM","Lost Revenue"];
+  var headers=["Order ID","Contact ID","SKU","SKU Category","Heaven Date","Purchase Date","Inv Total","Net Invoice","Paid","Pmt %","CNCL Status","Active Status","Refund Days","Partner Cat","Partner","EM","Lost Revenue"];
   var lines=[headers.join(",")];
   rows.forEach(function(r){
     lines.push([
       r[1],r[2],
       '"'+(r[3]||"").replace(/"/g,'""')+'"',
       '"'+(r[4]||"").replace(/"/g,'""')+'"',
-      r[6],r[7],r[8],r[9].toFixed(1),r[10],r[11],r[12],
+      r[6]||"",       // Heaven Date (effective date)
+      r[23]||"",      // original purchase date
+      r[7],r[24]||0,  // Inv Total, Net Invoice
+      r[8],r[9].toFixed(1),r[10],r[11],r[12],
       '"'+(r[13]||"").replace(/"/g,'""')+'"',
       '"'+(r[14]||"").replace(/"/g,'""')+'"',
       '"'+(r[15]||"").replace(/"/g,'""')+'"',

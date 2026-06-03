@@ -131,7 +131,8 @@ def fetch_orders(conn):
             PMT_STATUS, CREDIT_STATUS, REFUND_CREDIT_DATE,
             ENROLLMENT_MENTOR, SKU_CATEGORY, DIVISION,
             LOST_REVENUE, REFUNDS, CREDITS,
-            PRODUCTS, NORMALIZED_PRODUCT
+            PRODUCTS, NORMALIZED_PRODUCT,
+            HEAVEN_DATE, INVOICE_ACTUAL
         FROM ANALYTICS.MART.DIM_ALL_ORDERS
         WHERE DATE >= '{CONFIG["start_date"]}'
           AND PAYMENTS_TOTAL > 0
@@ -155,45 +156,39 @@ def fetch_orders(conn):
 
 
 def fetch_payments(conn):
-    """Pull all payments from stg_inf_payments_combined.
-    Column mapping from Snowflake → Infusionsoft CSV names:
-        INVOICEID  → Id         (joins to DIM_ALL_ORDERS.ID)
-        CONTACTID  → Contact Id
-        PAYAMT     → Pay Amt
-        PAYTYPE    → Pay Type
-        PAYDATE    → Date
+    """Pull all payments from stg_inf_payments_combined, joined to DIM_ALL_ORDERS.
+    Joining through DIM_ALL_ORDERS:
+      1. Resolves cross-account INVOICEID collisions (different Infusionsoft accounts
+         can share the same short INVOICEID; the DATE range guard filters stale matches).
+      2. Allows computing the LDP deposit as SUM of payments UP TO HEAVEN_DATE
+         (not just the first-day payment).
+    Columns returned:
+      "UID"           = UNIQUE_ORDER_ID (globally unique — primary lookup key)
+      "Id"            = raw INVOICEID   (kept for AR backward-compatibility)
+      "Deposit"       = sum of payments where PAYDATE <= HEAVEN_DATE (or DATE if null)
+      "First_Date"    = first payment date
+      "LAST_PAY_DATE" = most recent payment date (for AR aging / tracker)
+      "PMT_COUNT"     = total number of payment records
     """
     print("⏳ Fetching payments from Snowflake...")
-    # Aggregate to ONE row per order using GROUP BY — avoids loading 400K+ individual
-    # transactions and is memory-safe. Columns returned:
-    #   "Id"            = INVOICEID (order ID)
-    #   "Pay Amt"       = sum of payments on the FIRST payment date (≈ down payment)
-    #   "Date"          = first payment date     (for LDP threshold check)
-    #   "LAST_PAY_DATE" = most recent payment date (for AR aging)
-    #   "PMT_COUNT"     = total number of payment records
-    sql = """
+    sql = f"""
         SELECT
-            m.INVOICEID                                                        AS "Id",
-            SUM(p.PAYAMT)                                                      AS "Pay Amt",
-            m.FIRST_DATE                                                       AS "Date",
-            m.LAST_DATE                                                        AS LAST_PAY_DATE,
-            m.CNT                                                              AS PMT_COUNT
-        FROM (
-            SELECT INVOICEID,
-                   MIN(PAYDATE) AS FIRST_DATE,
-                   MAX(PAYDATE) AS LAST_DATE,
-                   COUNT(*)     AS CNT
-            FROM ANALYTICS.MART.stg_inf_payments_combined
-            WHERE PAYAMT > 0
-              AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
-            GROUP BY INVOICEID
-        ) m
-        JOIN ANALYTICS.MART.stg_inf_payments_combined p
-          ON p.INVOICEID = m.INVOICEID
-         AND p.PAYDATE   = m.FIRST_DATE
-         AND p.PAYAMT    > 0
-         AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-        GROUP BY m.INVOICEID, m.FIRST_DATE, m.LAST_DATE, m.CNT
+            o.UNIQUE_ORDER_ID                                                  AS "UID",
+            o.ID                                                               AS "Id",
+            SUM(CASE WHEN p.PAYDATE <= COALESCE(NULLIF(TRIM(CAST(o.HEAVEN_DATE AS VARCHAR)),''), o.DATE)
+                     THEN p.PAYAMT ELSE 0 END)                                AS "Deposit",
+            MIN(p.PAYDATE)                                                     AS "First_Date",
+            MAX(p.PAYDATE)                                                     AS LAST_PAY_DATE,
+            COUNT(*)                                                           AS PMT_COUNT
+        FROM ANALYTICS.MART.stg_inf_payments_combined p
+        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
+          ON p.INVOICEID = o.ID
+         AND p.PAYDATE  >= DATEADD(day, -30, o.DATE)
+        WHERE p.PAYAMT > 0
+          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+          AND o.DATE >= '{CONFIG["start_date"]}'
+          AND o.SKU IS NOT NULL AND o.SKU != ''
+        GROUP BY o.UNIQUE_ORDER_ID, o.ID
     """
     cur = conn.cursor()
     cur.execute(sql)
@@ -356,7 +351,11 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
     for r in orders:
         cncl   = get_cncl(r.get("CREDIT_STATUS",""))
         active = get_active(cncl)
-        month  = str(r.get("DATE",""))[:7]
+        # Use HEAVEN_DATE for month grouping (fallback to DATE if blank)
+        heaven_str = (r.get("HEAVEN_DATE","") or "")[:10]
+        date_str   = str(r.get("DATE",""))[:10]
+        eff_date   = heaven_str if heaven_str >= "2000" else date_str
+        month  = eff_date[:7]
         sku    = r.get("SKU","") or "Unknown"
         pcat   = r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
         part   = r.get("REFERRAL_PARTNER","") or "Unknown"
@@ -365,6 +364,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
         inv_total_val  = float(r.get("INV_TOTAL",0) or 0)
         payments_val   = float(r.get("PAYMENTS_TOTAL",0) or 0)
         refunds_val    = float(r.get("REFUNDS",0) or 0)
+        inv_actual_val = float(r.get("INVOICE_ACTUAL",0) or 0)
         lr = max(0.0, inv_total_val - payments_val + refunds_val) if cncl == "Cancelled" else 0.0
         rdate  = r.get("REFUND_CREDIT_DATE","")
         date   = r.get("DATE","")
@@ -396,7 +396,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             PMRD[part][month][rd]  += 1
             SKURD[sku][rd]         += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd, rd_days, is_ldp, ldp_deposit]
+        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd, rd_days, is_ldp, ldp_deposit, division, heaven_date, invoice_actual]
         order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
         order_rd = get_rd(rdate, date) if cncl == "Cancelled" else "—"
         rd_days  = get_rd_days(rdate, date) if cncl == "Cancelled" else -1
@@ -404,7 +404,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
-            str(r.get("DATE",""))[:10],
+            str(r.get("DATE",""))[:10],    # index  2: original purchase date (DATE)
             active,
             cncl,
             round(inv_total_val, 2),
@@ -414,10 +414,12 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT",""),
             order_lr,
             order_rd,
-            rd_days,             # index 12: integer days to cancel, -1 if N/A
-            1 if is_ldp else 0,  # index 13: LDP flag
-            ldp_deposit,         # index 14: first payment amount (LDP orders only, else 0)
+            rd_days,                       # index 12: integer days to cancel, -1 if N/A
+            1 if is_ldp else 0,            # index 13: LDP flag
+            ldp_deposit,                   # index 14: first payment amount (LDP orders only, else 0)
             get_div_label(r.get("UNIQUE_ORDER_ID","")),  # index 15: division label
+            eff_date,                      # index 16: HEAVEN_DATE (fallback DATE) — used by JS date filter
+            round(inv_actual_val, 2),      # index 17: INVOICE_ACTUAL (Net Invoice)
         ])
 
         # Cancel reasons
@@ -630,56 +632,48 @@ def build_pif_rows(orders):
 def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     print("⏳ Building ldp_data.json (LDP)...")
 
-    # Load payments — from Snowflake rows (preferred) or CSV fallback
-    order_day_payments = defaultdict(lambda: defaultdict(float))
-    # Separate dict: oid -> {'last_d': date_obj, 'count': int}
-    # Uses LAST_PAY_DATE and PMT_COUNT already returned by fetch_payments()
-    order_pmt_meta = {}
+    # Load payments — keyed by UNIQUE_ORDER_ID (globally unique, avoids cross-account collision)
+    # fetch_payments() now JOINs DIM_ALL_ORDERS and returns:
+    #   "UID"     = UNIQUE_ORDER_ID (globally unique)
+    #   "Id"      = raw INVOICEID   (kept for AR compat)
+    #   "Deposit" = sum of payments where PAYDATE <= HEAVEN_DATE (the LDP down payment)
+    #   "LAST_PAY_DATE", "PMT_COUNT" = for tracker
+    uid_deposit  = {}   # uid → deposit amount (sum ≤ HEAVEN_DATE)
+    uid_pmt_meta = {}   # uid → {'last_d': date_obj, 'count': int}
     payments_found = False
 
     if payments_rows:
         payments_found = True
         for row in payments_rows:
-            # Columns aliased in fetch_payments() to match CSV names:
-            # "Id" = INVOICEID, "Pay Amt" = PAYAMT, "Date" = PAYDATE
-            oid  = str(row.get('Id', row.get('INVOICEID',''))).strip()
-            amt  = clean_money(row.get('Pay Amt', row.get('PAYAMT','')))
-            date = parse_date(str(row.get('Date', row.get('PAYDATE','')))[:10])
-            if oid and amt > 0 and date:
-                order_day_payments[oid][date] += amt
-            # Capture last payment date + count for tracker (already in fetch_payments result)
+            uid      = str(row.get('UID', '')).strip()
+            dep      = clean_money(row.get('Deposit', 0))
             last_str = str(row.get('LAST_PAY_DATE', '')).strip()[:10]
-            last_d   = parse_date(last_str) if last_str and last_str != 'None' else None
+            last_d   = parse_date(last_str) if last_str and last_str not in ('None', '') else None
             cnt      = int(row.get('PMT_COUNT', 1) or 1)
-            if oid and last_d:
-                order_pmt_meta[oid] = {'last_d': last_d, 'count': cnt}
-        print(f"   → Payments loaded from Snowflake: {len(order_day_payments):,} orders")
+            if uid and dep > 0:
+                uid_deposit[uid] = dep
+            if uid and last_d:
+                uid_pmt_meta[uid] = {'last_d': last_d, 'count': cnt}
+        print(f"   → Payments loaded from Snowflake: {len(uid_deposit):,} orders with deposit")
 
     elif payments_csv_path and os.path.exists(payments_csv_path):
+        # CSV fallback: no UID — use raw ID (cross-account collision risk, limited use)
         payments_found = True
+        _csv_day = defaultdict(lambda: defaultdict(float))
         with open(payments_csv_path, encoding='utf-8-sig') as f:
             for row in csv.DictReader(f):
                 oid  = row.get('Id','').strip()
                 amt  = clean_money(row.get('Pay Amt',''))
                 date = parse_date(row.get('Date',''))
                 if oid and amt > 0 and date:
-                    order_day_payments[oid][date] += amt
-        print(f"   → Payments loaded from CSV: {len(order_day_payments):,} orders")
+                    _csv_day[oid][date] += amt
+        # Approximate deposit from CSV: first-day payments
+        for oid_c, day_map in _csv_day.items():
+            fd = min(day_map.keys())
+            uid_deposit[oid_c] = day_map[fd]  # keyed by raw ID when CSV-only
+        print(f"   → Payments loaded from CSV: {len(uid_deposit):,} orders")
     else:
         print(f"   ⚠️  No payments data available — LDP will be empty")
-
-    def get_first_payment(oid, order_date=None):
-        """Return (first_payment_date, amount).
-        Validates that the payment date is within 365 days before the order date
-        to prevent cross-account INVOICEID collisions (e.g. B&L short IDs like 2761
-        matching historical records from other Infusionsoft accounts)."""
-        days = order_day_payments.get(oid, {})
-        if not days: return None, 0.0
-        fd = min(days.keys())
-        # Sanity check: reject payments that predate the order by more than 1 year
-        if order_date and (order_date - fd).days > 365:
-            return None, 0.0
-        return fd, days[fd]
 
     THRESHOLD = 0.105  # ≤ 10.5%
 
@@ -742,30 +736,38 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     _today = _date_cls.today()
 
     for r in orders:
+        uid = r.get("UNIQUE_ORDER_ID","").strip()
         oid = r.get("ID","").strip()
         inv = float(r.get("INV_TOTAL",0) or 0)
         if inv <= 0: continue
 
-        # Pass order date for cross-account collision guard
-        _order_date = parse_date(str(r.get("DATE",""))[:10])
-        fd, fa = get_first_payment(oid, order_date=_order_date)
         if not payments_found: continue
-        if not fd or fa <= 0: continue
-        if fa / inv > THRESHOLD: continue
+        # Deposit = sum of payments up to HEAVEN_DATE (SQL already computed this)
+        # Look up by UNIQUE_ORDER_ID (globally unique across Infusionsoft accounts)
+        dep = uid_deposit.get(uid, 0.0)
+        if dep <= 0: continue
+        if dep / inv > THRESHOLD: continue
+
+        fa = dep  # deposit = effective "first payment" (all payments ≤ HEAVEN_DATE)
 
         cncl     = get_cncl(r.get("CREDIT_STATUS",""))
         active   = get_active(cncl)
         paid     = float(r.get("PAYMENTS_TOTAL",0) or 0)
         refunds  = float(r.get("REFUNDS",0) or 0)
         lost     = max(0, round(inv - paid + refunds, 2)) if cncl == "Cancelled" else 0.0
-        pmt_pct = round(fa / inv * 100, 1)
-        sku    = r.get("SKU","") or "Unknown"
-        skucat = r.get("SKU_CATEGORY","") or ""
-        pcat   = r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
-        part   = r.get("REFERRAL_PARTNER","") or "Unknown"
-        em     = r.get("ENROLLMENT_MENTOR","") or ""
-        date   = str(r.get("DATE",""))[:10]
-        month  = str(r.get("DATE",""))[:7]
+        pmt_pct  = round(fa / inv * 100, 1)
+        sku      = r.get("SKU","") or "Unknown"
+        skucat   = r.get("SKU_CATEGORY","") or ""
+        pcat     = r.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
+        part     = r.get("REFERRAL_PARTNER","") or "Unknown"
+        em       = r.get("ENROLLMENT_MENTOR","") or ""
+        inv_actual = round(float(r.get("INVOICE_ACTUAL",0) or 0), 2)
+        # Use HEAVEN_DATE for month grouping; keep original DATE for export
+        orig_date  = str(r.get("DATE",""))[:10]
+        heaven_str = (r.get("HEAVEN_DATE","") or "")[:10]
+        eff_date   = heaven_str if heaven_str >= "2000" else orig_date
+        date   = eff_date
+        month  = eff_date[:7]
         rd     = get_rd(r.get("REFUND_CREDIT_DATE",""), r.get("DATE",""))
 
         all_skus.add(sku); all_parts.add(part); all_pcats.add(pcat)
@@ -775,23 +777,16 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         upd(by_part[part],   cncl, active, lost)
 
         # ── Tracker fields ──────────────────────────────────────────────
-        # Use PAYMENTS_TOTAL from order (authoritative) instead of summing
-        # the payments dict which only contains the first-payment-date entry.
+        # Use PAYMENTS_TOTAL from order row (authoritative total).
         _total_paid = round(paid, 2)
         _balance    = max(0.0, round(inv - _total_paid, 2))
 
-        # Last payment date + count: from order_pmt_meta (has LAST_PAY_DATE & PMT_COUNT
-        # returned by fetch_payments SQL). Validate date against order date to reject
-        # cross-account INVOICEID collisions (B&L short IDs like 2761 collide with
-        # historic IDs from other Infusionsoft accounts).
-        _meta       = order_pmt_meta.get(oid, {})
-        _last_d_raw = _meta.get('last_d')
+        # Last payment date + count: from uid_pmt_meta keyed by UNIQUE_ORDER_ID.
+        # SQL JOIN already filtered cross-account collision payments, so no
+        # additional date sanity check is needed here.
+        _meta       = uid_pmt_meta.get(uid, {})
+        _last_d     = _meta.get('last_d')
         _pmt_cnt    = _meta.get('count', 0)
-        # Accept last_d only if it is on or after 30 days before the order date
-        if _last_d_raw and _order_date and (_last_d_raw - _order_date).days < -30:
-            _last_d_raw = None  # stale / wrong-account match — treat as no payment
-            _pmt_cnt    = 0
-        _last_d     = _last_d_raw
         _last_pmt_s = _last_d.strftime("%Y-%m-%d") if _last_d else None
         _days_since = (_today - _last_d).days if _last_d else None
         _pay_count  = _pmt_cnt
@@ -821,7 +816,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
 
         rows_out.append([
             r.get("UNIQUE_ORDER_ID",""), oid, r.get("CONTACTID",""),
-            sku, skucat, month, date,
+            sku, skucat, month, date,        # [5]=month [6]=eff_date (HEAVEN_DATE or DATE)
             inv, fa, pmt_pct,
             cncl, active, rd,
             pcat, part, em, lost,
@@ -830,7 +825,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _last_pmt_s,   # [19] last payment date string YYYY-MM-DD or null
             _days_since,   # [20] days since last payment (int) or null
             _risk,         # [21] risk level string
-            _balance       # [22] outstanding balance
+            _balance,      # [22] outstanding balance
+            orig_date,     # [23] original purchase date (DATE) — for export
+            inv_actual,    # [24] INVOICE_ACTUAL (Net Invoice)
         ])
 
     total   = sum(v[0] for v in by_month.values())
@@ -1694,28 +1691,29 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
 
 
 def pre_compute_ldp_ids(orders, payments_rows):
-    """Return (ldp_ids set, ldp_first_pay dict {oid: first_pay_amount}) for orders whose
-    first payment was <= 10.5% of INV_TOTAL."""
-    order_day_payments = defaultdict(lambda: defaultdict(float))
+    """Return (ldp_ids set, ldp_first_pay dict {oid: deposit_amount}) for orders whose
+    HEAVEN_DATE deposit (sum of payments ≤ HEAVEN_DATE) was <= 10.5% of INV_TOTAL.
+    Uses UNIQUE_ORDER_ID as the payments lookup key to avoid cross-account collision."""
+    # Build uid→deposit map from the new fetch_payments format
+    uid_deposit = {}
     for row in (payments_rows or []):
-        oid  = str(row.get('Id', row.get('INVOICEID',''))).strip()
-        amt  = clean_money(row.get('Pay Amt', row.get('PAYAMT','')))
-        date = parse_date(str(row.get('Date', row.get('PAYDATE','')))[:10])
-        if oid and amt > 0 and date:
-            order_day_payments[oid][date] += amt
+        uid = str(row.get('UID', '')).strip()
+        dep = clean_money(row.get('Deposit', 0))
+        if uid and dep > 0:
+            uid_deposit[uid] = dep
 
     ldp_ids = set()
-    ldp_first_pay = {}  # oid -> first payment amount
+    ldp_first_pay = {}  # oid -> deposit amount (for build_cancellation_data lookup)
     for r in orders:
         oid = r.get("ID","").strip()
+        uid = r.get("UNIQUE_ORDER_ID","").strip()
         inv = float(r.get("INV_TOTAL",0) or 0)
-        if inv <= 0 or not oid: continue
-        days = order_day_payments.get(oid, {})
-        if not days: continue
-        fa = days[min(days.keys())]
-        if fa / inv <= 0.105:
+        if inv <= 0 or not uid: continue
+        dep = uid_deposit.get(uid, 0.0)
+        if dep <= 0: continue
+        if dep / inv <= 0.105:
             ldp_ids.add(oid)
-            ldp_first_pay[oid] = round(fa, 2)
+            ldp_first_pay[oid] = round(dep, 2)
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
     return ldp_ids, ldp_first_pay
 
