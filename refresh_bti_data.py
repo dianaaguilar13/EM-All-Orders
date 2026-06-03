@@ -618,6 +618,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
 
     # Load payments — from Snowflake rows (preferred) or CSV fallback
     order_day_payments = defaultdict(lambda: defaultdict(float))
+    # Separate dict: oid -> {'last_d': date_obj, 'count': int}
+    # Uses LAST_PAY_DATE and PMT_COUNT already returned by fetch_payments()
+    order_pmt_meta = {}
     payments_found = False
 
     if payments_rows:
@@ -630,6 +633,12 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             date = parse_date(str(row.get('Date', row.get('PAYDATE','')))[:10])
             if oid and amt > 0 and date:
                 order_day_payments[oid][date] += amt
+            # Capture last payment date + count for tracker (already in fetch_payments result)
+            last_str = str(row.get('LAST_PAY_DATE', '')).strip()[:10]
+            last_d   = parse_date(last_str) if last_str and last_str != 'None' else None
+            cnt      = int(row.get('PMT_COUNT', 1) or 1)
+            if oid and last_d:
+                order_pmt_meta[oid] = {'last_d': last_d, 'count': cnt}
         print(f"   → Payments loaded from Snowflake: {len(order_day_payments):,} orders")
 
     elif payments_csv_path and os.path.exists(payments_csv_path):
@@ -645,10 +654,17 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     else:
         print(f"   ⚠️  No payments data available — LDP will be empty")
 
-    def get_first_payment(oid):
+    def get_first_payment(oid, order_date=None):
+        """Return (first_payment_date, amount).
+        Validates that the payment date is within 365 days before the order date
+        to prevent cross-account INVOICEID collisions (e.g. B&L short IDs like 2761
+        matching historical records from other Infusionsoft accounts)."""
         days = order_day_payments.get(oid, {})
         if not days: return None, 0.0
         fd = min(days.keys())
+        # Sanity check: reject payments that predate the order by more than 1 year
+        if order_date and (order_date - fd).days > 365:
+            return None, 0.0
         return fd, days[fd]
 
     THRESHOLD = 0.105  # ≤ 10.5%
@@ -708,12 +724,17 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     all_skus=set(); all_parts=set(); all_pcats=set()
     rows_out = []
 
+    from datetime import date as _date_cls
+    _today = _date_cls.today()
+
     for r in orders:
         oid = r.get("ID","").strip()
         inv = float(r.get("INV_TOTAL",0) or 0)
         if inv <= 0: continue
 
-        fd, fa = get_first_payment(oid)
+        # Pass order date for cross-account collision guard
+        _order_date = parse_date(str(r.get("DATE",""))[:10])
+        fd, fa = get_first_payment(oid, order_date=_order_date)
         if not payments_found: continue
         if not fd or fa <= 0: continue
         if fa / inv > THRESHOLD: continue
@@ -739,12 +760,63 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         upd(by_pcat[pcat],   cncl, active, lost)
         upd(by_part[part],   cncl, active, lost)
 
+        # ── Tracker fields ──────────────────────────────────────────────
+        # Use PAYMENTS_TOTAL from order (authoritative) instead of summing
+        # the payments dict which only contains the first-payment-date entry.
+        _total_paid = round(paid, 2)
+        _balance    = max(0.0, round(inv - _total_paid, 2))
+
+        # Last payment date + count: from order_pmt_meta (has LAST_PAY_DATE & PMT_COUNT
+        # returned by fetch_payments SQL). Validate date against order date to reject
+        # cross-account INVOICEID collisions (B&L short IDs like 2761 collide with
+        # historic IDs from other Infusionsoft accounts).
+        _meta       = order_pmt_meta.get(oid, {})
+        _last_d_raw = _meta.get('last_d')
+        _pmt_cnt    = _meta.get('count', 0)
+        # Accept last_d only if it is on or after 30 days before the order date
+        if _last_d_raw and _order_date and (_last_d_raw - _order_date).days < -30:
+            _last_d_raw = None  # stale / wrong-account match — treat as no payment
+            _pmt_cnt    = 0
+        _last_d     = _last_d_raw
+        _last_pmt_s = _last_d.strftime("%Y-%m-%d") if _last_d else None
+        _days_since = (_today - _last_d).days if _last_d else None
+        _pay_count  = _pmt_cnt
+
+        _paid_full  = _total_paid >= inv * 0.99
+
+        if _paid_full:
+            _risk = "Paid in Full"
+        elif cncl == "Cancelled":
+            _risk = "Cancelled"
+        elif cncl == "Downgrade":
+            _risk = "Downgrade"
+        elif cncl == "Upgrade":
+            _risk = "Upgrade"
+        elif cncl in ("Entry Error", "Pend", "Switch"):
+            _risk = cncl
+        elif _pay_count <= 1:
+            _risk = "No Payment"
+        elif active == "Active" and _days_since is not None and _days_since >= 30:
+            _risk = "Overdue +30"
+        elif active == "Active" and _days_since is not None and _days_since >= 15:
+            _risk = "Overdue +15"
+        elif active == "Active":
+            _risk = "On Track"
+        else:
+            _risk = "Inactive"
+
         rows_out.append([
             r.get("UNIQUE_ORDER_ID",""), oid, r.get("CONTACTID",""),
             sku, skucat, month, date,
             inv, fa, pmt_pct,
             cncl, active, rd,
-            pcat, part, em, lost
+            pcat, part, em, lost,
+            _total_paid,   # [17]
+            _pay_count,    # [18]
+            _last_pmt_s,   # [19] last payment date string YYYY-MM-DD or null
+            _days_since,   # [20] days since last payment (int) or null
+            _risk,         # [21] risk level string
+            _balance       # [22] outstanding balance
         ])
 
     total   = sum(v[0] for v in by_month.values())
