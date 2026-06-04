@@ -3,6 +3,13 @@ var selP=new Set(),selSku=new Set(),selPcat=new Set(),charts={};
 var fDiv="";        // active division filter string ("" = all)
 var DIV_SKUS={};    // division → Set of SKUs (built from D.sku_div on load)
 var cohortWindow=-1;
+var cohortLdpWin=0; // 0=same day, 1=+1d, 2=+2d, 3=+3d
+// Return deposit $ for a cancellation order row based on selected window
+// row[14]=dep_0, row[18]=dep_1, row[19]=dep_2, row[20]=dep_3
+function getDepByWin(row){if(cohortLdpWin===1)return row[18]||0;if(cohortLdpWin===2)return row[19]||0;if(cohortLdpWin===3)return row[20]||0;return row[14]||0;}
+// Dynamic LDP check: dep > 0 AND dep/inv_total ≤ 10.5%
+function isLdpRow(row){var inv=row[5];if(!inv||inv<=0)return false;var dep=getDepByWin(row);return dep>0&&dep/inv<=0.105;}
+function setCohortLdpWin(w){cohortLdpWin=w;["coh-dw0","coh-dw1","coh-dw2","coh-dw3"].forEach(function(id,i){var el=document.getElementById(id);if(!el)return;el.style.fontWeight=i===w?"700":"400";el.style.background=i===w?"#7c3aed":"#f1f5f9";el.style.color=i===w?"#fff":"#475569";el.style.borderColor=i===w?"#7c3aed":"#e2e8f0";});renderCohort();}
 var RD_KEYS=["<=30d","<=45d","<=60d","<=90d",">90d","N/A"],RD_LABELS=["≤30d","≤45d","≤60d","≤90d",">90d","N/A"];
 
 // SKUs excluded by default — extended from loaded data via patterns on init
@@ -859,7 +866,7 @@ function renderCohort(){
     var row=item.row;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)cancelledInWindow++;
-    if((row[13]!==undefined?row[13]:0)===1){
+    if(isLdpRow(row)){
       ldpInCohort++;
       if(inWin)ldpCancelledInWindow++;
     }
@@ -877,7 +884,7 @@ function renderCohort(){
   var upgradeCount=0,downgradeCount=0,ldpUpgrades=0,ldpDowngrades=0,fpUpgrades=0,fpDowngrades=0;
   allRows.forEach(function(item){
     var c=item.row[4];
-    var isLdp=(item.row[13]!==undefined?item.row[13]:0)===1;
+    var isLdp=isLdpRow(item.row);
     if(c==="Upgrade"){upgradeCount++;if(isLdp)ldpUpgrades++;else fpUpgrades++;}
     else if(c==="Downgrade"){downgradeCount++;if(isLdp)ldpDowngrades++;else fpDowngrades++;}
   });
@@ -930,7 +937,7 @@ function renderCohort(){
     skuMap[sku].total++;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)skuMap[sku].cancelled++;
-    if((row[13]!==undefined?row[13]:0)===1){
+    if(isLdpRow(row)){
       skuMap[sku].ldp++;
       if(inWin)skuMap[sku].ldpCancelled++;
     }
@@ -1009,6 +1016,10 @@ function renderCohort(){
     +'<option value="-1"'+(win===-1?' selected':'')+'>All time</option>'
     +'</select>'
     +'<button onclick="downloadCohortCsv()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ Export CSV</button>'
+    +'</div>'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-top:6px">'
+    +'<label style="font-size:11px;color:#7c3aed;font-weight:600;white-space:nowrap">💳 LDP Window</label>'
+    +['Same day','+1 day','+2 days','+3 days'].map(function(lbl,i){var act=cohortLdpWin===i;return'<button id="coh-dw'+i+'" onclick="setCohortLdpWin('+i+')" style="padding:3px 10px;border-radius:20px;border:1px solid '+(act?"#7c3aed":"#e2e8f0")+';background:'+(act?"#7c3aed":"#f8fafc")+';color:'+(act?"#fff":"#475569")+';font-size:11px;font-weight:'+(act?"700":"400")+';cursor:pointer">'+lbl+'</button>';}).join("")
     +'</div></div>'
     +'<div style="margin-bottom:14px;font-size:11px;color:#64748b">Inherited filters: '+pills+'</div>'
     // KPI row 1 — two group cards
@@ -1251,8 +1262,8 @@ function toggleCohortSkuDetail(e,sku){
     var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var rdDisp=rdD>=0?rdD+"d":"N/A";
-    var isLdp=(row[13]!==undefined?row[13]:0)===1;
-    var ldpDep=(row[14]!==undefined&&row[14]>0)?row[14]:0;
+    var isLdp=isLdpRow(row);
+    var ldpDep=getDepByWin(row);
     var ldpDepDisp=isLdp&&ldpDep>0?'$'+ldpDep.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
     var heavenDate=row[16]||"";
     var netInv=row[17]||0;
@@ -1326,7 +1337,7 @@ function toggleCohortNaOrders(){
     +'</tr></thead><tbody>';
   naList.forEach(function(item){
     var row=item.row,sku=item.sku;
-    var isLdp=(row[13]!==undefined?row[13]:0)===1;
+    var isLdp=isLdpRow(row);
     h+='<tr>'
       +'<td style="font-family:monospace;font-size:10px;color:#0ea5e9">'+(row[0]||"")+'</td>'
       +'<td style="font-family:monospace;font-size:10px;color:#64748b">'+(row[1]||"")+'</td>'
@@ -1366,7 +1377,7 @@ function downloadNaCsv(){
   var csvRows=[["Order ID","Contact ID","Date","SKU","Product","Invoice Total","Refunds","LDP","Partner Category","Partner"]];
   naList.forEach(function(item){
     var row=item.row,sku=item.sku;
-    csvRows.push([row[0]||"",row[1]||"",row[2]||"",sku,row[9]||"",row[5]||0,row[6]||0,(row[13]===1?"Yes":"No"),row[7]||"",row[8]||""]);
+    csvRows.push([row[0]||"",row[1]||"",row[2]||"",sku,row[9]||"",row[5]||0,row[6]||0,(isLdpRow(row)?"Yes":"No"),row[7]||"",row[8]||""]);
   });
   var csv=csvRows.map(function(r){return r.map(function(v){var s=String(v==null?"":v);return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;}).join(",");}).join("\n");
   var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
@@ -1386,7 +1397,7 @@ function downloadCohortCsv(){
     var sku=item.sku,row=item.row;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
-    var isLdp=(row[13]!==undefined?row[13]:0)===1;
+    var isLdp=isLdpRow(row);
     csvRows.push([
       sku,row[0]||"",row[1]||"",row[16]||"",row[2]||"",row[3]||"",row[4]||"",
       row[5]||0,row[17]||0,row[6]||0,rdD>=0?rdD:"N/A",

@@ -210,7 +210,7 @@ function pwCheck(){
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option><option>Pend</option><option>No Pmt</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
-<script src="dashboard.js?v=1790000021"></script>
+<script src="dashboard.js?v=1790000022"></script>
 
 <!-- LDP Tab Content -->
 <div id="ldp-panel" style="display:none">
@@ -261,6 +261,10 @@ function pwCheck(){
     <button class="btn btn-p" onclick="ldpApply()">↻ Apply</button>
     <button class="btn btn-g" onclick="ldpReset()">Reset</button>
     <button class="btn" onclick="ldpDownloadCsv()" style="color:#2563eb;border-color:#2563eb33;background:transparent">&#11015; CSV</button>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:8px">
+      <span style="font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap">💳 LDP Window</span>
+      <div id="ldp-depWinBar" style="display:flex;gap:4px"></div>
+    </div>
   </div>
   <div id="ldp-content">
     <div class="loading"><div class="spinner"></div><div>Loading LDP data...</div></div>
@@ -451,7 +455,7 @@ function pwCheck(){
   </div>
 </div>
 
-<script src="ldp.js?v=1790000021"></script>
+<script src="ldp.js?v=1790000022"></script>
 <script>
 function showLdpTab(){
   hideAllPanels();

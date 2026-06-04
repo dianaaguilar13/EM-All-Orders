@@ -160,12 +160,16 @@ def fetch_payments(conn):
     Joining through DIM_ALL_ORDERS:
       1. Resolves cross-account INVOICEID collisions (different Infusionsoft accounts
          can share the same short INVOICEID; the DATE range guard filters stale matches).
-      2. LDP deposit = sum of payments within first 4 days (MIN(PAYDATE) + 3 days).
-         Multiple card payments on day 0 all count; anything after day 3 is excluded.
+      2. LDP deposit = 4 deposit windows computed from MIN(PAYDATE):
+           "Deposit" = dep_0: same day only (original first-day rule)
+           "dep_1"   = MIN(PAYDATE) + 1 day
+           "dep_2"   = MIN(PAYDATE) + 2 days
+           "dep_3"   = MIN(PAYDATE) + 3 days
     Columns returned:
       "UID"           = UNIQUE_ORDER_ID (globally unique — primary lookup key)
       "Id"            = raw INVOICEID   (kept for AR backward-compatibility)
-      "Deposit"       = sum of payments from MIN(PAYDATE) through MIN(PAYDATE)+3 days
+      "Deposit"       = dep_0: payments on MIN(PAYDATE) only (same day)
+      "dep_1/2/3"     = cumulative deposits through +1/+2/+3 days
       "First_Date"    = first payment date
       "LAST_PAY_DATE" = most recent payment date (for AR aging / tracker)
       "PMT_COUNT"     = total number of payment records
@@ -195,8 +199,14 @@ def fetch_payments(conn):
         SELECT
             op.UNIQUE_ORDER_ID                                                 AS "UID",
             op.order_id                                                        AS "Id",
-            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 3, fp.first_date)
+            SUM(CASE WHEN op.PAYDATE = fp.first_date
                      THEN op.PAYAMT ELSE 0 END)                               AS "Deposit",
+            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 1, fp.first_date)
+                     THEN op.PAYAMT ELSE 0 END)                               AS "dep_1",
+            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 2, fp.first_date)
+                     THEN op.PAYAMT ELSE 0 END)                               AS "dep_2",
+            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 3, fp.first_date)
+                     THEN op.PAYAMT ELSE 0 END)                               AS "dep_3",
             fp.first_date                                                      AS "First_Date",
             MAX(op.PAYDATE)                                                    AS LAST_PAY_DATE,
             COUNT(*)                                                           AS PMT_COUNT
@@ -412,11 +422,16 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             PMRD[part][month][rd]  += 1
             SKURD[sku][rd]         += 1
 
-        # Order-level detail row: [id, contactid, date, active, cncl, inv_total, refunds, pcat, partner, product, order_lr, order_rd, rd_days, is_ldp, ldp_deposit, division, heaven_date, invoice_actual]
+        # Order-level detail row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner,product,
+        #   order_lr,order_rd,rd_days,is_ldp,dep_0,division,heaven_date,invoice_actual,dep_1,dep_2,dep_3]
         order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
         order_rd = get_rd(rdate, date) if cncl == "Cancelled" else "—"
         rd_days  = get_rd_days(rdate, date) if cncl == "Cancelled" else -1
-        ldp_deposit = round(ldp_first_pay.get(oid, 0.0), 2) if (is_ldp and ldp_first_pay) else 0.0
+        _ldp_d   = ldp_first_pay.get(oid, (0.0,0.0,0.0,0.0)) if ldp_first_pay else (0.0,0.0,0.0,0.0)
+        ldp_dep0 = round(_ldp_d[0], 2) if is_ldp else 0.0
+        ldp_dep1 = round(_ldp_d[1], 2) if is_ldp else 0.0
+        ldp_dep2 = round(_ldp_d[2], 2) if is_ldp else 0.0
+        ldp_dep3 = round(_ldp_d[3], 2) if is_ldp else 0.0
         rows_by_sku[sku].append([
             r.get("ID",""),
             r.get("CONTACTID",""),
@@ -431,11 +446,14 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             order_lr,
             order_rd,
             rd_days,                       # index 12: integer days to cancel, -1 if N/A
-            1 if is_ldp else 0,            # index 13: LDP flag
-            ldp_deposit,                   # index 14: first payment amount (LDP orders only, else 0)
+            1 if is_ldp else 0,            # index 13: LDP flag (based on dep_0 ≤ 10.5%)
+            ldp_dep0,                      # index 14: dep_0 — same-day deposit (LDP orders only)
             get_div_label(r.get("UNIQUE_ORDER_ID","")),  # index 15: division label
             eff_date,                      # index 16: HEAVEN_DATE (fallback DATE) — used by JS date filter
             round(inv_actual_val, 2),      # index 17: ACTUAL_INV_SALE_TOTAL (Net Invoice)
+            ldp_dep1,                      # index 18: dep_1 — deposit through +1 day
+            ldp_dep2,                      # index 19: dep_2 — deposit through +2 days
+            ldp_dep3,                      # index 20: dep_3 — deposit through +3 days
         ])
 
         # Cancel reasons
@@ -654,7 +672,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     #   "Id"      = raw INVOICEID   (kept for AR compat)
     #   "Deposit" = sum of payments where PAYDATE <= HEAVEN_DATE (the LDP down payment)
     #   "LAST_PAY_DATE", "PMT_COUNT" = for tracker
-    uid_deposit  = {}   # uid → deposit amount (sum ≤ HEAVEN_DATE)
+    uid_deps     = {}   # uid → (dep_0, dep_1, dep_2, dep_3)
     uid_pmt_meta = {}   # uid → {'last_d': date_obj, 'count': int}
     payments_found = False
 
@@ -662,15 +680,18 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         payments_found = True
         for row in payments_rows:
             uid      = str(row.get('UID', '')).strip()
-            dep      = clean_money(row.get('Deposit', 0))
+            d0       = clean_money(row.get('Deposit', 0))
+            d1       = clean_money(row.get('dep_1', 0) or d0)
+            d2       = clean_money(row.get('dep_2', 0) or d0)
+            d3       = clean_money(row.get('dep_3', 0) or d0)
             last_str = str(row.get('LAST_PAY_DATE', '')).strip()[:10]
             last_d   = parse_date(last_str) if last_str and last_str not in ('None', '') else None
             cnt      = int(row.get('PMT_COUNT', 1) or 1)
-            if uid and dep > 0:
-                uid_deposit[uid] = dep
+            if uid and d0 > 0:
+                uid_deps[uid] = (d0, d1, d2, d3)
             if uid and last_d:
                 uid_pmt_meta[uid] = {'last_d': last_d, 'count': cnt}
-        print(f"   → Payments loaded from Snowflake: {len(uid_deposit):,} orders with deposit")
+        print(f"   → Payments loaded from Snowflake: {len(uid_deps):,} orders with deposit")
 
     elif payments_csv_path and os.path.exists(payments_csv_path):
         # CSV fallback: no UID — use raw ID (cross-account collision risk, limited use)
@@ -683,11 +704,12 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
                 date = parse_date(row.get('Date',''))
                 if oid and amt > 0 and date:
                     _csv_day[oid][date] += amt
-        # Approximate deposit from CSV: first-day payments
+        # CSV fallback: only day-0 available; dep_1/2/3 = same as dep_0
         for oid_c, day_map in _csv_day.items():
-            fd = min(day_map.keys())
-            uid_deposit[oid_c] = day_map[fd]  # keyed by raw ID when CSV-only
-        print(f"   → Payments loaded from CSV: {len(uid_deposit):,} orders")
+            fd  = min(day_map.keys())
+            d0  = day_map[fd]
+            uid_deps[oid_c] = (d0, d0, d0, d0)
+        print(f"   → Payments loaded from CSV: {len(uid_deps):,} orders")
     else:
         print(f"   ⚠️  No payments data available — LDP will be empty")
 
@@ -758,13 +780,15 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         if inv <= 0: continue
 
         if not payments_found: continue
-        # Deposit = sum of payments up to HEAVEN_DATE (SQL already computed this)
-        # Look up by UNIQUE_ORDER_ID (globally unique across Infusionsoft accounts)
-        dep = uid_deposit.get(uid, 0.0)
-        if dep <= 0: continue
-        if dep / inv > THRESHOLD: continue
+        # Deposit = 4-window tuple keyed by UNIQUE_ORDER_ID (globally unique)
+        deps = uid_deps.get(uid)
+        if not deps or deps[0] <= 0: continue
+        if deps[0] / inv > THRESHOLD: continue   # qualify on dep_0 (same-day, widest pool)
 
-        fa = dep  # deposit = effective "first payment" (all payments ≤ HEAVEN_DATE)
+        fa   = deps[0]  # dep_0: same-day deposit (default display / pmt_pct base)
+        dep1 = deps[1]
+        dep2 = deps[2]
+        dep3 = deps[3]
 
         cncl     = get_cncl(r.get("CREDIT_STATUS",""))
         active   = get_active(cncl)
@@ -844,6 +868,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _balance,      # [22] outstanding balance
             orig_date,     # [23] original purchase date (DATE) — for export
             inv_actual,    # [24] ACTUAL_INV_SALE_TOTAL (Net Invoice)
+            dep1,          # [25] dep_1: deposit through +1 day
+            dep2,          # [26] dep_2: deposit through +2 days
+            dep3,          # [27] dep_3: deposit through +3 days
         ])
 
     total   = sum(v[0] for v in by_month.values())
@@ -1720,29 +1747,32 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
 
 
 def pre_compute_ldp_ids(orders, payments_rows):
-    """Return (ldp_ids set, ldp_first_pay dict {oid: deposit_amount}) for orders whose
-    HEAVEN_DATE deposit (sum of payments ≤ HEAVEN_DATE) was <= 10.5% of INV_TOTAL.
+    """Return (ldp_ids set, ldp_first_pay dict {oid: (d0,d1,d2,d3)}) for orders whose
+    same-day deposit (dep_0) was <= 10.5% of INV_TOTAL.  All 4 deposit windows are
+    stored so the JS deposit-window dropdown can re-qualify dynamically.
     Uses UNIQUE_ORDER_ID as the payments lookup key to avoid cross-account collision."""
-    # Build uid→deposit map from the new fetch_payments format
-    uid_deposit = {}
+    uid_deps = {}  # uid → (dep_0, dep_1, dep_2, dep_3)
     for row in (payments_rows or []):
         uid = str(row.get('UID', '')).strip()
-        dep = clean_money(row.get('Deposit', 0))
-        if uid and dep > 0:
-            uid_deposit[uid] = dep
+        d0 = clean_money(row.get('Deposit', 0))
+        d1 = clean_money(row.get('dep_1', 0) or d0)
+        d2 = clean_money(row.get('dep_2', 0) or d0)
+        d3 = clean_money(row.get('dep_3', 0) or d0)
+        if uid:
+            uid_deps[uid] = (d0, d1, d2, d3)
 
     ldp_ids = set()
-    ldp_first_pay = {}  # oid -> deposit amount (for build_cancellation_data lookup)
+    ldp_first_pay = {}  # oid → (dep_0, dep_1, dep_2, dep_3)
     for r in orders:
         oid = r.get("ID","").strip()
         uid = r.get("UNIQUE_ORDER_ID","").strip()
         inv = float(r.get("INV_TOTAL",0) or 0)
         if inv <= 0 or not uid: continue
-        dep = uid_deposit.get(uid, 0.0)
-        if dep <= 0: continue
-        if dep / inv <= 0.105:
+        deps = uid_deps.get(uid)
+        if not deps or deps[0] <= 0: continue
+        if deps[0] / inv <= 0.105:   # qualify on dep_0 (same-day = original rule)
             ldp_ids.add(oid)
-            ldp_first_pay[oid] = round(dep, 2)
+            ldp_first_pay[oid] = (round(deps[0],2), round(deps[1],2), round(deps[2],2), round(deps[3],2))
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
     return ldp_ids, ldp_first_pay
 

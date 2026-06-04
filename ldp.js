@@ -5,6 +5,12 @@ var ldpCharts = {};
 var ldpSelP = new Set();
 var ldpSelSku = new Set();
 var ldpSelDiv = "";  // division filter ("" = all)
+var ldpDepWin = 0;  // 0=same day, 1=+1d, 2=+2d, 3=+3d
+// Return deposit for row based on selected window
+function ldpDep(r){if(ldpDepWin===1)return r[25]||r[8];if(ldpDepWin===2)return r[26]||r[8];if(ldpDepWin===3)return r[27]||r[8];return r[8];}
+// Return payment % for row based on selected window
+function ldpPmtPct(r){var d=ldpDep(r);return r[7]>0?(d/r[7]*100):0;}
+function setLdpDepWin(w){ldpDepWin=w;["ldp-dw0","ldp-dw1","ldp-dw2","ldp-dw3"].forEach(function(id,i){var el=document.getElementById(id);if(el)el.style.fontWeight=i===w?"700":"400";el&&(el.style.background=i===w?"#7c3aed":"#f1f5f9");el&&(el.style.color=i===w?"#fff":"#475569");});ldpRender();}
 function ldpGetDiv(uid){
   uid=(uid||"").toLowerCase();
   if(uid.indexOf("jj969")>=0)return"LT/LCC";
@@ -146,6 +152,8 @@ function ldpGetRows(){
     if(pcat&&row[13]!==pcat)return false; // pcat
     if(ldpSelP.size>0&&!ldpSelP.has(row[14]))return false; // partner
     if(ldpSelDiv&&ldpGetDiv(row[0])!==ldpSelDiv)return false; // division
+    // Deposit window re-qualification (dep_0 already qualifies; re-check for win>0)
+    if(ldpDepWin>0){var d=ldpDep(row);if(!(d>0&&row[7]>0&&d/row[7]<=0.105))return false;}
     return true;
   });
 }
@@ -185,7 +193,7 @@ function ldpRender(){
   var ldpValidUnits=Math.max(0,ldpTotal-ldpEE-ldpPend-ldpNoPmt);
   var ldpCancelRate=ldpValidUnits>0?(ldpCncl/ldpValidUnits*100):0;
   var lostRev=rows.reduce(function(s,r){return s+(r[16]||0);},0);
-  var avgPmt=rows.length>0?rows.reduce(function(s,r){return s+(r[9]||0);},0)/rows.length:0;
+  var avgPmt=rows.length>0?rows.reduce(function(s,r){return s+ldpPmtPct(r);},0)/rows.length:0;
   var ldpUpgPct=ldpValidUnits>0?(ldpUpg/ldpValidUnits*100):0;
   var ldpDwnPct=ldpValidUnits>0?(ldpDwn/ldpValidUnits*100):0;
 
@@ -193,6 +201,8 @@ function ldpRender(){
   var ldpPct=totalUnits>0?(ldpValidUnits/totalUnits*100):0;
 
   document.getElementById("ldp-rcLbl").textContent=ldpTotal.toLocaleString()+" LDP records";
+  // Deposit window pill buttons
+  (function(){var wins=["Same day","+ 1 day","+ 2 days","+ 3 days"];var el=document.getElementById("ldp-depWinBar");if(!el)return;el.innerHTML=wins.map(function(lbl,i){var act=ldpDepWin===i;return'<button id="ldp-dw'+i+'" onclick="setLdpDepWin('+i+')" style="padding:3px 10px;border-radius:20px;border:1px solid '+(act?"#7c3aed":"#e2e8f0")+';background:'+(act?"#7c3aed":"#f8fafc")+';color:'+(act?"#fff":"#475569")+';font-size:11px;font-weight:'+(act?"700":"400")+';cursor:pointer;transition:all .15s">'+lbl+'</button>';}).join("");})();
 
   // KPIs — Option C: unified card · General row on top · LDP Outcomes row below
   document.getElementById("ldp-kpis").innerHTML=
@@ -285,10 +295,10 @@ function ldpRender(){
 
   // Down payment % distribution
   var pctMap={};
-  rows.forEach(function(r){pctMap[Math.round(r[9])]=(pctMap[Math.round(r[9])]||0)+1;});
+  rows.forEach(function(r){var p=Math.round(ldpPmtPct(r));pctMap[p]=(pctMap[p]||0)+1;});
   var pctBuckets={"<1%":0,"1-3%":0,"3-5%":0,"5-7%":0,"7-10%":0};
   rows.forEach(function(r){
-    var p=r[9];
+    var p=ldpPmtPct(r);
     if(p<1)pctBuckets["<1%"]++;
     else if(p<3)pctBuckets["1-3%"]++;
     else if(p<5)pctBuckets["3-5%"]++;
@@ -337,7 +347,7 @@ function ldpRender(){
     else if(r[10]==="Upgrade")skuMap[s].upgrade++;
     else if(r[10]==="Pend")skuMap[s].pend++;
     else if(r[10]==="No Pmt")skuMap[s].no_pmt++;
-    skuMap[s].inv+=r[7];skuMap[s].pay+=r[8];
+    skuMap[s].inv+=r[7];skuMap[s].pay+=ldpDep(r);
     if(r[24]>0)skuMap[s].netInv+=r[24];
   });
   var skuArr=Object.entries(skuMap).sort(function(a,b){return b[1].total-a[1].total;});
@@ -394,8 +404,8 @@ function ldpRenderRecords(rows){
       "<td class='num' style='color:#94a3b8'>"+origDate+"</td>"+
       "<td class='num'>$"+r[7].toLocaleString()+"</td>"+
       "<td class='num' style='color:#7c3aed;font-weight:600'>"+(netInv>0?"$"+Math.round(netInv).toLocaleString():"—")+"</td>"+
-      "<td class='num'>$"+r[8].toLocaleString()+"</td>"+
-      "<td class='num' style='color:"+(r[9]<3?"#ef4444":r[9]<7?"#f59e0b":"#16a34a")+"'>"+r[9].toFixed(1)+"%</td>"+
+      "<td class='num'>$"+ldpDep(r).toLocaleString()+"</td>"+
+      (function(){var p=ldpPmtPct(r);return"<td class='num' style='color:"+(p<3?"#ef4444":p<7?"#f59e0b":"#16a34a")+"'>"+p.toFixed(1)+"%</td>";})()+
       "<td><span style='font-size:10px;font-weight:600;color:"+cColor+"'>"+r[10]+"</span></td>"+
       "<td><span style='font-size:10px;font-weight:600;color:"+aColor+"'>"+r[11]+"</span></td>"+
       "<td class='num' style='color:#64748b'>"+r[12]+"</td>"+
@@ -423,7 +433,7 @@ function ldpDownloadCsv(){
       r[6]||"",       // Heaven Date (effective date)
       r[23]||"",      // original purchase date
       r[7],r[24]||0,  // Inv Total, Net Invoice
-      r[8],r[9].toFixed(1),r[10],r[11],r[12],
+      ldpDep(r),ldpPmtPct(r).toFixed(1),r[10],r[11],r[12],
       '"'+(r[13]||"").replace(/"/g,'""')+'"',
       '"'+(r[14]||"").replace(/"/g,'""')+'"',
       '"'+(r[15]||"").replace(/"/g,'""')+'"',
@@ -544,8 +554,8 @@ function ldpRenderTracker(rows) {
       '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
       '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
       '<td style="font-size:11px">'+r[6]+'</td>'+
-      '<td style="font-size:11px;color:#6d28d9">$'+r[8].toLocaleString()+'</td>'+
-      '<td style="font-size:11px;color:#64748b">'+r[9].toFixed(1)+'%</td>'+
+      '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
+      '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
       '<td style="font-size:11px">'+paidFmt+'</td>'+
       '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
       '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
