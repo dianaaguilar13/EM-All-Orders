@@ -862,13 +862,18 @@ function renderCohort(){
 
   var cohortPurchases=allRows.length;
   var cancelledInWindow=0,ldpInCohort=0,ldpCancelledInWindow=0;
+  var ldpNetInv=0,fpNetInv=0;
   allRows.forEach(function(item){
     var row=item.row;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)cancelledInWindow++;
+    var ni=(row[17]!==undefined&&row[17]>0)?row[17]:0;
     if(isLdpRow(row)){
       ldpInCohort++;
+      ldpNetInv+=ni;
       if(inWin)ldpCancelledInWindow++;
+    } else {
+      fpNetInv+=ni;
     }
   });
   var cohortRate=cohortPurchases>0?(cancelledInWindow/cohortPurchases*100):0;
@@ -1046,10 +1051,11 @@ function renderCohort(){
     // LDP group (blue)
     +'<div style="border:1px solid #bfdbfe;background:#f0f7ff;border-radius:10px;padding:12px 14px">'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1d4ed8;margin-bottom:10px">💳 Less Down Payment (LDP)</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2563eb"></div><div class="kl">LDP in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpInCohort.toLocaleString()+'</div><div class="ks blue">'+ldpPct.toFixed(1)+'% of purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">LDP Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+ldpCancelledInWindow.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1d4ed8"></div><div class="kl">LDP Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#1d4ed8">'+ldpRate.toFixed(1)+'%</div><div class="ks blue">LDP cancelled ÷ LDP units</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#7c3aed"></div><div class="kl">Net Invoice</div><div class="kv" style="font-size:18px;letter-spacing:-0.5px;color:#7c3aed">'+(ldpNetInv>0?'$'+Math.round(ldpNetInv).toLocaleString():'—')+'</div><div class="ks" style="color:#7c3aed">LDP net invoice total</div></div>'
     +'</div>'
     +'<div style="margin-top:8px;display:flex;gap:8px">'
     +'<div style="flex:1;display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:8px 12px">'
@@ -1064,10 +1070,11 @@ function renderCohort(){
     // Full Pay group (green)
     +'<div style="border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;padding:12px 14px">'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#166534;margin-bottom:10px">✅ Full Down Payment</div>'
-    +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#16a34a"></div><div class="kl">Full Pay in Cohort</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayInCohort.toLocaleString()+'</div><div class="ks green">'+fullPayPct.toFixed(1)+'% of purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#ef4444"></div><div class="kl">Full Pay Cancelled</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+fullPayCancelled.toLocaleString()+'</div><div class="ks red">cancelled in window</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#166534"></div><div class="kl">Full Pay Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#166534">'+fullPayRate.toFixed(1)+'%</div><div class="ks green">FP cancelled ÷ FP units</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:7px;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.04);position:relative;overflow:hidden"><div style="position:absolute;top:0;left:0;right:0;height:3px;background:#7c3aed"></div><div class="kl">Net Invoice</div><div class="kv" style="font-size:18px;letter-spacing:-0.5px;color:#7c3aed">'+(fpNetInv>0?'$'+Math.round(fpNetInv).toLocaleString():'—')+'</div><div class="ks" style="color:#7c3aed">FP net invoice total</div></div>'
     +'</div>'
     +'<div style="margin-top:8px;display:flex;gap:8px">'
     +'<div style="flex:1;display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:8px 12px">'
