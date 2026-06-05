@@ -496,17 +496,21 @@ function ldpRenderTracker(rows) {
     {key:"Downgrade",   label:"Downgrade",     icon:"🔽"},
   ];
 
-  var kpiHtml = kpiDefs.map(function(k) {
+  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;width:100%">'
+    + kpiDefs.map(function(k) {
     var cnt  = riskCounts[k.key] || 0;
     var col  = RISK_COLOR[k.key] || {bg:"#f8fafc",txt:"#475569",border:"#e2e8f0"};
     var bal  = riskBal[k.key] || 0;
     var balStr = bal > 0 ? '<div style="font-size:10px;margin-top:2px;opacity:.75">$'+Math.round(bal).toLocaleString()+' outstanding</div>' : '';
-    return '<div style="background:'+col.bg+';border:1px solid '+col.border+';border-radius:8px;padding:10px 14px;min-width:110px;text-align:center">'
+    var subNote = k.key === 'No Payment' ? '<div style="font-size:9px;color:#a78bfa;margin-top:3px;opacity:.85">no follow-up after 30d</div>' : '';
+    return '<div style="background:'+col.bg+';border:1px solid '+col.border+';border-radius:8px;padding:10px 14px;text-align:center">'
       +'<div style="font-size:20px;font-weight:700;color:'+col.txt+'">'+cnt.toLocaleString()+'</div>'
       +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col.txt+';margin-top:2px">'+k.icon+' '+k.label+'</div>'
+      +subNote
       +balStr
       +'</div>';
-  }).join("");
+  }).join("")
+  + '</div>';
 
   // Sort / filter state for table
   var trackerSort  = el._sort  || {col:20, asc:false};  // default: sort by days_since desc
@@ -578,8 +582,8 @@ function ldpRenderTracker(rows) {
   }).join("");
 
   el.innerHTML =
-    '<div style="padding:16px 28px 12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0">'
-    +'<span style="font-size:12px;font-weight:700;color:#0d1b3e;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">RISK SUMMARY</span>'
+    '<div style="padding:16px 28px 14px;border-bottom:1px solid #e2e8f0">'
+    +'<div style="font-size:12px;font-weight:700;color:#0d1b3e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">RISK SUMMARY</div>'
     +kpiHtml+'</div>'
     +'<div style="padding:10px 28px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #e2e8f0">'
     +'<span style="font-size:11px;color:#64748b;margin-right:4px">Filter:</span>'+riskFilterHtml
