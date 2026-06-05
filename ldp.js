@@ -545,7 +545,7 @@ function ldpRenderTracker(rows) {
     var col  = RISK_COLOR[risk] || {bg:"",txt:"#475569",border:""};
     var riskBadge = '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+col.bg+';color:'+col.txt+';border:1px solid '+col.border+'">'+risk+'</span>';
     var dayCell = (r[20]!==null && r[20]!==undefined) ? r[20]+'d' : '—';
-    var dayColor = r[20]>=30?"#b91c1c":r[20]>=15?"#b45309":"#374151";
+    var dayColor = r[20]>45?"#b91c1c":r[20]>30?"#b45309":"#374151";
     var balFmt = r[22]>0 ? '$'+Math.round(r[22]).toLocaleString() : '—';
     var paidFmt = r[17]>0 ? '$'+Math.round(r[17]).toLocaleString() : '—';
     var rowBg = risk==="No Payment"?"#fdf4ff":risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":"";
@@ -578,15 +578,15 @@ function ldpRenderTracker(rows) {
   }).join("");
 
   el.innerHTML =
-    '<div style="padding:14px 18px 10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0">'
+    '<div style="padding:16px 28px 12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid #e2e8f0">'
     +'<span style="font-size:12px;font-weight:700;color:#0d1b3e;text-transform:uppercase;letter-spacing:.5px;margin-right:4px">RISK SUMMARY</span>'
     +kpiHtml+'</div>'
-    +'<div style="padding:10px 18px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #e2e8f0">'
+    +'<div style="padding:10px 28px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #e2e8f0">'
     +'<span style="font-size:11px;color:#64748b;margin-right:4px">Filter:</span>'+riskFilterHtml
     +'<input id="ldp-tracker-search" placeholder="Search order, contact, EM…" oninput="ldpTrackerSearch(this.value)" value="'+trackerSearch.replace(/"/g,'&quot;')+'" style="margin-left:auto;padding:5px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:5px;width:220px">'
     +'</div>'
-    +'<div style="overflow-x:auto">'
-    +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    +'<div style="overflow-x:auto;padding:0 28px 28px">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
     +'<thead style="background:#1a3566;color:#fff"><tr>'
     +thSort(1,'Invoice ID')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
     +thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')

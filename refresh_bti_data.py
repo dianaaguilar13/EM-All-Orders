@@ -843,14 +843,14 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _risk = "Upgrade"
         elif cncl in ("Entry Error", "Pend", "Switch"):
             _risk = cncl
-        elif _pay_count <= 1:
-            _risk = "No Payment"
-        elif active == "Active" and _days_since is not None and _days_since >= 30:
-            _risk = "Overdue +30"
-        elif active == "Active" and _days_since is not None and _days_since >= 15:
-            _risk = "Overdue +15"
+        elif _pay_count <= 1 and (_days_since is None or _days_since > 30):
+            _risk = "No Payment"   # Only deposit paid, 30-day window has passed
+        elif active == "Active" and _days_since is not None and _days_since > 45:
+            _risk = "Overdue +30"  # 30+ days past the 30-day payment window (>45d total)
+        elif active == "Active" and _days_since is not None and _days_since > 30:
+            _risk = "Overdue +15"  # 15 days past the 30-day payment window (31-45d total)
         elif active == "Active":
-            _risk = "On Track"
+            _risk = "On Track"     # Last payment within 30 days — on schedule
         else:
             _risk = "Inactive"
 
