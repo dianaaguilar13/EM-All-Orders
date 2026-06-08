@@ -81,13 +81,15 @@ def connect_snowflake():
     )
 
     conn_params = {
-        "account":       CONFIG["account"],
-        "user":          CONFIG["user"],
-        "private_key":   private_key_bytes,
-        "warehouse":     CONFIG["warehouse"],
-        "database":      CONFIG["database"],
-        "schema":        CONFIG["schema"],
-        "login_timeout": 30,
+        "account":         CONFIG["account"],
+        "user":            CONFIG["user"],
+        "private_key":     private_key_bytes,
+        "warehouse":       CONFIG["warehouse"],
+        "database":        CONFIG["database"],
+        "schema":          CONFIG["schema"],
+        "login_timeout":   60,
+        "network_timeout": 60,
+        "ocsp_fail_open":  True,   # prevents indefinite hang on Windows OCSP cert check
         "session_parameters": {"PYTHON_CONNECTOR_QUERY_RESULT_FORMAT": "JSON"},
     }
     if CONFIG.get("role"):
