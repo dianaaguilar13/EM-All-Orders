@@ -487,7 +487,6 @@ function ldpRenderTracker(rows) {
 
   // KPI summary chips
   var kpiDefs = [
-    {key:"No Payment",  label:"No Payment",   icon:"⛔"},
     {key:"Overdue +30", label:"Overdue +30d",  icon:"🔴"},
     {key:"Overdue +15", label:"Overdue +15d",  icon:"🟡"},
     {key:"On Track",    label:"On Track",      icon:"🟢"},
@@ -496,7 +495,7 @@ function ldpRenderTracker(rows) {
     {key:"Downgrade",   label:"Downgrade",     icon:"🔽"},
   ];
 
-  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;width:100%">'
+  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;width:100%">'
     + kpiDefs.map(function(k) {
     var cnt  = riskCounts[k.key] || 0;
     var col  = RISK_COLOR[k.key] || {bg:"#f8fafc",txt:"#475569",border:"#e2e8f0"};
@@ -571,7 +570,7 @@ function ldpRenderTracker(rows) {
   }).join("");
 
   // Risk filter buttons
-  var riskFilterHtml = ['', 'No Payment','Overdue +30','Overdue +15','On Track','Paid in Full','Cancelled','Downgrade'].map(function(rk) {
+  var riskFilterHtml = ['', 'Overdue +30','Overdue +15','On Track','Paid in Full','Cancelled','Downgrade'].map(function(rk) {
     var label = rk === '' ? 'All' : rk;
     var active = trackerRisk === rk;
     var col = rk ? (RISK_COLOR[rk] || {bg:"#f1f5f9",txt:"#475569"}) : {bg:"#1d4ed8",txt:"#fff"};
