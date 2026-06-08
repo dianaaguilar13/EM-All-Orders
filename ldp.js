@@ -502,7 +502,7 @@ function ldpRenderTracker(rows) {
     var col  = RISK_COLOR[k.key] || {bg:"#f8fafc",txt:"#475569",border:"#e2e8f0"};
     var bal  = riskBal[k.key] || 0;
     var balStr = bal > 0 ? '<div style="font-size:10px;margin-top:2px;opacity:.75">$'+Math.round(bal).toLocaleString()+' outstanding</div>' : '';
-    var subNote = k.key === 'No Payment' ? '<div style="font-size:9px;color:#a78bfa;margin-top:3px;opacity:.85">no follow-up after 30d</div>' : '';
+    var subNote = k.key === 'No Payment' ? '<div style="font-size:9px;color:#94a3b8;margin-top:3px;opacity:.85">+30 days</div>' : '';
     return '<div style="background:'+col.bg+';border:1px solid '+col.border+';border-radius:8px;padding:10px 14px;text-align:center">'
       +'<div style="font-size:20px;font-weight:700;color:'+col.txt+'">'+cnt.toLocaleString()+'</div>'
       +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col.txt+';margin-top:2px">'+k.icon+' '+k.label+'</div>'
