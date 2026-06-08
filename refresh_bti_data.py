@@ -60,6 +60,10 @@ CONFIG = {
 
 def connect_snowflake():
     """Connect using keypair authentication."""
+    import os
+    # Disable OCSP cache server call — prevents indefinite hang on Windows before connect()
+    os.environ.setdefault("SF_OCSP_RESPONSE_CACHE_SERVER_ENABLED", "false")
+    os.environ.setdefault("SNOWFLAKE_PYTHON_CONNECTOR_OCSP_MODE", "FAIL_OPEN")
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.backends import default_backend
     import snowflake.connector
