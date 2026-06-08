@@ -842,11 +842,11 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         _pay_count  = _pmt_cnt
 
         # Days overdue vs expected monthly schedule:
-        # Expected next payment = first deposit date + (payments_made × 30 days)
+        # Expected next payment = last payment date + 30 days
         # Positive = days late; negative = days ahead of schedule
-        if _first_d and _pay_count > 0:
+        if _last_d:
             from datetime import timedelta
-            _expected_next = _first_d + timedelta(days=_pay_count * 30)
+            _expected_next = _last_d + timedelta(days=30)
             _days_overdue  = (_today - _expected_next).days
         else:
             _days_overdue = None
