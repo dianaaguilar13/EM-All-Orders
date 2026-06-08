@@ -690,13 +690,15 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             d1       = clean_money(row.get('dep_1', 0) or d0)
             d2       = clean_money(row.get('dep_2', 0) or d0)
             d3       = clean_money(row.get('dep_3', 0) or d0)
-            last_str = str(row.get('LAST_PAY_DATE', '')).strip()[:10]
-            last_d   = parse_date(last_str) if last_str and last_str not in ('None', '') else None
-            cnt      = int(row.get('PMT_COUNT', 1) or 1)
+            last_str  = str(row.get('LAST_PAY_DATE', '')).strip()[:10]
+            first_str = str(row.get('First_Date', '')).strip()[:10]
+            last_d    = parse_date(last_str)  if last_str  and last_str  not in ('None', '') else None
+            first_d   = parse_date(first_str) if first_str and first_str not in ('None', '') else None
+            cnt       = int(row.get('PMT_COUNT', 1) or 1)
             if uid and d0 > 0:
                 uid_deps[uid] = (d0, d1, d2, d3)
             if uid and last_d:
-                uid_pmt_meta[uid] = {'last_d': last_d, 'count': cnt}
+                uid_pmt_meta[uid] = {'last_d': last_d, 'count': cnt, 'first_d': first_d}
         print(f"   → Payments loaded from Snowflake: {len(uid_deps):,} orders with deposit")
 
     elif payments_csv_path and os.path.exists(payments_csv_path):
@@ -832,10 +834,22 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         # additional date sanity check is needed here.
         _meta       = uid_pmt_meta.get(uid, {})
         _last_d     = _meta.get('last_d')
+        _first_d    = _meta.get('first_d')
         _pmt_cnt    = _meta.get('count', 0)
         _last_pmt_s = _last_d.strftime("%Y-%m-%d") if _last_d else None
+        _first_d_s  = _first_d.strftime("%Y-%m-%d") if _first_d else None
         _days_since = (_today - _last_d).days if _last_d else None
         _pay_count  = _pmt_cnt
+
+        # Days overdue vs expected monthly schedule:
+        # Expected next payment = first deposit date + (payments_made × 30 days)
+        # Positive = days late; negative = days ahead of schedule
+        if _first_d and _pay_count > 0:
+            from datetime import timedelta
+            _expected_next = _first_d + timedelta(days=_pay_count * 30)
+            _days_overdue  = (_today - _expected_next).days
+        else:
+            _days_overdue = None
 
         _paid_full  = _total_paid >= inv * 0.99
 
@@ -849,12 +863,12 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _risk = "Upgrade"
         elif cncl in ("Entry Error", "Pend", "Switch"):
             _risk = cncl
-        elif _pay_count <= 1 and (_days_since is None or _days_since > 30):
-            _risk = "No Payment"   # Only deposit paid, 30-day window has passed
-        elif active == "Active" and _days_since is not None and _days_since > 45:
-            _risk = "Overdue +30"  # 30+ days past the 30-day payment window (>45d total)
+        elif active == "Active" and _days_since is not None and _days_since >= 60:
+            _risk = "Overdue +30"  # 30+ days past the 30-day window (≥60d since last pmt)
+        elif active == "Active" and _days_since is not None and _days_since >= 45:
+            _risk = "Overdue +15"  # 15–29 days past the 30-day window (45–59d since last pmt)
         elif active == "Active" and _days_since is not None and _days_since > 30:
-            _risk = "Overdue +15"  # 15 days past the 30-day payment window (31-45d total)
+            _risk = "Overdue"      # 1–14 days past the 30-day window (31–44d since last pmt)
         elif active == "Active":
             _risk = "On Track"     # Last payment within 30 days — on schedule
         else:
@@ -877,6 +891,8 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             dep1,          # [25] dep_1: deposit through +1 day
             dep2,          # [26] dep_2: deposit through +2 days
             dep3,          # [27] dep_3: deposit through +3 days
+            _first_d_s,    # [28] first deposit date string YYYY-MM-DD or null
+            _days_overdue, # [29] days overdue vs expected monthly schedule (int or null)
         ])
 
     total   = sum(v[0] for v in by_month.values())

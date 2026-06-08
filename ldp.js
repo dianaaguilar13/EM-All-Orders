@@ -462,13 +462,13 @@ function ldpRenderTracker(rows) {
   }
 
   // Risk level colors and order
-  var RISK_ORDER = ["No Payment","Overdue +30","Overdue +15","On Track","Paid in Full","Cancelled","Downgrade","Upgrade","Entry Error","Pend","Switch","Inactive"];
+  var RISK_ORDER = ["Overdue +30","Overdue +15","Overdue","On Track","Paid in Full","Cancelled","Downgrade","Upgrade","Entry Error","Pend","Switch","Inactive"];
   var RISK_COLOR = {
     "Paid in Full": {bg:"#dcfce7",txt:"#15803d",border:"#86efac"},
     "On Track":     {bg:"#f0fdf4",txt:"#16a34a",border:"#bbf7d0"},
+    "Overdue":      {bg:"#fff7ed",txt:"#c2410c",border:"#fed7aa"},
     "Overdue +15":  {bg:"#fffbeb",txt:"#b45309",border:"#fde68a"},
     "Overdue +30":  {bg:"#fff1f2",txt:"#b91c1c",border:"#fecaca"},
-    "No Payment":   {bg:"#3b0764",txt:"#ffffff",border:"#6d28d9"},
     "Cancelled":    {bg:"#f1f5f9",txt:"#475569",border:"#cbd5e1"},
     "Downgrade":    {bg:"#f5f3ff",txt:"#6d28d9",border:"#ddd6fe"},
     "Upgrade":      {bg:"#ecfdf5",txt:"#059669",border:"#6ee7b7"},
@@ -488,14 +488,15 @@ function ldpRenderTracker(rows) {
   // KPI summary chips
   var kpiDefs = [
     {key:"Overdue +30", label:"Overdue +30d",  icon:"🔴"},
-    {key:"Overdue +15", label:"Overdue +15d",  icon:"🟡"},
+    {key:"Overdue +15", label:"Overdue +15d",  icon:"🟠"},
+    {key:"Overdue",     label:"Overdue",        icon:"🟡"},
     {key:"On Track",    label:"On Track",      icon:"🟢"},
     {key:"Paid in Full",label:"Paid in Full",  icon:"✅"},
     {key:"Cancelled",   label:"Cancelled",     icon:"⚫"},
     {key:"Downgrade",   label:"Downgrade",     icon:"🔽"},
   ];
 
-  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;width:100%">'
+  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;width:100%">'
     + kpiDefs.map(function(k) {
     var cnt  = riskCounts[k.key] || 0;
     var col  = RISK_COLOR[k.key] || {bg:"#f8fafc",txt:"#475569",border:"#e2e8f0"};
@@ -548,10 +549,13 @@ function ldpRenderTracker(rows) {
     var col  = RISK_COLOR[risk] || {bg:"",txt:"#475569",border:""};
     var riskBadge = '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+col.bg+';color:'+col.txt+';border:1px solid '+col.border+'">'+risk+'</span>';
     var dayCell = (r[20]!==null && r[20]!==undefined) ? r[20]+'d' : '—';
-    var dayColor = r[20]>45?"#b91c1c":r[20]>30?"#b45309":"#374151";
+    var dayColor = r[20]>=60?"#b91c1c":r[20]>=45?"#b45309":r[20]>30?"#c2410c":"#374151";
     var balFmt = r[22]>0 ? '$'+Math.round(r[22]).toLocaleString() : '—';
     var paidFmt = r[17]>0 ? '$'+Math.round(r[17]).toLocaleString() : '—';
-    var rowBg = risk==="No Payment"?"#fdf4ff":risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":"";
+    var dOvr = (r[29]!==null && r[29]!==undefined) ? r[29] : null;
+    var dOvrCell = dOvr===null ? '—' : (dOvr>0 ? '+'+dOvr+'d' : dOvr===0 ? 'Due today' : dOvr+'d');
+    var dOvrColor = dOvr===null?'#94a3b8':dOvr>14?'#b91c1c':dOvr>0?'#c2410c':dOvr===0?'#b45309':'#16a34a';
+    var rowBg = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
     return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
       '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
@@ -563,6 +567,7 @@ function ldpRenderTracker(rows) {
       '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
       '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+(r[19]||'—')+'</td>'+
+      '<td style="font-size:11px;color:'+dOvrColor+';font-weight:600">'+dOvrCell+'</td>'+
       '<td>'+riskBadge+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
@@ -570,7 +575,7 @@ function ldpRenderTracker(rows) {
   }).join("");
 
   // Risk filter buttons
-  var riskFilterHtml = ['', 'Overdue +30','Overdue +15','On Track','Paid in Full','Cancelled','Downgrade'].map(function(rk) {
+  var riskFilterHtml = ['', 'Overdue +30','Overdue +15','Overdue','On Track','Paid in Full','Cancelled','Downgrade'].map(function(rk) {
     var label = rk === '' ? 'All' : rk;
     var active = trackerRisk === rk;
     var col = rk ? (RISK_COLOR[rk] || {bg:"#f1f5f9",txt:"#475569"}) : {bg:"#1d4ed8",txt:"#fff"};
@@ -593,7 +598,7 @@ function ldpRenderTracker(rows) {
     +'<thead style="background:#1a3566;color:#fff"><tr>'
     +thSort(1,'Invoice ID')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
     +thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')
-    +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')+'<th>Risk</th>'
+    +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')+'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
     +'<th>EM</th><th>Partner</th>'
     +'</tr></thead>'
     +'<tbody>'+tbodyHtml+'</tbody>'
