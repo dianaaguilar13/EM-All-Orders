@@ -787,7 +787,10 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     for r_a in orders:
         inv_a   = float(r_a.get("INV_TOTAL",0) or 0)
         if inv_a <= 0: continue
-        month_a = str(r_a.get("DATE",""))[:7]
+        # Use HEAVEN_DATE (same as eff_date in order rows) so TM totals align with cohort/cancel
+        _hd_a   = (r_a.get("HEAVEN_DATE","") or "")[:7]
+        _dt_a   = str(r_a.get("DATE",""))[:7]
+        month_a = _hd_a if _hd_a >= "2000" else _dt_a
         if not month_a: continue
         sku_a   = r_a.get("SKU","") or "Unknown"
         pcat_a  = r_a.get("REFERRAL_PARTNER_CATEGORY","") or "Unknown"
