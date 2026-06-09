@@ -178,16 +178,21 @@ def fetch_payments(conn):
       "dep_1/2/3"     = cumulative deposits through +1/+2/+3 days
       "First_Date"    = first payment date
       "LAST_PAY_DATE" = most recent payment date (for AR aging / tracker)
-      "PMT_COUNT"     = total number of payment records
+      "PMT_COUNT"     = total number of valid payment records
+      "IS_PIF"        = 1 if order has a 'Discount for Payment in Full' record
+    Only real tender types count toward deposits/dates.  Discounts/adjustments
+    are excluded from amounts but the PIF-discount flag is tracked separately.
     """
     print("⏳ Fetching payments from Snowflake...")
     sql = f"""
-        WITH order_payments AS (
+        WITH all_pmts AS (
+            -- All non-deleted positive payments for orders in scope
             SELECT
                 o.UNIQUE_ORDER_ID,
-                o.ID            AS order_id,
+                o.ID       AS order_id,
                 p.PAYDATE,
-                p.PAYAMT
+                p.PAYAMT,
+                p.PAYTYPE
             FROM ANALYTICS.MART.stg_inf_payments_combined p
             JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
               ON p.INVOICEID = o.ID
@@ -197,30 +202,51 @@ def fetch_payments(conn):
               AND o.DATE >= '{CONFIG["start_date"]}'
               AND o.SKU IS NOT NULL AND o.SKU != ''
         ),
+        valid_pmts AS (
+            -- Only real tender types count toward deposit amounts & dates
+            SELECT * FROM all_pmts
+            WHERE PAYTYPE IN (
+                'Credit Card', 'Credit Card (Manual)', 'Credit Card (MANUAL)',
+                'ACH', 'ACH Bank',
+                'PayPal', 'PayPal Payment',
+                'Wire', 'Wire Transfer',
+                'Check', 'Cash'
+            )
+        ),
+        pif_flag AS (
+            -- Orders with a PIF-discount record are treated as Paid in Full
+            SELECT DISTINCT UNIQUE_ORDER_ID, order_id, 1 AS is_pif
+            FROM all_pmts
+            WHERE PAYTYPE = 'Discount for Payment in Full'
+        ),
         order_first_pmt AS (
             SELECT UNIQUE_ORDER_ID, order_id, MIN(PAYDATE) AS first_date
-            FROM order_payments
+            FROM valid_pmts
             GROUP BY UNIQUE_ORDER_ID, order_id
         )
         SELECT
-            op.UNIQUE_ORDER_ID                                                 AS "UID",
-            op.order_id                                                        AS "Id",
-            SUM(CASE WHEN op.PAYDATE = fp.first_date
-                     THEN op.PAYAMT ELSE 0 END)                               AS "Deposit",
-            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 1, fp.first_date)
-                     THEN op.PAYAMT ELSE 0 END)                               AS "dep_1",
-            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 2, fp.first_date)
-                     THEN op.PAYAMT ELSE 0 END)                               AS "dep_2",
-            SUM(CASE WHEN op.PAYDATE <= DATEADD(day, 3, fp.first_date)
-                     THEN op.PAYAMT ELSE 0 END)                               AS "dep_3",
-            fp.first_date                                                      AS "First_Date",
-            MAX(op.PAYDATE)                                                    AS LAST_PAY_DATE,
-            COUNT(*)                                                           AS PMT_COUNT
-        FROM order_payments op
-        JOIN order_first_pmt fp
-          ON op.UNIQUE_ORDER_ID = fp.UNIQUE_ORDER_ID
-         AND op.order_id        = fp.order_id
-        GROUP BY op.UNIQUE_ORDER_ID, op.order_id, fp.first_date
+            v.UNIQUE_ORDER_ID                                                  AS "UID",
+            v.order_id                                                         AS "Id",
+            SUM(CASE WHEN v.PAYDATE = f.first_date
+                     THEN v.PAYAMT ELSE 0 END)                                AS "Deposit",
+            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 1, f.first_date)
+                     THEN v.PAYAMT ELSE 0 END)                                AS "dep_1",
+            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 2, f.first_date)
+                     THEN v.PAYAMT ELSE 0 END)                                AS "dep_2",
+            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 3, f.first_date)
+                     THEN v.PAYAMT ELSE 0 END)                                AS "dep_3",
+            f.first_date                                                       AS "First_Date",
+            MAX(v.PAYDATE)                                                     AS LAST_PAY_DATE,
+            COUNT(*)                                                           AS PMT_COUNT,
+            COALESCE(MAX(p.is_pif), 0)                                        AS IS_PIF
+        FROM valid_pmts v
+        JOIN order_first_pmt f
+          ON v.UNIQUE_ORDER_ID = f.UNIQUE_ORDER_ID
+         AND v.order_id        = f.order_id
+        LEFT JOIN pif_flag p
+          ON v.UNIQUE_ORDER_ID = p.UNIQUE_ORDER_ID
+         AND v.order_id        = p.order_id
+        GROUP BY v.UNIQUE_ORDER_ID, v.order_id, f.first_date
     """
     cur = conn.cursor()
     cur.execute(sql)
@@ -695,10 +721,11 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             last_d    = parse_date(last_str)  if last_str  and last_str  not in ('None', '') else None
             first_d   = parse_date(first_str) if first_str and first_str not in ('None', '') else None
             cnt       = int(row.get('PMT_COUNT', 1) or 1)
+            is_pif    = int(row.get('IS_PIF', 0) or 0)
             if uid and d0 > 0:
                 uid_deps[uid] = (d0, d1, d2, d3)
             if uid and last_d:
-                uid_pmt_meta[uid] = {'last_d': last_d, 'count': cnt, 'first_d': first_d}
+                uid_pmt_meta[uid] = {'last_d': last_d, 'count': cnt, 'first_d': first_d, 'is_pif': is_pif}
         print(f"   → Payments loaded from Snowflake: {len(uid_deps):,} orders with deposit")
 
     elif payments_csv_path and os.path.exists(payments_csv_path):
@@ -827,7 +854,11 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         # ── Tracker fields ──────────────────────────────────────────────
         # Use PAYMENTS_TOTAL from order row (authoritative total).
         _total_paid = round(paid, 2)
-        _balance    = max(0.0, round(inv - _total_paid, 2))
+        # For cancelled orders show net lost (inv - kept), not gross remaining balance
+        if cncl == "Cancelled":
+            _balance = lost  # = max(0, inv - paid + refunds) already computed above
+        else:
+            _balance = max(0.0, round(inv - _total_paid, 2))
 
         # Last payment date + count: from uid_pmt_meta keyed by UNIQUE_ORDER_ID.
         # SQL JOIN already filtered cross-account collision payments, so no
@@ -836,6 +867,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         _last_d     = _meta.get('last_d')
         _first_d    = _meta.get('first_d')
         _pmt_cnt    = _meta.get('count', 0)
+        _is_pif     = bool(_meta.get('is_pif', 0))
         _last_pmt_s = _last_d.strftime("%Y-%m-%d") if _last_d else None
         _first_d_s  = _first_d.strftime("%Y-%m-%d") if _first_d else None
         _days_since = (_today - _last_d).days if _last_d else None
@@ -851,7 +883,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         else:
             _days_overdue = None
 
-        _paid_full  = _total_paid >= inv * 0.99
+        _paid_full  = (_total_paid >= inv * 0.99) or _is_pif
 
         if _paid_full:
             _risk = "Paid in Full"
