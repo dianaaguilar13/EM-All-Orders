@@ -559,6 +559,7 @@ function ldpRenderTracker(rows) {
       '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
       '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
       '<td style="font-size:11px">'+r[6]+'</td>'+
+      '<td style="font-size:11px;color:#374151">$'+(r[7]||0).toLocaleString()+'</td>'+
       '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
       '<td style="font-size:11px">'+paidFmt+'</td>'+
@@ -595,7 +596,7 @@ function ldpRenderTracker(rows) {
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
     +'<thead style="background:#1a3566;color:#fff"><tr>'
     +thSort(1,'Invoice ID')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
-    +thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')
+    +thSort(7,'Inv Total')+thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')
     +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')+'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
     +'<th>EM</th><th>Partner</th>'
     +'</tr></thead>'
