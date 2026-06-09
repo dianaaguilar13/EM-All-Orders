@@ -200,7 +200,7 @@ function ldpRender(){
   var totalUnits=ldpGetTotalUnits(r_,pcat_);
   var ldpPct=totalUnits>0?(ldpValidUnits/totalUnits*100):0;
 
-  document.getElementById("ldp-rcLbl").textContent=ldpTotal.toLocaleString()+" LDP records";
+  document.getElementById("ldp-rcLbl").textContent=ldpValidUnits.toLocaleString()+" LDP records";
   // Deposit window pill buttons
   (function(){var wins=["Same day","+ 1 day","+ 2 days","+ 3 days"];var el=document.getElementById("ldp-depWinBar");if(!el)return;el.innerHTML=wins.map(function(lbl,i){var act=ldpDepWin===i;return'<button id="ldp-dw'+i+'" onclick="setLdpDepWin('+i+')" style="padding:3px 10px;border-radius:20px;border:1px solid '+(act?"#7c3aed":"#e2e8f0")+';background:'+(act?"#7c3aed":"#f8fafc")+';color:'+(act?"#fff":"#475569")+';font-size:11px;font-weight:'+(act?"700":"400")+';cursor:pointer;transition:all .15s">'+lbl+'</button>';}).join("");})();
 
@@ -220,10 +220,8 @@ function ldpRender(){
       '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7c3aed">💳 LDP Outcomes</span>'+
       '<div style="height:1px;background:#ddd6fe;flex:1"></div>'+
     '</div>'+
-    // ── LDP Outcomes row: 5 KPIs + upgrade/downgrade chips ──
-    '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">'+
-      '<div class="kpi" style="border-top:3px solid #2563eb"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+ldpActive.toLocaleString()+'</div><div class="ks muted">'+(ldpValidUnits>0?(ldpActive/ldpValidUnits*100).toFixed(1):0)+'% of LDP</div></div>'+
-      '<div class="kpi" style="border-top:3px solid #94a3b8"><div class="kl">Inactive</div><div class="kv" style="color:#64748b">'+ldpInactive.toLocaleString()+'</div><div class="ks muted">'+(ldpValidUnits>0?(ldpInactive/ldpValidUnits*100).toFixed(1):0)+'% of LDP</div></div>'+
+    // ── LDP Outcomes row: 3 KPIs + upgrade/downgrade chips ──
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+
       '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+ldpCncl.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpCncl/ldpValidUnits*100).toFixed(1):0)+'%</div></div>'+
       '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div class="ks muted">cancellations ÷ LDP</div></div>'+
       '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:19px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks muted">on LDP cancels</div></div>'+
