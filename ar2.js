@@ -267,18 +267,32 @@ function ar2RenderTrendTable(data){
       var gs = "color:#94a3b8;font-style:italic;";
       var badge = "<span style='font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0'>⏳ thru "+cwThrough+"</span>";
       var mo = parseInt((cw.week_fri||"").split("-")[1]||"1");
+      // Compute rolling values for current week using completed trend rows
+      var cwChg = (cw.live_ob != null && rows.length > 0 && rows[0].ob != null) ? cw.live_ob - rows[0].ob : null;
+      var pctVals = []; if(cw.live_pct != null) pctVals.push(cw.live_pct);
+      var soldVals = []; if(cw.sold != null) soldVals.push(cw.sold);
+      var cnclVals = []; if(cw.cncl != null) cnclVals.push(cw.cncl);
+      for(var _i = 0; _i < Math.min(51, rows.length); _i++){
+        if(rows[_i].pct  != null) pctVals.push(rows[_i].pct);
+        if(rows[_i].sold != null) soldVals.push(rows[_i].sold);
+        if(rows[_i].cncl != null) cnclVals.push(rows[_i].cncl);
+      }
+      var cwAvg52     = pctVals.length  > 0 ? pctVals.reduce(function(a,b){return a+b;},0)/pctVals.length   : null;
+      var cwSoldAvg52 = soldVals.length > 0 ? soldVals.reduce(function(a,b){return a+b;},0)/soldVals.length : null;
+      var cwCnclAvg52 = cnclVals.length > 0 ? cnclVals.reduce(function(a,b){return a+b;},0)/cnclVals.length : null;
+      var fmtChgCw = function(v){ if(v==null) return "—"; var s="$"+Math.abs(Math.round(v)).toLocaleString(); return v<0?"<span style='color:#16a34a'>▼ "+s+"</span>":v>0?"<span style='color:#dc2626'>▲ "+s+"</span>":s; };
       var cwCells = [
         "<td style='white-space:nowrap;"+gs+"'>" + cwFri + " " + badge + "</td>",
         "<td style='text-align:right;"+gs+"'>" + (cw.live_tb ? fmt$(cw.live_tb)+" <span style='font-size:9px;color:#94a3b8'>live</span>" : "—") + "</td>",
         "<td style='text-align:right;"+gs+"'>" + (cw.live_ob ? fmt$(cw.live_ob) : "—") + "</td>",
         "<td style='text-align:right;font-weight:600;color:#94a3b8;font-style:italic'>" + (cw.live_pct != null ? cw.live_pct.toFixed(2)+"%" : "—") + "</td>",
-        "<td style='text-align:right;"+gs+"'>—</td>",
-        "<td style='text-align:right;"+gs+"'>—</td>",
+        "<td style='text-align:right;"+gs+"'>" + (cwAvg52 != null ? cwAvg52.toFixed(2)+"%" : "—") + "</td>",
+        "<td style='text-align:right;"+gs+"'>" + fmtChgCw(cwChg) + "</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.sold) + "</td>",
-        "<td style='text-align:right;"+gs+"'>—</td>",
+        "<td style='text-align:right;"+gs+"'>" + (cwSoldAvg52 != null ? fmt$(cwSoldAvg52) : "—") + "</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.pmts) + "</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.cncl) + "</td>",
-        "<td style='text-align:right;"+gs+"'>—</td>",
+        "<td style='text-align:right;"+gs+"'>" + (cwCnclAvg52 != null ? fmt$(cwCnclAvg52) : "—") + "</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.disc) + "</td>",
         "<td style='text-align:center;"+gs+"'>Q" + Math.ceil(mo/3) + "</td>",
         "<td style='text-align:center;"+gs+"'>FY'" + String(cw.y||"").toString().slice(-2) + "</td>",
