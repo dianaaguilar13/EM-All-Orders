@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AR Reconciliation — May 30 – Jun 5, 2026</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, "Segoe UI", sans-serif; font-size: 13px; padding: 24px; }
+
+  .report-wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* Header */
+  .report-header {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px 10px 0 0;
+    padding: 16px 20px;
+  }
+  .report-title { font-size: 18px; font-weight: 700; color: #e6edf3; }
+  .week-badge {
+    background: #21262d; border: 1px solid #30363d; border-radius: 6px;
+    padding: 6px 14px; font-size: 12px; font-weight: 600; color: #8b949e;
+  }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; background: #0d1117; border: 1px solid #30363d; border-top: none; }
+
+  /* Column headers */
+  thead tr { background: #161b22; border-bottom: 1px solid #30363d; }
+  thead th {
+    padding: 10px 14px; font-size: 11px; font-weight: 600; color: #8b949e;
+    text-align: left; letter-spacing: .4px; white-space: nowrap;
+  }
+  thead th:not(:first-child) { text-align: right; }
+  thead th:last-child { text-align: left; }
+
+  /* Section header rows */
+  tr.section-hdr td {
+    background: #161b22; color: #8b949e; font-size: 11px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase; padding: 8px 14px;
+    border-top: 1px solid #30363d; border-bottom: 1px solid #21262d;
+  }
+
+  /* Data rows */
+  tr.data-row td {
+    padding: 12px 14px; border-bottom: 1px solid #21262d;
+    vertical-align: top;
+  }
+  tr.data-row:last-child td { border-bottom: none; }
+
+  td.line-item { color: #8b949e; font-size: 12px; font-weight: 500; white-space: nowrap; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-family: "SFMono-Regular", "Consolas", monospace; font-size: 13px; white-space: nowrap; }
+  td.logic { font-size: 11px; color: #6e7681; line-height: 1.6; }
+
+  .green  { color: #3fb950; }
+  .red    { color: #f85149; }
+  .muted  { color: #8b949e; }
+  .tbd    { color: #8b949e; font-style: italic; }
+
+  .diff-val { font-weight: 700; }
+  .diff-pct {
+    display: inline-block; margin-left: 6px;
+    background: #21262d; border: 1px solid #30363d;
+    border-radius: 4px; padding: 1px 5px;
+    font-size: 10px; color: #8b949e; font-weight: 600;
+  }
+
+  .badge {
+    display: inline-block; border-radius: 4px;
+    padding: 2px 7px; font-size: 10px; font-weight: 700;
+    letter-spacing: .3px; margin-left: 6px; vertical-align: middle;
+  }
+  .badge-fixed  { background: #1a4731; color: #3fb950; border: 1px solid #2ea04326; }
+  .badge-rerun  { background: #3d2200; color: #f0883e; border: 1px solid #bd561d40; }
+
+  .logic-table { color: #a5d6ff; font-family: "SFMono-Regular", "Consolas", monospace; font-size: 10.5px; }
+  .logic-note  { color: #3fb950; font-size: 10.5px; margin-top: 2px; }
+  .logic-line  { display: block; }
+
+  /* Footer */
+  .footer {
+    background: #161b22; border: 1px solid #30363d; border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 12px 16px; font-size: 11px; color: #8b949e; line-height: 1.6;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .footer input[type=checkbox] { margin-top: 2px; flex-shrink: 0; accent-color: #2563eb; }
+  .footer strong { color: #e6edf3; }
+</style>
+</head>
+<body>
+<div class="report-wrap">
+
+  <!-- Header -->
+  <div class="report-header">
+    <div class="report-title">AR Reconciliation &mdash; May 30 &ndash; Jun 5, 2026</div>
+    <div class="week-badge">Week ending Friday Jun 5</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:160px">Line item</th>
+        <th style="width:150px">AR CSV (coworker)</th>
+        <th style="width:160px">Our Snowflake</th>
+        <th style="width:140px">Difference</th>
+        <th>Our logic &mdash; table &middot; column</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      <!-- ── STARTING BALANCE ── -->
+      <tr class="section-hdr"><td colspan="5">Starting Balance</td></tr>
+
+      <tr class="data-row">
+        <td class="line-item">May 29</td>
+        <td class="num muted"></td>
+        <td class="num muted"></td>
+        <td class="num muted">&mdash;</td>
+        <td class="logic">
+          <span class="logic-line">AR Overdue Historic Week Data.xlsx</span>
+          <span class="logic-line">Row where Date = 2026-05-29 &middot; Col &ldquo;Total AR Balance&rdquo;</span>
+        </td>
+      </tr>
+
+      <!-- ── WEEKLY ACTIVITY ── -->
+      <tr class="section-hdr"><td colspan="5">Weekly Activity (May 30 &ndash; Jun 5)</td></tr>
+
+      <!-- Orders Sold -->
+      <tr class="data-row">
+        <td class="line-item">Orders Sold</td>
+        <td class="num green">+$464,962</td>
+        <td class="num green">+$451,329</td>
+        <td class="num">
+          <span class="diff-val red">&minus;$13,633</span>
+          <span class="diff-pct">2.9%</span>
+        </td>
+        <td class="logic">
+          <span class="logic-table logic-line">DIM_ALL_ORDERS</span>
+          <span class="logic-line">SUM(INV_TOTAL) where DATE between May 30&ndash;Jun 5</span>
+          <span class="logic-line">Excl. Entry Errors &middot; SKU not null &middot; INV_TOTAL &gt; 0</span>
+        </td>
+      </tr>
+
+      <!-- Payments Collected -->
+      <tr class="data-row">
+        <td class="line-item">Payments Collected</td>
+        <td class="num red">&minus;$411,545</td>
+        <td class="num red">&minus;$434,891 <span class="badge badge-fixed">fixed</span></td>
+        <td class="num">
+          <span class="diff-val green">+$23,346</span>
+        </td>
+        <td class="logic">
+          <span class="logic-table logic-line">stg_inf_payments_combined</span>
+          <span class="logic-line">SUM(PAYAMT) where PAYDATE May 30&ndash;Jun 5</span>
+          <span class="logic-line">PAYTYPE IN (CC / ACH / PayPal / Paypal / Wire / Check / Cash)</span>
+          <span class="logic-note">&lsquo;Paypal&rsquo; (lowercase) now included (+$5,040)</span>
+        </td>
+      </tr>
+
+      <!-- Credits / Cancellations -->
+      <tr class="data-row">
+        <td class="line-item">Credits / Cancellations</td>
+        <td class="num red">&minus;$141,913</td>
+        <td class="num red">&minus;$175,075</td>
+        <td class="num">
+          <span class="diff-val green">+$33,162</span>
+        </td>
+        <td class="logic">
+          <span class="logic-table logic-line">DIM_ALL_ORDERS</span>
+          <span class="logic-line">SUM(INV_TOTAL) where REFUND_CREDIT_DATE May 30&ndash;Jun 5</span>
+          <span class="logic-line">CREDIT_STATUS LIKE &lsquo;cncl%&rsquo; OR &lsquo;lrev%&rsquo;</span>
+          <span class="logic-line">Grouped by week of cancellation date</span>
+        </td>
+      </tr>
+
+      <!-- Discounts -->
+      <tr class="data-row">
+        <td class="line-item">Discounts</td>
+        <td class="num red">&minus;$69,713</td>
+        <td class="num muted">Re-run needed <span class="badge badge-rerun">rerun</span></td>
+        <td class="num tbd">TBD</td>
+        <td class="logic">
+          <span class="logic-table logic-line">stg_inf_payments_combined</span>
+          <span class="logic-line">SUM(PAYAMT) where PAYTYPE NOT IN valid tenders</span>
+          <span class="logic-line">AND PAYTYPE != &lsquo;Discount for Payment in Full&rsquo;</span>
+          <span class="logic-note">CNCL-* entries now excluded (were double-counted)</span>
+        </td>
+      </tr>
+
+      <!-- ── ENDING BALANCE ── -->
+      <tr class="section-hdr"><td colspan="5">Ending Balance</td></tr>
+
+      <!-- Jun 5 Calc AR -->
+      <tr class="data-row">
+        <td class="line-item">Jun 5 &mdash; Calc AR</td>
+        <td class="num muted"></td>
+        <td class="num tbd">TBD after rerun</td>
+        <td class="num tbd">TBD</td>
+        <td class="logic">
+          <span class="logic-line">Start + Sold &minus; Pmts &minus; Cncl &minus; Disc</span>
+          <span class="logic-line muted">Coworker variance: $74,371 (0.95%)</span>
+        </td>
+      </tr>
+
+      <!-- Jun 5 Snapshot -->
+      <tr class="data-row">
+        <td class="line-item">Jun 5 &mdash; Live Snapshot</td>
+        <td class="num muted"></td>
+        <td class="num green">$7,811,285</td>
+        <td class="num muted">&mdash;</td>
+        <td class="logic">
+          <span class="logic-table logic-line">DIM_AR_ALL_INVOICES</span>
+          <span class="logic-line">Live balance snapshot as of Jun 5</span>
+          <span class="logic-line">SUM(balance) where balance &gt; 0</span>
+        </td>
+      </tr>
+
+      <!-- % Arrears -->
+      <tr class="data-row">
+        <td class="line-item">% in Arrears</td>
+        <td class="num muted">5.8%</td>
+        <td class="num green">$451,413 <span class="muted">5.8%</span></td>
+        <td class="num muted">&mdash;</td>
+        <td class="logic">
+          <span class="logic-table logic-line">DIM_AR_ALL_INVOICES</span>
+          <span class="logic-line">SUM(total_arrears) where balance &gt; 0</span>
+        </td>
+      </tr>
+
+    </tbody>
+  </table>
+
+  <!-- Footer -->
+  <div class="footer">
+    <input type="checkbox" checked>
+    <div>
+      <strong>Fixes applied:</strong> Paypal (lowercase) added to valid payments &middot; CNCL-* entries removed from discounts.
+      Run <strong>Run.bat</strong> to see corrected discount amount and recalculate flow-based Calc AR.
+      The AR snapshot rows always match because both sides read live Snowflake state.
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
