@@ -186,7 +186,7 @@ function ar2RenderTrendChart(){
 
   if(!trendData){
     if(noDataEl){ noDataEl.style.display="block";
-      noDataEl.textContent="Run Run.bat to generate the AR Overdue Trend (seeds from AR Overdue Historic Week Data.xlsx)."; }
+      noDataEl.textContent="Run Run.bat to generate the AR Overdue Trend from Snowflake order & payment data."; }
     if(canvas) canvas.style.display="none";
     if(trendWrap) trendWrap.style.display="none";
     return;
@@ -251,37 +251,79 @@ function ar2RenderTrendTable(data){
   if(!wrap) return;
   var fmt$ = function(v){ return v ? "$"+Math.round(v).toLocaleString() : "—"; };
   var fmtP = function(v){ return v != null ? v.toFixed(2)+"%" : "—"; };
+  var fmtD = function(s){ var p=s.split('-'); return p.length===3 ? (p[1].replace(/^0/,'')+'/'+p[2].replace(/^0/,'')+'/'+p[0]) : s; };
 
   var rows = data.slice().reverse(); // newest first
+
+  // ── In-progress current week row ────────────────────────────────────────────
+  var cwRow = "";
+  var cw = AR2 && AR2.current_week;
+  if(cw){
+    var cwFri = fmtD(cw.week_fri);
+    var cwThrough = fmtD(cw.data_through);
+    var grayStyle = "color:#94a3b8;font-style:italic;";
+    var cwCells = [
+      "<td style='white-space:nowrap;"+grayStyle+"'>" + cwFri + " <span style='font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0'>⏳ thru "+cwThrough+"</span></td>",
+      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.live_tb) + " <span style='font-size:9px;color:#94a3b8'>live</span></td>",
+      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.live_ob) + "</td>",
+      "<td style='text-align:right;font-weight:600;color:#64748b;font-style:italic'>" + (cw.live_pct != null ? cw.live_pct.toFixed(2)+"%" : "—") + "</td>",
+      "<td style='text-align:right;"+grayStyle+"'>—</td>",
+      "<td style='text-align:right;"+grayStyle+"'>—</td>",
+      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.sold) + "</td>",
+      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.pmts) + "</td>",
+      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.cncl) + "</td>",
+      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.disc) + "</td>",
+      "<td style='text-align:center;"+grayStyle+"'>" + (cw.q||"") + "</td>",
+      "<td style='text-align:center;"+grayStyle+"'>FY'" + String(cw.y).slice(-2) + "</td>",
+    ].join("");
+    cwRow = "<tr style='background:#f8fafc;border-bottom:1px dashed #cbd5e1'>" + cwCells + "</tr>";
+  }
+
+  var fmtChg = function(v){
+    if(v == null) return "—";
+    var s = "$"+Math.abs(Math.round(v)).toLocaleString();
+    return v < 0 ? "<span style='color:#16a34a'>▼ "+s+"</span>" : v > 0 ? "<span style='color:#dc2626'>▲ "+s+"</span>" : s;
+  };
   var tbody = rows.map(function(pt){
     return "<tr>" +
-      "<td>" + pt.d + "</td>" +
+      "<td style='white-space:nowrap'>" + fmtD(pt.d) + "</td>" +
       "<td style='text-align:right'>" + fmt$(pt.tb) + "</td>" +
       "<td style='text-align:right'>" + fmt$(pt.ob) + "</td>" +
       "<td style='text-align:right;font-weight:600;color:#0d9488'>" + fmtP(pt.pct) + "</td>" +
       "<td style='text-align:right;color:#ea4335'>" + fmtP(pt.avg52) + "</td>" +
-      "<td>" + (pt.q || "") + "</td>" +
-      "<td>" + (pt.y ? "FY'" + String(pt.y).slice(-2) : "") + "</td>" +
+      "<td style='text-align:right;color:#6366f1'>" + fmtChg(pt.chg) + "</td>" +
+      "<td style='text-align:right;color:#0369a1'>" + fmt$(pt.sold) + "</td>" +
+      "<td style='text-align:right;color:#16a34a'>" + fmt$(pt.pmts) + "</td>" +
+      "<td style='text-align:right;color:#dc2626'>" + fmt$(pt.cncl) + "</td>" +
+      "<td style='text-align:right;color:#b45309'>" + fmt$(pt.disc) + "</td>" +
+      "<td style='text-align:center'>" + (pt.q || "") + "</td>" +
+      "<td style='text-align:center'>" + (pt.y ? "FY'" + String(pt.y).slice(-2) : "") + "</td>" +
     "</tr>";
   }).join("");
 
+  var th = function(label, align){ return "<th style='text-align:"+(align||"right")+";padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap'>"+label+"</th>"; };
   wrap.innerHTML =
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
       "<span style='font-size:12px;font-weight:600;color:#0d9488;cursor:pointer' onclick='ar2ToggleTrendTable(this)'>▼ Weekly Data Table (" + rows.length + " weeks)</span>" +
       "<button onclick='ar2DownloadTrendCsv()' style='font-size:11px;padding:4px 10px;border:1px solid #0d9488;border-radius:4px;background:#fff;color:#0d9488;cursor:pointer'>⬇ Download CSV</button>" +
     "</div>" +
-    "<div id='ar2-trend-tbl-body'>" +
-      "<table style='width:100%;border-collapse:collapse;font-size:12px'>" +
+    "<div id='ar2-trend-tbl-body' style='overflow-x:auto'>" +
+      "<table style='width:100%;border-collapse:collapse;font-size:12px;min-width:900px'>" +
         "<thead><tr style='background:#f1faf9;position:sticky;top:0'>" +
-          "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Week (Friday)</th>" +
-          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Total AR Balance</th>" +
-          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Overdue Balance</th>" +
-          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>% Overdue</th>" +
-          "<th style='text-align:right;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>52-wk Avg</th>" +
-          "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Quarter</th>" +
-          "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488'>Fiscal Year</th>" +
+          th("Week (Friday)","left") +
+          th("Total AR Balance") +
+          th("Overdue Balance") +
+          th("% Overdue") +
+          th("52-wk Avg") +
+          th("Overdue Chg") +
+          th("Orders Sold") +
+          th("Pmts Received") +
+          th("Cancellations") +
+          th("Discounts / Adj") +
+          th("Quarter","center") +
+          th("Fiscal Year","center") +
         "</tr></thead>" +
-        "<tbody>" + tbody + "</tbody>" +
+        "<tbody>" + cwRow + tbody + "</tbody>" +
       "</table>" +
     "</div>";
 }
@@ -300,7 +342,7 @@ function ar2ToggleTrendTable(btn){
 
 function ar2DownloadTrendCsv(){
   if(!AR2 || !AR2.trend_v2 || !AR2.trend_v2.length) return;
-  var header = ["Week (Friday)","Total AR Balance","Overdue Balance","% Of AR Overdue","52-wk Running Avg","Quarter","Fiscal Year"];
+  var header = ["Week (Friday)","Total AR Balance","Overdue Balance","% Of AR Overdue","52-wk Running Avg","Overdue Balance Chg","Orders Sold","Payments Received","Cancellations","Discounts / Adjustments","Quarter","Fiscal Year"];
   var lines  = [header.join(",")];
   AR2.trend_v2.forEach(function(pt){
     lines.push([
@@ -309,6 +351,11 @@ function ar2DownloadTrendCsv(){
       pt.ob != null ? pt.ob.toFixed(2) : "",
       pt.pct != null ? pt.pct.toFixed(2) : "",
       pt.avg52 != null ? pt.avg52.toFixed(2) : "",
+      pt.chg != null ? pt.chg.toFixed(2) : "",
+      pt.sold != null ? pt.sold.toFixed(2) : "",
+      pt.pmts != null ? pt.pmts.toFixed(2) : "",
+      pt.cncl != null ? pt.cncl.toFixed(2) : "",
+      pt.disc != null ? pt.disc.toFixed(2) : "",
       pt.q || "",
       pt.y ? "FY'" + String(pt.y).slice(-2) : ""
     ].join(","));
