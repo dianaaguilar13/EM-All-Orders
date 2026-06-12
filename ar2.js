@@ -3,6 +3,7 @@ if(typeof EXCLUDED_SKUS==="undefined")var EXCLUDED_SKUS=new Set([]);
 var AR2 = null;
 var ar2SelSku = new Set();
 var ar2Charts = {};
+var ar2KpiRows = [];
 
 // ── Filter readers ────────────────────────────────────────────────────────────
 function ar2Pcat()   { return document.getElementById("ar2-pcat").value; }
@@ -301,8 +302,10 @@ function ar2RenderTrendTable(data){
     "</tr>";
   }).join("");
 
+  ar2KpiRows = rows;
   var th = function(label, align){ return "<th style='text-align:"+(align||"right")+";padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap'>"+label+"</th>"; };
   wrap.innerHTML =
+    "<div id='ar2-kpi-strip' style='margin-bottom:4px'>" + ar2BuildKpiHtml(rows, 0) + "</div>" +
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
       "<span style='font-size:12px;font-weight:600;color:#0d9488;cursor:pointer' onclick='ar2ToggleTrendTable(this)'>▼ Weekly Data Table (" + rows.length + " weeks)</span>" +
       "<button onclick='ar2DownloadTrendCsv()' style='font-size:11px;padding:4px 10px;border:1px solid #0d9488;border-radius:4px;background:#fff;color:#0d9488;cursor:pointer'>⬇ Download CSV</button>" +
@@ -338,6 +341,70 @@ function ar2ToggleTrendTable(btn){
     body.style.display = "none";
     btn.textContent = btn.textContent.replace("▼","▶");
   }
+}
+
+function ar2SelectKpiWeek(idx){
+  var kpiWrap = document.getElementById("ar2-kpi-strip");
+  if(!kpiWrap || !ar2KpiRows.length) return;
+  kpiWrap.innerHTML = ar2BuildKpiHtml(ar2KpiRows, parseInt(idx));
+}
+
+function ar2BuildKpiHtml(rows, idx){
+  if(!rows || rows.length < 2) return "";
+  idx = idx || 0;
+  var cur  = rows[idx];
+  var prev = rows[idx + 1] || {};
+  var fmtD = function(s){ var p=(s||"").split("-"); return p.length===3 ? p[1].replace(/^0/,"")+"/"+p[2].replace(/^0/,"")+"/"+p[0] : (s||""); };
+  var fmt$ = function(v){ return "$"+Math.round(Math.abs(v||0)).toLocaleString(); };
+  var startBal = prev.tb || 0;
+  var sold = cur.sold || 0;
+  var pmts = cur.pmts || 0;
+  var cncl = cur.cncl || 0;
+  var disc = cur.disc || 0;
+  var hasFlow = sold>0 || pmts>0 || cncl>0 || disc>0;
+  var calcAr  = hasFlow ? startBal + sold - pmts - cncl - disc : 0;
+  var actualAr = cur.tb || 0;
+  var variance = hasFlow ? Math.abs(calcAr - actualAr) : 0;
+  var varPct   = (hasFlow && calcAr>0) ? variance/calcAr*100 : 0;
+  var current  = (cur.tb||0) - (cur.ob||0);
+  var arrears  = cur.ob || 0;
+  var wow      = (cur.tb||0) - (prev.tb||0);
+  var weekLbl  = fmtD(cur.d);
+  var prevLbl  = fmtD(prev.d);
+  var noData   = "<div style='font-size:8px;color:#94a3b8;margin-top:2px'>run Run.bat</div>";
+  var pickerOpts = rows.map(function(pt,i){ return "<option value='"+i+"'"+(i===idx?" selected":"")+">"+fmtD(pt.d)+"</option>"; }).join("");
+  var fc = function(lbl,val,color,leftCol,note){
+    return "<div style='background:#fff;border:0.5px solid #e2e8f0;border-radius:6px;padding:5px 7px;"+(leftCol?"border-left:2px solid "+leftCol+";":"")+"'>" +
+      "<div style='font-size:9px;color:#64748b;margin-bottom:2px;line-height:1.2'>"+lbl+"</div>" +
+      "<div style='font-size:12px;font-weight:500;color:"+color+";line-height:1'>"+val+"</div>"+(note||"")+"</div>";
+  };
+  var sc = function(lbl,val,color,sub,hl){
+    return "<div style='background:"+(hl?"#fff;border:0.5px solid "+hl:"#f8fafc;border:0.5px solid #e2e8f0")+";border-radius:6px;padding:5px 7px'>" +
+      "<div style='font-size:9px;color:#64748b;margin-bottom:2px'>"+lbl+"</div>" +
+      "<div style='font-size:12px;font-weight:500;color:"+color+"'>"+val+"</div>"+(sub?"<div style='font-size:8px;color:#94a3b8;margin-top:1px'>"+sub+"</div>":"")+"</div>";
+  };
+  var wowColor = wow<=0 ? "#16a34a" : "#dc2626";
+  var varColor = varPct < 2 ? "#b45309" : "#dc2626";
+  return "<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px'>" +
+      "<span style='font-size:10px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:.4px'>Weekly reconciliation</span>" +
+      "<span style='background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:3px'>Week ending "+weekLbl+"</span>" +
+      "<select onchange='ar2SelectKpiWeek(this.value)' style='margin-left:auto;font-size:10px;padding:2px 5px;border:0.5px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#475569;cursor:pointer'>"+pickerOpts+"</select>" +
+    "</div>" +
+    "<div style='display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin-bottom:5px'>" +
+      fc("AR start ("+prevLbl+")", fmt$(startBal), "#0369a1", "#0369a1") +
+      fc("+ Orders sold", hasFlow ? "+"+fmt$(sold) : "—", "#16a34a", null, hasFlow?null:noData) +
+      fc("− Payments",     hasFlow ? "−"+fmt$(pmts) : "—", "#dc2626", null, hasFlow?null:noData) +
+      fc("− Cancellations",hasFlow ? "−"+fmt$(cncl) : "—", "#dc2626", null, hasFlow?null:noData) +
+      fc("− Discounts / Adj",hasFlow ? "−"+fmt$(disc) : "—", "#dc2626", null, hasFlow?null:noData) +
+      fc("= Calc AR", hasFlow ? fmt$(calcAr) : "—", "#0d9488", "#0d9488") +
+    "</div>" +
+    "<div style='display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-bottom:8px'>" +
+      sc("Actual AR ("+weekLbl+")", fmt$(actualAr), "#1a2332", "DIM_AR_ALL_INVOICES", "#0d9488") +
+      sc("Variance", hasFlow ? fmt$(variance)+" · "+varPct.toFixed(2)+"%" : "—", varColor, "calc vs actual", "#f59e0b") +
+      sc("Current (not overdue)", fmt$(current), "#16a34a", (actualAr>0?(current/actualAr*100).toFixed(1)+"% of balance":"")) +
+      sc("Total arrears", fmt$(arrears), "#dc2626", cur.pct ? cur.pct.toFixed(2)+"% overdue" : "") +
+      sc("Week-over-week", (wow<=0?"▼ ":"▲ ")+fmt$(wow), wowColor, "vs "+prevLbl) +
+    "</div>";
 }
 
 function ar2DownloadTrendCsv(){
