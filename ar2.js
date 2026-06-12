@@ -256,38 +256,33 @@ function ar2RenderTrendTable(data){
 
   var rows = data.slice().reverse(); // newest first
 
-  // ── Upcoming week placeholder row (last completed + 7 days) ─────────────────
+  // ── Current in-progress week row (gray) — only if not already in completed data ──
   var cwRow = "";
   var cw = AR2 && AR2.current_week;
-  var lastCompleted = rows[0];
-  if(lastCompleted){
-    var lastDate = new Date(lastCompleted.d + "T00:00:00");
-    var upcomingDate = new Date(lastDate.getTime() + 7*24*60*60*1000);
-    var upcomingStr = upcomingDate.toISOString().slice(0,10);
-    var upcomingLbl = fmtD(upcomingStr);
-    var mo = upcomingDate.getMonth() + 1;
-    var upQ = "Q" + Math.ceil(mo/3);
-    var upY = "FY'" + String(upcomingDate.getFullYear()).slice(-2);
-    var liveTb = (cw && cw.live_tb) ? cw.live_tb : 0;
-    var liveOb = (cw && cw.live_ob) ? cw.live_ob : 0;
-    var livePct = (cw && cw.live_pct) ? cw.live_pct : 0;
-    var gs = "color:#94a3b8;font-style:italic;";
-    var badge = "<span style='font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0'>upcoming</span>";
-    var cwCells = [
-      "<td style='white-space:nowrap;"+gs+"'>" + upcomingLbl + " " + badge + "</td>",
-      "<td style='text-align:right;"+gs+"'>" + (liveTb ? fmt$(liveTb)+" <span style='font-size:9px;color:#94a3b8'>live</span>" : "—") + "</td>",
-      "<td style='text-align:right;"+gs+"'>" + (liveOb ? fmt$(liveOb) : "—") + "</td>",
-      "<td style='text-align:right;font-weight:600;color:#94a3b8;font-style:italic'>" + (livePct ? livePct.toFixed(2)+"%" : "—") + "</td>",
-      "<td style='text-align:right;"+gs+"'>—</td>",
-      "<td style='text-align:right;"+gs+"'>—</td>",
-      "<td style='text-align:right;"+gs+"'>—</td>",
-      "<td style='text-align:right;"+gs+"'>—</td>",
-      "<td style='text-align:right;"+gs+"'>—</td>",
-      "<td style='text-align:right;"+gs+"'>—</td>",
-      "<td style='text-align:center;"+gs+"'>" + upQ + "</td>",
-      "<td style='text-align:center;"+gs+"'>" + upY + "</td>",
-    ].join("");
-    cwRow = "<tr style='background:#f8fafc;border-bottom:1px dashed #cbd5e1'>" + cwCells + "</tr>";
+  if(cw && cw.week_fri){
+    var alreadyCompleted = rows.some(function(r){ return r.d === cw.week_fri; });
+    if(!alreadyCompleted){
+      var cwFri = fmtD(cw.week_fri);
+      var cwThrough = fmtD(cw.data_through);
+      var gs = "color:#94a3b8;font-style:italic;";
+      var badge = "<span style='font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0'>⏳ thru "+cwThrough+"</span>";
+      var mo = parseInt((cw.week_fri||"").split("-")[1]||"1");
+      var cwCells = [
+        "<td style='white-space:nowrap;"+gs+"'>" + cwFri + " " + badge + "</td>",
+        "<td style='text-align:right;"+gs+"'>" + (cw.live_tb ? fmt$(cw.live_tb)+" <span style='font-size:9px;color:#94a3b8'>live</span>" : "—") + "</td>",
+        "<td style='text-align:right;"+gs+"'>" + (cw.live_ob ? fmt$(cw.live_ob) : "—") + "</td>",
+        "<td style='text-align:right;font-weight:600;color:#94a3b8;font-style:italic'>" + (cw.live_pct != null ? cw.live_pct.toFixed(2)+"%" : "—") + "</td>",
+        "<td style='text-align:right;"+gs+"'>—</td>",
+        "<td style='text-align:right;"+gs+"'>—</td>",
+        "<td style='text-align:right;"+gs+"'>" + fmt$(cw.sold) + "</td>",
+        "<td style='text-align:right;"+gs+"'>" + fmt$(cw.pmts) + "</td>",
+        "<td style='text-align:right;"+gs+"'>" + fmt$(cw.cncl) + "</td>",
+        "<td style='text-align:right;"+gs+"'>" + fmt$(cw.disc) + "</td>",
+        "<td style='text-align:center;"+gs+"'>Q" + Math.ceil(mo/3) + "</td>",
+        "<td style='text-align:center;"+gs+"'>FY'" + String(cw.y||"").toString().slice(-2) + "</td>",
+      ].join("");
+      cwRow = "<tr style='background:#f8fafc;border-bottom:1px dashed #cbd5e1'>" + cwCells + "</tr>";
+    }
   }
 
   var fmtChg = function(v){
