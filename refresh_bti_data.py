@@ -1767,28 +1767,32 @@ def fetch_weekly_ar_flows(conn):
     sql = f"""
         WITH weekly_pmts AS (
             SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(PAYDATE)) + 7, 7), TO_DATE(PAYDATE)) AS week_fri,
-                SUM(PAYAMT) AS pmts
-            FROM ANALYTICS.MART.stg_inf_payments_combined
-            WHERE PAYAMT > 0
-              AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
-              AND TO_DATE(PAYDATE) >= '{CONFIG["start_date"]}'
-              AND TO_DATE(PAYDATE) <= CURRENT_DATE()
-              AND PAYTYPE IN ({valid_types})
+                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
+                SUM(p.PAYAMT) AS pmts
+            FROM ANALYTICS.MART.stg_inf_payments_combined p
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+            WHERE p.PAYAMT > 0
+              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+              AND o.SKU IS NOT NULL AND o.SKU != ''
+              AND TO_DATE(p.PAYDATE) >= '{CONFIG["start_date"]}'
+              AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
+              AND p.PAYTYPE IN ({valid_types})
             GROUP BY 1
         ),
         weekly_disc AS (
             SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(PAYDATE)) + 7, 7), TO_DATE(PAYDATE)) AS week_fri,
-                SUM(PAYAMT) AS disc
-            FROM ANALYTICS.MART.stg_inf_payments_combined
-            WHERE PAYAMT > 0
-              AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
-              AND TO_DATE(PAYDATE) >= '{CONFIG["start_date"]}'
-              AND TO_DATE(PAYDATE) <= CURRENT_DATE()
-              AND PAYTYPE NOT IN ({valid_types})
-              AND PAYTYPE != 'Discount for Payment in Full'
-              AND PAYTYPE NOT LIKE 'CNCL-%'
+                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
+                SUM(p.PAYAMT) AS disc
+            FROM ANALYTICS.MART.stg_inf_payments_combined p
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+            WHERE p.PAYAMT > 0
+              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+              AND o.SKU IS NOT NULL AND o.SKU != ''
+              AND TO_DATE(p.PAYDATE) >= '{CONFIG["start_date"]}'
+              AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
+              AND p.PAYTYPE NOT IN ({valid_types})
+              AND p.PAYTYPE != 'Discount for Payment in Full'
+              AND p.PAYTYPE NOT LIKE 'CNCL-%'
             GROUP BY 1
         ),
         weekly_sold AS (
