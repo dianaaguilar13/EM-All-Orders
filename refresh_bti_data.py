@@ -1843,6 +1843,11 @@ def fetch_weekly_ar_flows(conn):
             "cncl": _flow_val(r.get("CNCL")),
         }
     print(f"   → {len(flows)} weeks of AR flow data fetched")
+    # Debug: show last 3 weeks to verify data is coming through
+    recent = sorted(flows.keys())[-3:] if flows else []
+    for d in recent:
+        f = flows[d]
+        print(f"      {d}: sold={f['sold']}, pmts={f['pmts']}, disc={f['disc']}, cncl={f['cncl']}")
     return flows
 
 
