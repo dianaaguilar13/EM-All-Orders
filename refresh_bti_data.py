@@ -1674,6 +1674,18 @@ def append_weekly_ar_trend(history, ar_invoices, weekly_flows=None):
     # Sort by date
     history.sort(key=lambda x: x["d"])
 
+    # Backfill pmts/disc (and sold/cncl) from Snowflake for any historical rows that still have null
+    if weekly_flows:
+        backfilled = 0
+        for row in history:
+            flow = weekly_flows.get(row["d"], {})
+            for field in ("sold", "pmts", "disc", "cncl"):
+                if row.get(field) is None and flow.get(field) is not None:
+                    row[field] = flow[field]
+                    backfilled += 1
+        if backfilled:
+            print(f"   → AR trend v2: backfilled {backfilled} flow values from Snowflake into historical rows")
+
     # Recompute 52-week rolling average and overdue change for every row
     win = 52
     for i, row in enumerate(history):
