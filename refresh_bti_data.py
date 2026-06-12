@@ -1762,7 +1762,8 @@ def fetch_weekly_ar_flows(conn):
     orders sold, and cancellations — all snapped to the Friday that ends each week.
     Returns dict keyed by Friday date string: {date_str: {pmts, disc, sold, cncl}}
     """
-    print("⏳ Fetching weekly AR flow data from Snowflake (4 separate queries)...")
+    print("⏳ Fetching weekly AR flow data from Snowflake...")
+    from datetime import datetime as _dt, timedelta as _td
     valid_types = "'Credit Card','Credit Card (Manual)','Credit Card (MANUAL)','ACH','ACH Bank','PayPal','PayPal Payment','Paypal','Wire','Wire Transfer','Check','Cash'"
     start = CONFIG["start_date"]
 
@@ -1770,71 +1771,79 @@ def fetch_weekly_ar_flows(conn):
         if v is None or v == '': return None
         return round(float(v), 2)
 
-    def run_snap_query(sql):
+    def _snap_to_friday(date_str):
+        """Snap a YYYY-MM-DD string to its week-ending Friday using Python (no Snowflake DAYOFWEEK)."""
+        d = _dt.strptime(date_str[:10], "%Y-%m-%d").date()
+        days_to_fri = (4 - d.weekday()) % 7   # Python: Mon=0 Fri=4
+        return (d + _td(days=days_to_fri)).strftime("%Y-%m-%d")
+
+    def run_daily_query(sql, val_col):
+        """Run a query that returns (pay_date, amount), snap dates to Friday in Python."""
         c = conn.cursor()
         c.execute(sql)
         result = {}
         for r in sf_fetch_rows(c):
-            wf = r.get("WEEK_FRI") or r.get("week_fri") or ""
-            val_key = [k for k in r if k.upper() != "WEEK_FRI"][0]
-            wf_str = str(wf)[:10]
-            if wf_str:
-                result[wf_str] = _flow_val(r.get(val_key))
+            ds = r.get("PAY_DATE") or r.get("pay_date") or ""
+            if not ds or ds == "": continue
+            wf = _snap_to_friday(ds)
+            amt = _flow_val(r.get(val_col) or r.get(val_col.lower()))
+            if amt is not None:
+                result[wf] = result.get(wf, 0.0) + amt
         return result
 
-    sold_map = run_snap_query(f"""
-        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(DATE) + 7, 7), DATE) AS week_fri,
-               SUM(INV_TOTAL) AS sold
+    # sold and cncl: keyed by order/refund DATE (already DATE type, snap in Python)
+    sold_map = run_daily_query(f"""
+        SELECT DATE AS pay_date, SUM(INV_TOTAL) AS amt
         FROM ANALYTICS.MART.DIM_ALL_ORDERS
         WHERE DATE >= '{start}' AND SKU IS NOT NULL AND SKU != ''
           AND INV_TOTAL > 0
           AND NOT (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%entry error%'
                 OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%error%')
         GROUP BY 1
-    """)
+    """, "AMT")
 
-    pmts_map = run_snap_query(f"""
-        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
-               SUM(p.PAYAMT) AS pmts
-        FROM ANALYTICS.MART.stg_inf_payments_combined p
-        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
-          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
-        WHERE p.PAYAMT > 0
-          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-          AND o.SKU IS NOT NULL AND o.SKU != ''
-          AND TO_DATE(p.PAYDATE) >= '{start}'
-          AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
-          AND p.PAYTYPE IN ({valid_types})
-        GROUP BY 1
-    """)
-
-    disc_map = run_snap_query(f"""
-        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
-               SUM(p.PAYAMT) AS disc
-        FROM ANALYTICS.MART.stg_inf_payments_combined p
-        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
-          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
-        WHERE p.PAYAMT > 0
-          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-          AND o.SKU IS NOT NULL AND o.SKU != ''
-          AND TO_DATE(p.PAYDATE) >= '{start}'
-          AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
-          AND p.PAYTYPE NOT IN ({valid_types})
-          AND p.PAYTYPE != 'Discount for Payment in Full'
-          AND p.PAYTYPE NOT LIKE 'CNCL-%'
-        GROUP BY 1
-    """)
-
-    cncl_map = run_snap_query(f"""
-        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(REFUND_CREDIT_DATE) + 7, 7), REFUND_CREDIT_DATE) AS week_fri,
-               SUM(INV_TOTAL) AS cncl
+    cncl_map = run_daily_query(f"""
+        SELECT REFUND_CREDIT_DATE AS pay_date, SUM(INV_TOTAL) AS amt
         FROM ANALYTICS.MART.DIM_ALL_ORDERS
         WHERE DATE >= '{start}' AND SKU IS NOT NULL AND SKU != ''
           AND REFUND_CREDIT_DATE IS NOT NULL
           AND (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%cncl%'
             OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%lrev%')
         GROUP BY 1
-    """)
+    """, "AMT")
+
+    # pmts/disc: use TO_CHAR to get date string — avoids DAYOFWEEK/timezone issues
+    pmts_map = run_daily_query(f"""
+        SELECT TO_CHAR(TO_DATE(p.PAYDATE), 'YYYY-MM-DD') AS pay_date,
+               SUM(p.PAYAMT) AS amt
+        FROM ANALYTICS.MART.stg_inf_payments_combined p
+        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+        WHERE p.PAYAMT > 0
+          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+          AND o.SKU IS NOT NULL AND o.SKU != ''
+          AND p.PAYDATE >= '{start}'
+          AND p.PAYDATE <= CURRENT_DATE()
+          AND p.PAYTYPE IN ({valid_types})
+        GROUP BY 1
+    """, "AMT")
+
+    disc_map = run_daily_query(f"""
+        SELECT TO_CHAR(TO_DATE(p.PAYDATE), 'YYYY-MM-DD') AS pay_date,
+               SUM(p.PAYAMT) AS amt
+        FROM ANALYTICS.MART.stg_inf_payments_combined p
+        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+        WHERE p.PAYAMT > 0
+          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+          AND o.SKU IS NOT NULL AND o.SKU != ''
+          AND p.PAYDATE >= '{start}'
+          AND p.PAYDATE <= CURRENT_DATE()
+          AND p.PAYTYPE NOT IN ({valid_types})
+          AND p.PAYTYPE != 'Discount for Payment in Full'
+          AND p.PAYTYPE NOT LIKE 'CNCL-%'
+        GROUP BY 1
+    """, "AMT")
 
     all_weeks = set(sold_map) | set(pmts_map) | set(disc_map) | set(cncl_map)
     flows = {
