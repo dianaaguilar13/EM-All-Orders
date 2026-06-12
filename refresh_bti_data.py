@@ -1835,19 +1835,20 @@ def fetch_weekly_ar_flows(conn):
     cur = conn.cursor()
     cur.execute(sql)
     rows = sf_fetch_rows(cur)
+    def _flow_val(v):
+        if v is None or v == '': return None
+        return round(float(v), 2)
     flows = {}
     for r in rows:
         wf = r.get("WEEK_FRI","")
         if not wf: continue
-        def _flow_val(v):
-            if v is None or v == '': return None
-            return round(float(v), 2)
-        flows[str(wf)[:10]] = {
-            "sold": _flow_val(r.get("SOLD")),
-            "pmts": _flow_val(r.get("PMTS")),
-            "disc": _flow_val(r.get("DISC")),
-            "cncl": _flow_val(r.get("CNCL")),
-        }
+        wf_str = str(wf)[:10]
+        if wf_str not in flows:
+            flows[wf_str] = {"sold": None, "pmts": None, "disc": None, "cncl": None}
+        for field, key in [("SOLD","sold"), ("PMTS","pmts"), ("DISC","disc"), ("CNCL","cncl")]:
+            val = _flow_val(r.get(field))
+            if val is not None:
+                flows[wf_str][key] = val
     print(f"   → {len(flows)} weeks of AR flow data fetched")
     # Debug: show last 3 weeks to verify data is coming through
     recent = sorted(flows.keys())[-3:] if flows else []
