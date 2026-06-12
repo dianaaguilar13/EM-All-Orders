@@ -208,7 +208,7 @@ def fetch_payments(conn):
             WHERE PAYTYPE IN (
                 'Credit Card', 'Credit Card (Manual)', 'Credit Card (MANUAL)',
                 'ACH', 'ACH Bank',
-                'PayPal', 'PayPal Payment',
+                'PayPal', 'PayPal Payment', 'Paypal',
                 'Wire', 'Wire Transfer',
                 'Check', 'Cash'
             )
@@ -1406,7 +1406,9 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None,
             order_pay_snap[oid_r] = (last_p, total_p)
 
         snap_start = max(min((p[2] for p in pool), default=_date(2022,1,1)), _date(2022,1,1)) if pool else _date(2022,1,1)
-        snap = snap_start
+        # Align to first Friday on or after snap_start
+        _dow = snap_start.weekday()
+        snap = snap_start + timedelta(days=(4 - _dow) % 7)
         while snap <= today:
             t_bal = 0.0; ov_bal = 0.0
             for oid_r, inv_r, pd_r in pool:
@@ -1419,13 +1421,13 @@ def build_ar_data(orders, payments_rows=None, cancel_qfy=None, cancel_data=None,
                 t_bal += bal_r
                 days_r = (snap - last_p).days if last_p and last_p <= snap else (snap - pd_r).days
                 if days_r > 30: ov_bal += bal_r
-            ar_trend.append([str(snap), round(ov_bal/t_bal*100,2) if t_bal>0 else 0])
+            ar_trend.append([str(snap), round(ov_bal/t_bal*100,2) if t_bal>0 else 0, 0, round(t_bal,2), round(ov_bal,2)])
             snap += timedelta(days=7)
-        # 13-week rolling average
+        # 13-week rolling average (index 2; indices 3/4 = t_bal/ov_bal for ar2_trend)
         win = 13
         for i in range(len(ar_trend)):
             si = max(0, i-win+1)
-            ar_trend[i].append(round(sum(ar_trend[j][1] for j in range(si,i+1))/(i-si+1),2))
+            ar_trend[i][2] = round(sum(ar_trend[j][1] for j in range(si,i+1))/(i-si+1),2)
         print(f"   → {len(ar_trend)} AR global trend snapshots")
 
         # Per-pcat trend (4 pcats — manageable)
@@ -1621,11 +1623,11 @@ def load_ar_trend_history():
     return history
 
 
-def append_weekly_ar_trend(history, ar_invoices):
+def append_weekly_ar_trend(history, ar_invoices, weekly_flows=None):
     """Append this week's snapshot to the AR overdue trend history.
     Weeks run Saturday→Friday; Friday is the week-end label date.
     Computes overdue % from DIM_AR_ALL_INVOICES arrears snapshot.
-    Recalculates 52-week rolling average across all rows.
+    Recalculates 52-week rolling average and overdue change across all rows.
     Saves the updated history to ar2_trend.json for future runs.
     """
     from datetime import date as _date
@@ -1641,7 +1643,9 @@ def append_weekly_ar_trend(history, ar_invoices):
     y_label = week_friday.year % 100
 
     existing_dates = {row["d"] for row in history}
-    if week_str not in existing_dates:
+    # Only lock a week once it's fully closed (Saturday or later = day after Friday close)
+    week_is_closed = today > week_friday
+    if week_str not in existing_dates and week_is_closed:
         # Compute overdue % from Snowflake snapshot
         total_bal = 0.0
         total_arr = 0.0
@@ -1654,22 +1658,33 @@ def append_weekly_ar_trend(history, ar_invoices):
                 total_bal += bal
                 total_arr += max(0.0, arr)
         pct_overdue = round(total_arr / total_bal * 100, 2) if total_bal > 0 else 0.0
-        history.append({"d": week_str, "tb": round(total_bal, 2),
-                         "ob": round(total_arr, 2), "pct": pct_overdue,
-                         "avg52": None, "q": q_label, "y": y_label})
+        flow = (weekly_flows or {}).get(week_str, {})
+        history.append({
+            "d": week_str, "tb": round(total_bal, 2), "ob": round(total_arr, 2),
+            "pct": pct_overdue, "avg52": None, "q": q_label, "y": y_label,
+            "sold": flow.get("sold"), "pmts": flow.get("pmts"),
+            "disc": flow.get("disc"), "cncl": flow.get("cncl"), "chg": None,
+        })
         print(f"   → AR trend v2: appended week {week_str} — {pct_overdue:.2f}% overdue (${total_bal:,.0f} total bal)")
+    elif not week_is_closed:
+        print(f"   → AR trend v2: week {week_str} still in progress (closes Saturday), skipping lock")
     else:
         print(f"   → AR trend v2: week {week_str} already in history, skipping")
 
     # Sort by date
     history.sort(key=lambda x: x["d"])
 
-    # Recompute 52-week rolling average for every row
+    # Recompute 52-week rolling average and overdue change for every row
     win = 52
     for i, row in enumerate(history):
         si  = max(0, i - win + 1)
         avg = round(sum(history[j]["pct"] for j in range(si, i + 1)) / (i - si + 1), 2)
         history[i]["avg52"] = avg
+        if i > 0:
+            prev_ob = history[i-1].get("ob") or 0.0
+            history[i]["chg"] = round((history[i].get("ob") or 0.0) - prev_ob, 2)
+        else:
+            history[i]["chg"] = None
 
     # Persist to ar2_trend.json
     json_path = os.path.join(CONFIG["output_dir"], "ar2_trend.json")
@@ -1678,6 +1693,198 @@ def append_weekly_ar_trend(history, ar_invoices):
     size_kb = os.path.getsize(json_path) // 1024
     print(f"   💾 ar2_trend.json saved ({size_kb} KB, {len(history)} weeks)")
     return history
+
+
+def fetch_weekly_ar_flows(conn):
+    """Fetch weekly AR flow data: payments received, discounts/adjustments,
+    orders sold, and cancellations — all snapped to the Friday that ends each week.
+    Returns dict keyed by Friday date string: {date_str: {pmts, disc, sold, cncl}}
+    """
+    print("⏳ Fetching weekly AR flow data from Snowflake...")
+    valid_types = "'Credit Card','Credit Card (Manual)','Credit Card (MANUAL)','ACH','ACH Bank','PayPal','PayPal Payment','Paypal','Wire','Wire Transfer','Check','Cash'"
+    sql = f"""
+        WITH weekly_pmts AS (
+            SELECT
+                DATEADD(day, MOD(5 - DAYOFWEEK(p.PAYDATE) + 7, 7), p.PAYDATE) AS week_fri,
+                SUM(p.PAYAMT) AS pmts
+            FROM ANALYTICS.MART.stg_inf_payments_combined p
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
+              ON p.INVOICEID = o.ID
+             AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+            WHERE p.PAYAMT > 0
+              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+              AND o.DATE >= '{CONFIG["start_date"]}'
+              AND o.SKU IS NOT NULL AND o.SKU != ''
+              AND p.PAYTYPE IN ({valid_types})
+            GROUP BY 1
+        ),
+        weekly_disc AS (
+            SELECT
+                DATEADD(day, MOD(5 - DAYOFWEEK(p.PAYDATE) + 7, 7), p.PAYDATE) AS week_fri,
+                SUM(p.PAYAMT) AS disc
+            FROM ANALYTICS.MART.stg_inf_payments_combined p
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
+              ON p.INVOICEID = o.ID
+             AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+            WHERE p.PAYAMT > 0
+              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+              AND o.DATE >= '{CONFIG["start_date"]}'
+              AND o.SKU IS NOT NULL AND o.SKU != ''
+              AND p.PAYTYPE NOT IN ({valid_types})
+              AND p.PAYTYPE != 'Discount for Payment in Full'
+              AND p.PAYTYPE NOT LIKE 'CNCL-%'
+            GROUP BY 1
+        ),
+        weekly_sold AS (
+            SELECT
+                DATEADD(day, MOD(5 - DAYOFWEEK(DATE) + 7, 7), DATE) AS week_fri,
+                SUM(INV_TOTAL) AS sold
+            FROM ANALYTICS.MART.DIM_ALL_ORDERS
+            WHERE DATE >= '{CONFIG["start_date"]}'
+              AND SKU IS NOT NULL AND SKU != ''
+              AND INV_TOTAL > 0
+              AND NOT (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%entry error%'
+                    OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%error%')
+            GROUP BY 1
+        ),
+        weekly_cncl AS (
+            SELECT
+                DATEADD(day, MOD(5 - DAYOFWEEK(REFUND_CREDIT_DATE) + 7, 7),
+                        REFUND_CREDIT_DATE) AS week_fri,
+                SUM(INV_TOTAL) AS cncl
+            FROM ANALYTICS.MART.DIM_ALL_ORDERS
+            WHERE DATE >= '{CONFIG["start_date"]}'
+              AND SKU IS NOT NULL AND SKU != ''
+              AND REFUND_CREDIT_DATE IS NOT NULL
+              AND (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%cncl%'
+                OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%lrev%')
+            GROUP BY 1
+        )
+        SELECT
+            COALESCE(s.week_fri, p.week_fri, d.week_fri, c.week_fri) AS week_fri,
+            COALESCE(s.sold, 0) AS sold,
+            COALESCE(p.pmts, 0) AS pmts,
+            COALESCE(d.disc, 0) AS disc,
+            COALESCE(c.cncl, 0) AS cncl
+        FROM weekly_sold s
+        FULL OUTER JOIN weekly_pmts p  ON s.week_fri = p.week_fri
+        FULL OUTER JOIN weekly_disc d  ON COALESCE(s.week_fri, p.week_fri) = d.week_fri
+        FULL OUTER JOIN weekly_cncl c  ON COALESCE(s.week_fri, p.week_fri, d.week_fri) = c.week_fri
+        ORDER BY 1
+    """
+    cur = conn.cursor()
+    cur.execute(sql)
+    rows = sf_fetch_rows(cur)
+    flows = {}
+    for r in rows:
+        wf = r.get("WEEK_FRI","")
+        if not wf: continue
+        flows[str(wf)[:10]] = {
+            "sold": round(float(r.get("SOLD") or 0), 2),
+            "pmts": round(float(r.get("PMTS") or 0), 2),
+            "disc": round(float(r.get("DISC") or 0), 2),
+            "cncl": round(float(r.get("CNCL") or 0), 2),
+        }
+    print(f"   → {len(flows)} weeks of AR flow data fetched")
+    return flows
+
+
+def build_ar2_trend_json(ar_trend, weekly_flows=None):
+    """Rebuild ar2_trend.json from step-function ar_trend data.
+    ar_trend items: [date_str, pct, avg13, t_bal, ov_bal]
+    Recomputes 52-week rolling avg, adds quarter/year labels, saves ar2_trend.json.
+    """
+    from datetime import datetime as _dt2
+    history = []
+    for item in ar_trend:
+        if len(item) < 5:
+            continue
+        date_str, pct, t_bal, ov_bal = item[0], item[1], item[3], item[4]
+        try:
+            dt = _dt2.strptime(date_str, "%Y-%m-%d").date()
+        except:
+            continue
+        mo = dt.month
+        q_label = "Q" + str((mo - 1) // 3 + 1)
+        y_label = dt.year % 100
+        flow = (weekly_flows or {}).get(date_str, {})
+        history.append({
+            "d": date_str, "tb": t_bal, "ob": ov_bal,
+            "pct": pct, "avg52": None, "q": q_label, "y": y_label,
+            "sold": flow.get("sold"),
+            "pmts": flow.get("pmts"),
+            "disc": flow.get("disc"),
+            "cncl": flow.get("cncl"),
+            "chg":  None,
+        })
+
+    win = 52
+    for i in range(len(history)):
+        si  = max(0, i - win + 1)
+        avg = round(sum(history[j]["pct"] for j in range(si, i + 1)) / (i - si + 1), 2)
+        history[i]["avg52"] = avg
+        history[i]["chg"] = round(history[i]["ob"] - history[i-1]["ob"], 2) if i > 0 else None
+
+    json_path = os.path.join(CONFIG["output_dir"], "ar2_trend.json")
+    with open(json_path, "w") as f:
+        json.dump(history, f, separators=(',', ':'))
+    size_kb = os.path.getsize(json_path) // 1024
+    print(f"   → ar2_trend.json rebuilt — {len(history)} Fridays ({size_kb} KB)")
+    return history
+
+
+def build_current_week_preview(trend_v2, weekly_flows, ar_invoices):
+    """Build a partial-week in-progress snapshot for the current (incomplete) week.
+    Uses this week's Friday as the label, week-to-date flows from weekly_flows,
+    and live AR totals from ar_invoices.
+    """
+    from datetime import date as _date
+    today = _date.today()
+    days_to_friday = (4 - today.weekday()) % 7
+    week_fri = today + timedelta(days=days_to_friday)
+    week_fri_str = week_fri.strftime('%Y-%m-%d')
+    week_sat = week_fri - timedelta(days=6)
+
+    # Starting balance = last completed week in trend
+    start_bal  = trend_v2[-1]["tb"] if trend_v2 else 0.0
+    start_date = trend_v2[-1]["d"]  if trend_v2 else ""
+
+    # Week-to-date flows (keyed to upcoming Friday)
+    flow = (weekly_flows or {}).get(week_fri_str, {})
+    sold = flow.get("sold") or 0.0
+    pmts = flow.get("pmts") or 0.0
+    disc = flow.get("disc") or 0.0
+    cncl = flow.get("cncl") or 0.0
+    calc_ar = round(start_bal + sold - pmts - disc - cncl, 2)
+
+    # Live AR totals from DIM_AR_ALL_INVOICES
+    live_tb = 0.0; live_ob = 0.0
+    for r in (ar_invoices or []):
+        try: bal = float(str(r.get("balance","") or 0))
+        except: bal = 0.0
+        try: arr = float(str(r.get("total_arrears","") or 0))
+        except: arr = 0.0
+        if bal > 0:
+            live_tb += bal
+            live_ob += max(0.0, arr)
+
+    mo = week_fri.month
+    return {
+        "week_fri":   week_fri_str,
+        "week_start": week_sat.strftime('%Y-%m-%d'),
+        "data_through": str(today),
+        "start_bal":  round(start_bal, 2),
+        "start_date": start_date,
+        "sold":  sold,  "pmts":  pmts,
+        "disc":  disc,  "cncl":  cncl,
+        "calc_ar":  calc_ar,
+        "live_tb":  round(live_tb, 2),
+        "live_ob":  round(live_ob, 2),
+        "live_pct": round(live_ob / live_tb * 100, 2) if live_tb > 0 else 0.0,
+        "gap":  round(live_tb - calc_ar, 2),
+        "q": "Q" + str((mo - 1) // 3 + 1),
+        "y": week_fri.year % 100,
+    }
 
 
 def build_ar_v2_data(ar_rows, trend_v2=None):
@@ -1841,10 +2048,11 @@ def main():
     print("=" * 55, flush=True)
 
     # 1. Connect & fetch from Snowflake
-    conn        = connect_snowflake()
-    orders      = fetch_orders(conn)
-    payments    = fetch_payments(conn)
-    ar_invoices = fetch_ar_invoices(conn)
+    conn          = connect_snowflake()
+    orders        = fetch_orders(conn)
+    payments      = fetch_payments(conn)
+    ar_invoices   = fetch_ar_invoices(conn)
+    weekly_flows  = fetch_weekly_ar_flows(conn)
     conn.close()
 
     # 2. Pre-compute LDP IDs for cross-report metric
@@ -1903,8 +2111,10 @@ def main():
 
     print()
     ar_trend_v2 = load_ar_trend_history()
-    ar_trend_v2 = append_weekly_ar_trend(ar_trend_v2, ar_invoices)
+    ar_trend_v2 = append_weekly_ar_trend(ar_trend_v2, ar_invoices, weekly_flows=weekly_flows)
     ar2_data = build_ar_v2_data(ar_invoices, trend_v2=ar_trend_v2)
+    ar2_data["current_week"] = build_current_week_preview(ar_trend_v2, weekly_flows, ar_invoices)
+    weekly_flows = None
     save_json(ar2_data, "ar2_data.json")
     ar_trend_v2 = None; ar2_data = None; ar_invoices = None; gc.collect()
 
