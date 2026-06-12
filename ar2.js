@@ -275,8 +275,10 @@ function ar2RenderTrendTable(data){
         "<td style='text-align:right;"+gs+"'>—</td>",
         "<td style='text-align:right;"+gs+"'>—</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.sold) + "</td>",
+        "<td style='text-align:right;"+gs+"'>—</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.pmts) + "</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.cncl) + "</td>",
+        "<td style='text-align:right;"+gs+"'>—</td>",
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.disc) + "</td>",
         "<td style='text-align:center;"+gs+"'>Q" + Math.ceil(mo/3) + "</td>",
         "<td style='text-align:center;"+gs+"'>FY'" + String(cw.y||"").toString().slice(-2) + "</td>",
@@ -299,8 +301,10 @@ function ar2RenderTrendTable(data){
       "<td style='text-align:right;color:#ea4335'>" + fmtP(pt.avg52) + "</td>" +
       "<td style='text-align:right;color:#6366f1'>" + fmtChg(pt.chg) + "</td>" +
       "<td style='text-align:right;color:#0369a1'>" + fmt$(pt.sold) + "</td>" +
+      "<td style='text-align:right;color:#64748b'>" + fmt$(pt.sold_avg52) + "</td>" +
       "<td style='text-align:right;color:#16a34a'>" + fmt$(pt.pmts) + "</td>" +
       "<td style='text-align:right;color:#dc2626'>" + fmt$(pt.cncl) + "</td>" +
+      "<td style='text-align:right;color:#64748b'>" + fmt$(pt.cncl_avg52) + "</td>" +
       "<td style='text-align:right;color:#b45309'>" + fmt$(pt.disc) + "</td>" +
       "<td style='text-align:center'>" + (pt.q || "") + "</td>" +
       "<td style='text-align:center'>" + (pt.y ? "FY'" + String(pt.y).slice(-2) : "") + "</td>" +
@@ -344,8 +348,10 @@ function ar2RenderTrendTable(data){
           th("52-wk Avg") +
           th("Overdue Chg") +
           th("Orders Sold") +
+          th("Orders Sold 52-wk Avg") +
           th("Pmts Received") +
           th("Cancellations") +
+          th("Cancellations 52-wk Avg") +
           th("Discounts / Adj") +
           th("Quarter","center") +
           th("Fiscal Year","center") +
@@ -440,7 +446,7 @@ function ar2BuildKpiHtml(rows, idx){
 
 function ar2DownloadTrendCsv(){
   if(!AR2 || !AR2.trend_v2 || !AR2.trend_v2.length) return;
-  var header = ["Week (Friday)","Total AR Balance","Overdue Balance","% Of AR Overdue","52-wk Running Avg","Overdue Balance Chg","Orders Sold","Payments Received","Cancellations","Discounts / Adjustments","Quarter","Fiscal Year"];
+  var header = ["Week (Friday)","Total AR Balance","Overdue Balance","% Of AR Overdue","52-wk Running Avg","Overdue Balance Chg","Orders Sold","Orders Sold 52-wk Avg","Payments Received","Cancellations","Cancellations 52-wk Avg","Discounts / Adjustments","Quarter","Fiscal Year"];
   var lines  = [header.join(",")];
   AR2.trend_v2.forEach(function(pt){
     lines.push([
@@ -451,8 +457,10 @@ function ar2DownloadTrendCsv(){
       pt.avg52 != null ? pt.avg52.toFixed(2) : "",
       pt.chg != null ? pt.chg.toFixed(2) : "",
       pt.sold != null ? pt.sold.toFixed(2) : "",
+      pt.sold_avg52 != null ? pt.sold_avg52.toFixed(2) : "",
       pt.pmts != null ? pt.pmts.toFixed(2) : "",
       pt.cncl != null ? pt.cncl.toFixed(2) : "",
+      pt.cncl_avg52 != null ? pt.cncl_avg52.toFixed(2) : "",
       pt.disc != null ? pt.disc.toFixed(2) : "",
       pt.q || "",
       pt.y ? "FY'" + String(pt.y).slice(-2) : ""

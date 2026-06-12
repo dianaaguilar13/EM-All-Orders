@@ -1686,7 +1686,7 @@ def append_weekly_ar_trend(history, ar_invoices, weekly_flows=None):
         if backfilled:
             print(f"   → AR trend v2: backfilled {backfilled} flow values from Snowflake into historical rows")
 
-    # Recompute 52-week rolling average and overdue change for every row
+    # Recompute 52-week rolling averages and overdue change for every row
     win = 52
     for i, row in enumerate(history):
         si  = max(0, i - win + 1)
@@ -1697,6 +1697,11 @@ def append_weekly_ar_trend(history, ar_invoices, weekly_flows=None):
             history[i]["chg"] = round((history[i].get("ob") or 0.0) - prev_ob, 2)
         else:
             history[i]["chg"] = None
+        # 52-week rolling averages for sold and cncl (dollar amounts)
+        sold_vals = [history[j]["sold"] for j in range(si, i + 1) if history[j].get("sold") is not None]
+        cncl_vals = [history[j]["cncl"] for j in range(si, i + 1) if history[j].get("cncl") is not None]
+        history[i]["sold_avg52"] = round(sum(sold_vals) / len(sold_vals), 2) if sold_vals else None
+        history[i]["cncl_avg52"] = round(sum(cncl_vals) / len(cncl_vals), 2) if cncl_vals else None
 
     # Persist to ar2_trend.json
     json_path = os.path.join(CONFIG["output_dir"], "ar2_trend.json")
@@ -1717,34 +1722,26 @@ def fetch_weekly_ar_flows(conn):
     sql = f"""
         WITH weekly_pmts AS (
             SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(p.PAYDATE) + 7, 7), p.PAYDATE) AS week_fri,
-                SUM(p.PAYAMT) AS pmts
-            FROM ANALYTICS.MART.stg_inf_payments_combined p
-            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
-              ON p.INVOICEID = o.ID
-             AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
-            WHERE p.PAYAMT > 0
-              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-              AND o.DATE >= '{CONFIG["start_date"]}'
-              AND o.SKU IS NOT NULL AND o.SKU != ''
-              AND p.PAYTYPE IN ({valid_types})
+                DATEADD(day, MOD(5 - DAYOFWEEK(PAYDATE) + 7, 7), PAYDATE) AS week_fri,
+                SUM(PAYAMT) AS pmts
+            FROM ANALYTICS.MART.stg_inf_payments_combined
+            WHERE PAYAMT > 0
+              AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
+              AND PAYDATE >= '{CONFIG["start_date"]}'
+              AND PAYTYPE IN ({valid_types})
             GROUP BY 1
         ),
         weekly_disc AS (
             SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(p.PAYDATE) + 7, 7), p.PAYDATE) AS week_fri,
-                SUM(p.PAYAMT) AS disc
-            FROM ANALYTICS.MART.stg_inf_payments_combined p
-            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o
-              ON p.INVOICEID = o.ID
-             AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
-            WHERE p.PAYAMT > 0
-              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-              AND o.DATE >= '{CONFIG["start_date"]}'
-              AND o.SKU IS NOT NULL AND o.SKU != ''
-              AND p.PAYTYPE NOT IN ({valid_types})
-              AND p.PAYTYPE != 'Discount for Payment in Full'
-              AND p.PAYTYPE NOT LIKE 'CNCL-%'
+                DATEADD(day, MOD(5 - DAYOFWEEK(PAYDATE) + 7, 7), PAYDATE) AS week_fri,
+                SUM(PAYAMT) AS disc
+            FROM ANALYTICS.MART.stg_inf_payments_combined
+            WHERE PAYAMT > 0
+              AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
+              AND PAYDATE >= '{CONFIG["start_date"]}'
+              AND PAYTYPE NOT IN ({valid_types})
+              AND PAYTYPE != 'Discount for Payment in Full'
+              AND PAYTYPE NOT LIKE 'CNCL-%'
             GROUP BY 1
         ),
         weekly_sold AS (
