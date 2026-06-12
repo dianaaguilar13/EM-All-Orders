@@ -669,7 +669,8 @@ function hideAllPanels(){
       <div style="font-size:11px;color:#64748b;margin-bottom:12px">True % of AR balance overdue — sourced from billing system weekly snapshots · Weeks run Sat→Fri (Friday = week-end label) · Red line = 52-week running average · Seeds from <em>AR Overdue Historic Week Data.xlsx</em> · New week appended on each Run.bat</div>
       <div id="ar2-trend-nodata" style="display:none;padding:30px;text-align:center;color:#64748b;background:#f8fafc;border-radius:8px;border:1px dashed #dde3ea">Run <strong>Run.bat</strong> to seed the AR Overdue Trend from <strong>AR Overdue Historic Week Data.xlsx</strong>.</div>
       <div style="height:300px"><canvas id="ar2-trend-chart"></canvas></div>
-      <div id="ar2-trend-table-wrap" style="display:none;margin-top:16px;max-height:320px;overflow-y:auto;border:1px solid #dde3ea;border-radius:8px;padding:12px 16px;background:#fafcff"></div>
+      <div id="ar2-weekly-kpi-wrap" style="display:none;margin-top:14px;padding:10px 14px;border:1px solid #dde3ea;border-radius:8px;background:#fafcff;position:sticky;top:0;z-index:20"></div>
+      <div id="ar2-trend-table-wrap" style="display:none;margin-top:8px;max-height:320px;overflow-y:auto;border:1px solid #dde3ea;border-radius:8px;padding:12px 16px;background:#fafcff"></div>
     </div>
 
     <!-- FY Cancel Rate by Quarter -->
@@ -758,6 +759,6 @@ function showAr2Tab(){
 </script>
 
 <script src="ar.js?v=1778712227"></script>
-<script src="ar2.js?v=1780000007"></script>
+<script src="ar2.js?v=1780000008"></script>
 </body>
 </html>

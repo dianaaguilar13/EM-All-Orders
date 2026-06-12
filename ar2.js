@@ -256,26 +256,36 @@ function ar2RenderTrendTable(data){
 
   var rows = data.slice().reverse(); // newest first
 
-  // ── In-progress current week row ────────────────────────────────────────────
+  // ── Upcoming week placeholder row (last completed + 7 days) ─────────────────
   var cwRow = "";
   var cw = AR2 && AR2.current_week;
-  if(cw){
-    var cwFri = fmtD(cw.week_fri);
-    var cwThrough = fmtD(cw.data_through);
-    var grayStyle = "color:#94a3b8;font-style:italic;";
+  var lastCompleted = rows[0];
+  if(lastCompleted){
+    var lastDate = new Date(lastCompleted.d + "T00:00:00");
+    var upcomingDate = new Date(lastDate.getTime() + 7*24*60*60*1000);
+    var upcomingStr = upcomingDate.toISOString().slice(0,10);
+    var upcomingLbl = fmtD(upcomingStr);
+    var mo = upcomingDate.getMonth() + 1;
+    var upQ = "Q" + Math.ceil(mo/3);
+    var upY = "FY'" + String(upcomingDate.getFullYear()).slice(-2);
+    var liveTb = (cw && cw.live_tb) ? cw.live_tb : 0;
+    var liveOb = (cw && cw.live_ob) ? cw.live_ob : 0;
+    var livePct = (cw && cw.live_pct) ? cw.live_pct : 0;
+    var gs = "color:#94a3b8;font-style:italic;";
+    var badge = "<span style='font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0'>upcoming</span>";
     var cwCells = [
-      "<td style='white-space:nowrap;"+grayStyle+"'>" + cwFri + " <span style='font-size:10px;background:#f1f5f9;color:#64748b;padding:1px 5px;border-radius:3px;border:1px solid #e2e8f0'>⏳ thru "+cwThrough+"</span></td>",
-      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.live_tb) + " <span style='font-size:9px;color:#94a3b8'>live</span></td>",
-      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.live_ob) + "</td>",
-      "<td style='text-align:right;font-weight:600;color:#64748b;font-style:italic'>" + (cw.live_pct != null ? cw.live_pct.toFixed(2)+"%" : "—") + "</td>",
-      "<td style='text-align:right;"+grayStyle+"'>—</td>",
-      "<td style='text-align:right;"+grayStyle+"'>—</td>",
-      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.sold) + "</td>",
-      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.pmts) + "</td>",
-      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.cncl) + "</td>",
-      "<td style='text-align:right;"+grayStyle+"'>" + fmt$(cw.disc) + "</td>",
-      "<td style='text-align:center;"+grayStyle+"'>" + (cw.q||"") + "</td>",
-      "<td style='text-align:center;"+grayStyle+"'>FY'" + String(cw.y).slice(-2) + "</td>",
+      "<td style='white-space:nowrap;"+gs+"'>" + upcomingLbl + " " + badge + "</td>",
+      "<td style='text-align:right;"+gs+"'>" + (liveTb ? fmt$(liveTb)+" <span style='font-size:9px;color:#94a3b8'>live</span>" : "—") + "</td>",
+      "<td style='text-align:right;"+gs+"'>" + (liveOb ? fmt$(liveOb) : "—") + "</td>",
+      "<td style='text-align:right;font-weight:600;color:#94a3b8;font-style:italic'>" + (livePct ? livePct.toFixed(2)+"%" : "—") + "</td>",
+      "<td style='text-align:right;"+gs+"'>—</td>",
+      "<td style='text-align:right;"+gs+"'>—</td>",
+      "<td style='text-align:right;"+gs+"'>—</td>",
+      "<td style='text-align:right;"+gs+"'>—</td>",
+      "<td style='text-align:right;"+gs+"'>—</td>",
+      "<td style='text-align:right;"+gs+"'>—</td>",
+      "<td style='text-align:center;"+gs+"'>" + upQ + "</td>",
+      "<td style='text-align:center;"+gs+"'>" + upY + "</td>",
     ].join("");
     cwRow = "<tr style='background:#f8fafc;border-bottom:1px dashed #cbd5e1'>" + cwCells + "</tr>";
   }
@@ -303,9 +313,10 @@ function ar2RenderTrendTable(data){
   }).join("");
 
   ar2KpiRows = rows;
+  var kpiWrap = document.getElementById("ar2-weekly-kpi-wrap");
+  if(kpiWrap){ kpiWrap.style.display = "block"; kpiWrap.innerHTML = ar2BuildKpiHtml(rows, 0); }
   var th = function(label, align){ return "<th style='text-align:"+(align||"right")+";padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap'>"+label+"</th>"; };
   wrap.innerHTML =
-    "<div id='ar2-kpi-strip' style='margin-bottom:4px'>" + ar2BuildKpiHtml(rows, 0) + "</div>" +
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
       "<span style='font-size:12px;font-weight:600;color:#0d9488;cursor:pointer' onclick='ar2ToggleTrendTable(this)'>▼ Weekly Data Table (" + rows.length + " weeks)</span>" +
       "<button onclick='ar2DownloadTrendCsv()' style='font-size:11px;padding:4px 10px;border:1px solid #0d9488;border-radius:4px;background:#fff;color:#0d9488;cursor:pointer'>⬇ Download CSV</button>" +
@@ -344,7 +355,7 @@ function ar2ToggleTrendTable(btn){
 }
 
 function ar2SelectKpiWeek(idx){
-  var kpiWrap = document.getElementById("ar2-kpi-strip");
+  var kpiWrap = document.getElementById("ar2-weekly-kpi-wrap");
   if(!kpiWrap || !ar2KpiRows.length) return;
   kpiWrap.innerHTML = ar2BuildKpiHtml(ar2KpiRows, parseInt(idx));
 }
