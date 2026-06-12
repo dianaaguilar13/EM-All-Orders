@@ -1762,10 +1762,10 @@ def fetch_weekly_ar_flows(conn):
         )
         SELECT
             COALESCE(s.week_fri, p.week_fri, d.week_fri, c.week_fri) AS week_fri,
-            COALESCE(s.sold, 0) AS sold,
-            COALESCE(p.pmts, 0) AS pmts,
-            COALESCE(d.disc, 0) AS disc,
-            COALESCE(c.cncl, 0) AS cncl
+            s.sold,
+            p.pmts,
+            d.disc,
+            c.cncl
         FROM weekly_sold s
         FULL OUTER JOIN weekly_pmts p  ON s.week_fri = p.week_fri
         FULL OUTER JOIN weekly_disc d  ON COALESCE(s.week_fri, p.week_fri) = d.week_fri
@@ -1779,11 +1779,13 @@ def fetch_weekly_ar_flows(conn):
     for r in rows:
         wf = r.get("WEEK_FRI","")
         if not wf: continue
+        def _flow_val(v):
+            return round(float(v), 2) if v is not None else None
         flows[str(wf)[:10]] = {
-            "sold": round(float(r.get("SOLD") or 0), 2),
-            "pmts": round(float(r.get("PMTS") or 0), 2),
-            "disc": round(float(r.get("DISC") or 0), 2),
-            "cncl": round(float(r.get("CNCL") or 0), 2),
+            "sold": _flow_val(r.get("SOLD")),
+            "pmts": _flow_val(r.get("PMTS")),
+            "disc": _flow_val(r.get("DISC")),
+            "cncl": _flow_val(r.get("CNCL")),
         }
     print(f"   → {len(flows)} weeks of AR flow data fetched")
     return flows
@@ -1849,13 +1851,16 @@ def build_current_week_preview(trend_v2, weekly_flows, ar_invoices):
     start_bal  = trend_v2[-1]["tb"] if trend_v2 else 0.0
     start_date = trend_v2[-1]["d"]  if trend_v2 else ""
 
-    # Week-to-date flows (keyed to upcoming Friday)
+    # Week-to-date flows (keyed to upcoming Friday); None means no Snowflake data yet
     flow = (weekly_flows or {}).get(week_fri_str, {})
-    sold = flow.get("sold") or 0.0
-    pmts = flow.get("pmts") or 0.0
-    disc = flow.get("disc") or 0.0
-    cncl = flow.get("cncl") or 0.0
-    calc_ar = round(start_bal + sold - pmts - disc - cncl, 2)
+    sold = flow.get("sold")
+    pmts = flow.get("pmts")
+    disc = flow.get("disc")
+    cncl = flow.get("cncl")
+    if sold is not None and pmts is not None and disc is not None and cncl is not None:
+        calc_ar = round(start_bal + sold - pmts - disc - cncl, 2)
+    else:
+        calc_ar = None
 
     # Live AR totals from DIM_AR_ALL_INVOICES
     live_tb = 0.0; live_ob = 0.0
@@ -1881,7 +1886,7 @@ def build_current_week_preview(trend_v2, weekly_flows, ar_invoices):
         "live_tb":  round(live_tb, 2),
         "live_ob":  round(live_ob, 2),
         "live_pct": round(live_ob / live_tb * 100, 2) if live_tb > 0 else 0.0,
-        "gap":  round(live_tb - calc_ar, 2),
+        "gap":  round(live_tb - calc_ar, 2) if calc_ar is not None else None,
         "q": "Q" + str((mo - 1) // 3 + 1),
         "y": week_fri.year % 100,
     }

@@ -307,9 +307,27 @@ function ar2RenderTrendTable(data){
     "</tr>";
   }).join("");
 
-  ar2KpiRows = rows;
+  ar2KpiRows = rows.slice();
+  var cw = AR2 && AR2.current_week;
+  if(cw && cw.week_fri){
+    var cwAlreadyInRows = rows.some(function(r){ return r.d === cw.week_fri; });
+    if(!cwAlreadyInRows){
+      ar2KpiRows = [{
+        d: cw.week_fri,
+        tb: cw.live_tb != null ? cw.live_tb : 0,
+        ob: cw.live_ob != null ? cw.live_ob : 0,
+        pct: cw.live_pct != null ? cw.live_pct : null,
+        sold: cw.sold != null ? cw.sold : null,
+        pmts: cw.pmts != null ? cw.pmts : null,
+        disc: cw.disc != null ? cw.disc : null,
+        cncl: cw.cncl != null ? cw.cncl : null,
+        _inProgress: true,
+        _through: cw.data_through
+      }].concat(rows);
+    }
+  }
   var kpiWrap = document.getElementById("ar2-weekly-kpi-wrap");
-  if(kpiWrap){ kpiWrap.style.display = "block"; kpiWrap.innerHTML = ar2BuildKpiHtml(rows, 0); }
+  if(kpiWrap){ kpiWrap.style.display = "block"; kpiWrap.innerHTML = ar2BuildKpiHtml(ar2KpiRows, 0); }
   var th = function(label, align){ return "<th style='text-align:"+(align||"right")+";padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap'>"+label+"</th>"; };
   wrap.innerHTML =
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
@@ -363,26 +381,32 @@ function ar2BuildKpiHtml(rows, idx){
   var fmtD = function(s){ var p=(s||"").split("-"); return p.length===3 ? p[1].replace(/^0/,"")+"/"+p[2].replace(/^0/,"")+"/"+p[0] : (s||""); };
   var fmt$ = function(v){ return "$"+Math.round(Math.abs(v||0)).toLocaleString(); };
   var startBal = prev.tb || 0;
-  var sold = cur.sold || 0;
-  var pmts = cur.pmts || 0;
-  var cncl = cur.cncl || 0;
-  var disc = cur.disc || 0;
-  var hasFlow = sold>0 || pmts>0 || cncl>0 || disc>0;
-  var calcAr  = hasFlow ? startBal + sold - pmts - cncl - disc : 0;
+  var sold = cur.sold != null ? cur.sold : null;
+  var pmts = cur.pmts != null ? cur.pmts : null;
+  var cncl = cur.cncl != null ? cur.cncl : null;
+  var disc = cur.disc != null ? cur.disc : null;
+  var canCalc = sold != null && pmts != null && cncl != null && disc != null;
+  var calcAr = canCalc ? startBal + sold - pmts - cncl - disc : null;
   var actualAr = cur.tb || 0;
-  var variance = hasFlow ? Math.abs(calcAr - actualAr) : 0;
-  var varPct   = (hasFlow && calcAr>0) ? variance/calcAr*100 : 0;
+  var variance = canCalc ? Math.abs(calcAr - actualAr) : null;
+  var varPct   = (variance != null && calcAr > 0) ? variance/calcAr*100 : null;
   var current  = (cur.tb||0) - (cur.ob||0);
   var arrears  = cur.ob || 0;
   var wow      = (cur.tb||0) - (prev.tb||0);
   var weekLbl  = fmtD(cur.d);
   var prevLbl  = fmtD(prev.d);
-  var noData   = "<div style='font-size:8px;color:#94a3b8;margin-top:2px'>run Run.bat</div>";
-  var pickerOpts = rows.map(function(pt,i){ return "<option value='"+i+"'"+(i===idx?" selected":"")+">"+fmtD(pt.d)+"</option>"; }).join("");
-  var fc = function(lbl,val,color,leftCol,note){
+  var inProgBadge = cur._inProgress ?
+    "<span style='background:#fef3c7;color:#92400e;font-size:9px;padding:1px 5px;border-radius:3px;margin-left:4px'>⏳ thru "+fmtD(cur._through)+"</span>" : "";
+  var pickerOpts = rows.map(function(pt,i){
+    var lbl = fmtD(pt.d) + (pt._inProgress ? " ⏳" : "");
+    return "<option value='"+i+"'"+(i===idx?" selected":"")+">"+lbl+"</option>";
+  }).join("");
+  var fmtFlow = function(v, prefix){ return v == null ? "—" : prefix+fmt$(v); };
+  var flowColor = function(v, col){ return v == null ? "#94a3b8" : col; };
+  var fc = function(lbl,val,color,leftCol){
     return "<div style='background:#fff;border:0.5px solid #e2e8f0;border-radius:6px;padding:5px 7px;"+(leftCol?"border-left:2px solid "+leftCol+";":"")+"'>" +
       "<div style='font-size:9px;color:#64748b;margin-bottom:2px;line-height:1.2'>"+lbl+"</div>" +
-      "<div style='font-size:12px;font-weight:500;color:"+color+";line-height:1'>"+val+"</div>"+(note||"")+"</div>";
+      "<div style='font-size:12px;font-weight:500;color:"+color+";line-height:1'>"+val+"</div></div>";
   };
   var sc = function(lbl,val,color,sub,hl){
     return "<div style='background:"+(hl?"#fff;border:0.5px solid "+hl:"#f8fafc;border:0.5px solid #e2e8f0")+";border-radius:6px;padding:5px 7px'>" +
@@ -390,23 +414,24 @@ function ar2BuildKpiHtml(rows, idx){
       "<div style='font-size:12px;font-weight:500;color:"+color+"'>"+val+"</div>"+(sub?"<div style='font-size:8px;color:#94a3b8;margin-top:1px'>"+sub+"</div>":"")+"</div>";
   };
   var wowColor = wow<=0 ? "#16a34a" : "#dc2626";
-  var varColor = varPct < 2 ? "#b45309" : "#dc2626";
+  var varColor = varPct == null ? "#94a3b8" : (varPct < 2 ? "#b45309" : "#dc2626");
   return "<div style='display:flex;align-items:center;gap:8px;margin-bottom:6px'>" +
       "<span style='font-size:10px;font-weight:500;color:#64748b;text-transform:uppercase;letter-spacing:.4px'>Weekly reconciliation</span>" +
       "<span style='background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:3px'>Week ending "+weekLbl+"</span>" +
+      inProgBadge +
       "<select onchange='ar2SelectKpiWeek(this.value)' style='margin-left:auto;font-size:10px;padding:2px 5px;border:0.5px solid #e2e8f0;border-radius:4px;background:#f8fafc;color:#475569;cursor:pointer'>"+pickerOpts+"</select>" +
     "</div>" +
     "<div style='display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;margin-bottom:5px'>" +
       fc("AR start ("+prevLbl+")", fmt$(startBal), "#0369a1", "#0369a1") +
-      fc("+ Orders sold", hasFlow ? "+"+fmt$(sold) : "—", "#16a34a", null, hasFlow?null:noData) +
-      fc("− Payments",     hasFlow ? "−"+fmt$(pmts) : "—", "#dc2626", null, hasFlow?null:noData) +
-      fc("− Cancellations",hasFlow ? "−"+fmt$(cncl) : "—", "#dc2626", null, hasFlow?null:noData) +
-      fc("− Discounts / Adj",hasFlow ? "−"+fmt$(disc) : "—", "#dc2626", null, hasFlow?null:noData) +
-      fc("= Calc AR", hasFlow ? fmt$(calcAr) : "—", "#0d9488", "#0d9488") +
+      fc("+ Orders sold",      fmtFlow(sold, "+"),  flowColor(sold, "#16a34a"), null) +
+      fc("− Payments",         fmtFlow(pmts, "−"),  flowColor(pmts, "#dc2626"), null) +
+      fc("− Cancellations",    fmtFlow(cncl, "−"),  flowColor(cncl, "#dc2626"), null) +
+      fc("− Discounts / Adj",  fmtFlow(disc, "−"),  flowColor(disc, "#dc2626"), null) +
+      fc("= Calc AR", canCalc ? fmt$(calcAr) : "—", canCalc ? "#0d9488" : "#94a3b8", "#0d9488") +
     "</div>" +
     "<div style='display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-bottom:8px'>" +
       sc("Actual AR ("+weekLbl+")", fmt$(actualAr), "#1a2332", "DIM_AR_ALL_INVOICES", "#0d9488") +
-      sc("Variance", hasFlow ? fmt$(variance)+" · "+varPct.toFixed(2)+"%" : "—", varColor, "calc vs actual", "#f59e0b") +
+      sc("Variance", variance != null ? fmt$(variance)+" · "+varPct.toFixed(2)+"%" : "—", varColor, "calc vs actual", "#f59e0b") +
       sc("Current (not overdue)", fmt$(current), "#16a34a", (actualAr>0?(current/actualAr*100).toFixed(1)+"% of balance":"")) +
       sc("Total arrears", fmt$(arrears), "#dc2626", cur.pct ? cur.pct.toFixed(2)+"% overdue" : "") +
       sc("Week-over-week", (wow<=0?"▼ ":"▲ ")+fmt$(wow), wowColor, "vs "+prevLbl) +
