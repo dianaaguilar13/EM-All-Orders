@@ -1762,95 +1762,91 @@ def fetch_weekly_ar_flows(conn):
     orders sold, and cancellations — all snapped to the Friday that ends each week.
     Returns dict keyed by Friday date string: {date_str: {pmts, disc, sold, cncl}}
     """
-    print("⏳ Fetching weekly AR flow data from Snowflake...")
+    print("⏳ Fetching weekly AR flow data from Snowflake (4 separate queries)...")
     valid_types = "'Credit Card','Credit Card (Manual)','Credit Card (MANUAL)','ACH','ACH Bank','PayPal','PayPal Payment','Paypal','Wire','Wire Transfer','Check','Cash'"
-    sql = f"""
-        WITH weekly_pmts AS (
-            SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
-                SUM(p.PAYAMT) AS pmts
-            FROM ANALYTICS.MART.stg_inf_payments_combined p
-            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
-            WHERE p.PAYAMT > 0
-              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-              AND o.SKU IS NOT NULL AND o.SKU != ''
-              AND TO_DATE(p.PAYDATE) >= '{CONFIG["start_date"]}'
-              AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
-              AND p.PAYTYPE IN ({valid_types})
-            GROUP BY 1
-        ),
-        weekly_disc AS (
-            SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
-                SUM(p.PAYAMT) AS disc
-            FROM ANALYTICS.MART.stg_inf_payments_combined p
-            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
-            WHERE p.PAYAMT > 0
-              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
-              AND o.SKU IS NOT NULL AND o.SKU != ''
-              AND TO_DATE(p.PAYDATE) >= '{CONFIG["start_date"]}'
-              AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
-              AND p.PAYTYPE NOT IN ({valid_types})
-              AND p.PAYTYPE != 'Discount for Payment in Full'
-              AND p.PAYTYPE NOT LIKE 'CNCL-%'
-            GROUP BY 1
-        ),
-        weekly_sold AS (
-            SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(DATE) + 7, 7), DATE) AS week_fri,
-                SUM(INV_TOTAL) AS sold
-            FROM ANALYTICS.MART.DIM_ALL_ORDERS
-            WHERE DATE >= '{CONFIG["start_date"]}'
-              AND SKU IS NOT NULL AND SKU != ''
-              AND INV_TOTAL > 0
-              AND NOT (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%entry error%'
-                    OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%error%')
-            GROUP BY 1
-        ),
-        weekly_cncl AS (
-            SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(REFUND_CREDIT_DATE) + 7, 7),
-                        REFUND_CREDIT_DATE) AS week_fri,
-                SUM(INV_TOTAL) AS cncl
-            FROM ANALYTICS.MART.DIM_ALL_ORDERS
-            WHERE DATE >= '{CONFIG["start_date"]}'
-              AND SKU IS NOT NULL AND SKU != ''
-              AND REFUND_CREDIT_DATE IS NOT NULL
-              AND (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%cncl%'
-                OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%lrev%')
-            GROUP BY 1
-        )
-        SELECT
-            COALESCE(s.week_fri, p.week_fri, d.week_fri, c.week_fri) AS week_fri,
-            s.sold,
-            p.pmts,
-            d.disc,
-            c.cncl
-        FROM weekly_sold s
-        FULL OUTER JOIN weekly_pmts p  ON s.week_fri = p.week_fri
-        FULL OUTER JOIN weekly_disc d  ON COALESCE(s.week_fri, p.week_fri) = d.week_fri
-        FULL OUTER JOIN weekly_cncl c  ON COALESCE(s.week_fri, p.week_fri, d.week_fri) = c.week_fri
-        ORDER BY 1
-    """
-    cur = conn.cursor()
-    cur.execute(sql)
-    rows = sf_fetch_rows(cur)
+    start = CONFIG["start_date"]
+
     def _flow_val(v):
         if v is None or v == '': return None
         return round(float(v), 2)
-    flows = {}
-    for r in rows:
-        wf = r.get("WEEK_FRI","")
-        if not wf: continue
-        wf_str = str(wf)[:10]
-        if wf_str not in flows:
-            flows[wf_str] = {"sold": None, "pmts": None, "disc": None, "cncl": None}
-        for field, key in [("SOLD","sold"), ("PMTS","pmts"), ("DISC","disc"), ("CNCL","cncl")]:
-            val = _flow_val(r.get(field))
-            if val is not None:
-                flows[wf_str][key] = val
+
+    def run_snap_query(sql):
+        c = conn.cursor()
+        c.execute(sql)
+        result = {}
+        for r in sf_fetch_rows(c):
+            wf = r.get("WEEK_FRI") or r.get("week_fri") or ""
+            val_key = [k for k in r if k.upper() != "WEEK_FRI"][0]
+            wf_str = str(wf)[:10]
+            if wf_str:
+                result[wf_str] = _flow_val(r.get(val_key))
+        return result
+
+    sold_map = run_snap_query(f"""
+        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(DATE) + 7, 7), DATE) AS week_fri,
+               SUM(INV_TOTAL) AS sold
+        FROM ANALYTICS.MART.DIM_ALL_ORDERS
+        WHERE DATE >= '{start}' AND SKU IS NOT NULL AND SKU != ''
+          AND INV_TOTAL > 0
+          AND NOT (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%entry error%'
+                OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%error%')
+        GROUP BY 1
+    """)
+
+    pmts_map = run_snap_query(f"""
+        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
+               SUM(p.PAYAMT) AS pmts
+        FROM ANALYTICS.MART.stg_inf_payments_combined p
+        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+        WHERE p.PAYAMT > 0
+          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+          AND o.SKU IS NOT NULL AND o.SKU != ''
+          AND TO_DATE(p.PAYDATE) >= '{start}'
+          AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
+          AND p.PAYTYPE IN ({valid_types})
+        GROUP BY 1
+    """)
+
+    disc_map = run_snap_query(f"""
+        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(p.PAYDATE)) + 7, 7), TO_DATE(p.PAYDATE)) AS week_fri,
+               SUM(p.PAYAMT) AS disc
+        FROM ANALYTICS.MART.stg_inf_payments_combined p
+        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+        WHERE p.PAYAMT > 0
+          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+          AND o.SKU IS NOT NULL AND o.SKU != ''
+          AND TO_DATE(p.PAYDATE) >= '{start}'
+          AND TO_DATE(p.PAYDATE) <= CURRENT_DATE()
+          AND p.PAYTYPE NOT IN ({valid_types})
+          AND p.PAYTYPE != 'Discount for Payment in Full'
+          AND p.PAYTYPE NOT LIKE 'CNCL-%'
+        GROUP BY 1
+    """)
+
+    cncl_map = run_snap_query(f"""
+        SELECT DATEADD(day, MOD(5 - DAYOFWEEK(REFUND_CREDIT_DATE) + 7, 7), REFUND_CREDIT_DATE) AS week_fri,
+               SUM(INV_TOTAL) AS cncl
+        FROM ANALYTICS.MART.DIM_ALL_ORDERS
+        WHERE DATE >= '{start}' AND SKU IS NOT NULL AND SKU != ''
+          AND REFUND_CREDIT_DATE IS NOT NULL
+          AND (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%cncl%'
+            OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%lrev%')
+        GROUP BY 1
+    """)
+
+    all_weeks = set(sold_map) | set(pmts_map) | set(disc_map) | set(cncl_map)
+    flows = {
+        wf: {
+            "sold": sold_map.get(wf),
+            "pmts": pmts_map.get(wf),
+            "disc": disc_map.get(wf),
+            "cncl": cncl_map.get(wf),
+        }
+        for wf in all_weeks
+    }
     print(f"   → {len(flows)} weeks of AR flow data fetched")
-    # Debug: show last 3 weeks to verify data is coming through
     recent = sorted(flows.keys())[-3:] if flows else []
     for d in recent:
         f = flows[d]
