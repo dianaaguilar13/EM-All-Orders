@@ -331,7 +331,9 @@ function ar2RenderTrendTable(data){
     }
   }
   var kpiWrap = document.getElementById("ar2-weekly-kpi-wrap");
-  if(kpiWrap){ kpiWrap.style.display = "block"; kpiWrap.innerHTML = ar2BuildKpiHtml(ar2KpiRows, 0); }
+  // Default to last COMPLETED week (skip in-progress week at index 0 if present)
+  var kpiDefault = (cw && cw.week_fri && !cwAlreadyInRows) ? 1 : 0;
+  if(kpiWrap){ kpiWrap.style.display = "block"; kpiWrap.innerHTML = ar2BuildKpiHtml(ar2KpiRows, kpiDefault); }
   var th = function(label, align){ return "<th style='text-align:"+(align||"right")+";padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap'>"+label+"</th>"; };
   wrap.innerHTML =
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +

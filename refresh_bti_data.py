@@ -1623,6 +1623,48 @@ def load_ar_trend_history():
     return history
 
 
+def backfill_excel_computed_fields(history):
+    """Overwrite chg, avg52, sold_avg52, cncl_avg52 with the Excel's pre-calculated values.
+    The Excel uses a slightly different window than our rolling avg, so we treat it as source of truth.
+    """
+    import math, pandas as pd
+    excel_path = os.path.join(CONFIG["output_dir"], "AR Overdue Historic Week Data.xlsx")
+    if not os.path.exists(excel_path):
+        excel_path = os.path.join(os.path.dirname(__file__), "AR Overdue Historic Week Data.xlsx")
+    if not os.path.exists(excel_path):
+        print("   → Excel file not found, skipping computed-field backfill")
+        return history
+    try:
+        df = pd.read_excel(excel_path)
+        df["_date"] = pd.to_datetime(df["Date"]).dt.strftime("%Y-%m-%d")
+        xl_map = {}
+        for _, row in df.iterrows():
+            d = row["_date"]
+            def safe(v):
+                try:
+                    f = float(v)
+                    return None if math.isnan(f) else f
+                except: return None
+            xl_map[d] = {
+                "chg":       safe(row.get("Overdue\nBalance Change")),
+                "avg52":     safe(row.get("AR Overdue\n52 week Running Average")),
+                "sold_avg52":safe(row.get("Orders Sold 52 wk Running\nAverage")),
+                "cncl_avg52":safe(row.get("Cancellations 52 wk Running\nAverage")),
+            }
+        updated = 0
+        for r in history:
+            xl = xl_map.get(r["d"])
+            if not xl: continue
+            if xl["chg"]       is not None: r["chg"]       = round(xl["chg"], 2);       updated += 1
+            if xl["avg52"]     is not None: r["avg52"]     = round(xl["avg52"] * 100, 2); updated += 1
+            if xl["sold_avg52"]is not None: r["sold_avg52"]= round(xl["sold_avg52"], 2);  updated += 1
+            if xl["cncl_avg52"]is not None: r["cncl_avg52"]= round(xl["cncl_avg52"], 2);  updated += 1
+        print(f"   → Excel computed-field backfill: {updated} values applied across {len(xl_map)} Excel rows")
+    except Exception as e:
+        print(f"   ⚠ Excel computed-field backfill failed: {e}")
+    return history
+
+
 def append_weekly_ar_trend(history, ar_invoices, weekly_flows=None):
     """Append this week's snapshot to the AR overdue trend history.
     Weeks run Saturday→Friday; Friday is the week-end label date.
@@ -1702,6 +1744,9 @@ def append_weekly_ar_trend(history, ar_invoices, weekly_flows=None):
         cncl_vals = [history[j]["cncl"] for j in range(si, i + 1) if history[j].get("cncl") is not None]
         history[i]["sold_avg52"] = round(sum(sold_vals) / len(sold_vals), 2) if sold_vals else None
         history[i]["cncl_avg52"] = round(sum(cncl_vals) / len(cncl_vals), 2) if cncl_vals else None
+
+    # Overwrite computed fields with Excel's pre-calculated values for matching dates
+    history = backfill_excel_computed_fields(history)
 
     # Persist to ar2_trend.json
     json_path = os.path.join(CONFIG["output_dir"], "ar2_trend.json")
