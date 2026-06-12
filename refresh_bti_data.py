@@ -1767,23 +1767,25 @@ def fetch_weekly_ar_flows(conn):
     sql = f"""
         WITH weekly_pmts AS (
             SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(PAYDATE) + 7, 7), PAYDATE) AS week_fri,
+                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(PAYDATE)) + 7, 7), TO_DATE(PAYDATE)) AS week_fri,
                 SUM(PAYAMT) AS pmts
             FROM ANALYTICS.MART.stg_inf_payments_combined
             WHERE PAYAMT > 0
               AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
-              AND PAYDATE >= '{CONFIG["start_date"]}'
+              AND TO_DATE(PAYDATE) >= '{CONFIG["start_date"]}'
+              AND TO_DATE(PAYDATE) <= CURRENT_DATE()
               AND PAYTYPE IN ({valid_types})
             GROUP BY 1
         ),
         weekly_disc AS (
             SELECT
-                DATEADD(day, MOD(5 - DAYOFWEEK(PAYDATE) + 7, 7), PAYDATE) AS week_fri,
+                DATEADD(day, MOD(5 - DAYOFWEEK(TO_DATE(PAYDATE)) + 7, 7), TO_DATE(PAYDATE)) AS week_fri,
                 SUM(PAYAMT) AS disc
             FROM ANALYTICS.MART.stg_inf_payments_combined
             WHERE PAYAMT > 0
               AND (_CHECK_IF_DELETED = 0 OR _CHECK_IF_DELETED IS NULL)
-              AND PAYDATE >= '{CONFIG["start_date"]}'
+              AND TO_DATE(PAYDATE) >= '{CONFIG["start_date"]}'
+              AND TO_DATE(PAYDATE) <= CURRENT_DATE()
               AND PAYTYPE NOT IN ({valid_types})
               AND PAYTYPE != 'Discount for Payment in Full'
               AND PAYTYPE NOT LIKE 'CNCL-%'
