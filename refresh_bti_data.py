@@ -1780,7 +1780,8 @@ def fetch_weekly_ar_flows(conn):
         wf = r.get("WEEK_FRI","")
         if not wf: continue
         def _flow_val(v):
-            return round(float(v), 2) if v is not None else None
+            if v is None or v == '': return None
+            return round(float(v), 2)
         flows[str(wf)[:10]] = {
             "sold": _flow_val(r.get("SOLD")),
             "pmts": _flow_val(r.get("PMTS")),
