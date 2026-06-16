@@ -1254,7 +1254,7 @@ def build_cr_data(orders, asana_rows):
         "ST":  dict(Counter(e["status"] or "Unknown" for e in matched).most_common()),
         "SB":  dict(Counter(e["saved_by"] or "Not Saved" for e in matched).most_common()),
         "SKU": {k:dict(v) for k,v in sorted(by_sku_cr.items(), key=lambda x:-x[1]["total"])},
-        "rows": matched[:500],
+        "rows": matched,
         "FL": {
             "statuses":   sorted(set(e["status"]       for e in matched if e["status"])),
             "req_types":  sorted(set(e["request_type"] for e in matched if e["request_type"])),
