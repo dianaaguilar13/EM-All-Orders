@@ -71,9 +71,10 @@ function crApply(){
   document.getElementById("cr-skuDrop").classList.remove("open");
   crRender();
 }
+function crToday(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0");}
 function crReset(){
   document.getElementById("cr-df").value="2022-01-01";
-  document.getElementById("cr-dt").value="2026-04-29";
+  document.getElementById("cr-dt").value=crToday();
   ["cr-status","cr-assignee","cr-pcat"].forEach(function(id){document.getElementById(id).value="";});
   crSelReq.clear();crUpdateReqBtn();
   crSelSku.clear();crUpdateSkuBtn();
@@ -435,8 +436,7 @@ function crDownloadCsv(){
 fetch("cr_data.json").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){
     CR=data;
-    var today=new Date();var yy=today.getFullYear();var mm=String(today.getMonth()+1).padStart(2,"0");var dd=String(today.getDate()).padStart(2,"0");
-    document.getElementById("cr-dt").value=yy+"-"+mm+"-"+dd;
+    document.getElementById("cr-dt").value=crToday();
     var stSel=document.getElementById("cr-status");
     CR.FL.statuses.forEach(function(s){var o=document.createElement("option");o.value=o.textContent=s;stSel.appendChild(o);});
     var asSel=document.getElementById("cr-assignee");
