@@ -435,6 +435,8 @@ function crDownloadCsv(){
 fetch("cr_data.json").then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
   .then(function(data){
     CR=data;
+    var today=new Date();var yy=today.getFullYear();var mm=String(today.getMonth()+1).padStart(2,"0");var dd=String(today.getDate()).padStart(2,"0");
+    document.getElementById("cr-dt").value=yy+"-"+mm+"-"+dd;
     var stSel=document.getElementById("cr-status");
     CR.FL.statuses.forEach(function(s){var o=document.createElement("option");o.value=o.textContent=s;stSel.appendChild(o);});
     var asSel=document.getElementById("cr-assignee");
