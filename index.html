@@ -516,6 +516,20 @@ function hideAllPanels(){
         </div>
       </div>
     </div>
+    <div class="fg">
+      <span class="fl">Program (SKU) <span id="cr-skuCnt" class="ms-cnt" style="display:none"></span></span>
+      <div class="ms-wrap" id="cr-skuWrap">
+        <button class="ms-btn" id="cr-skuBtn" onclick="crToggleSku(event)">All SKUs</button>
+        <div class="ms-drop" id="cr-skuDrop" style="width:240px">
+          <div class="ms-sticky">
+            <div class="ms-search"><input type="text" id="cr-skuQ" placeholder="Search SKUs..." oninput="crRenderSkuItems()"></div>
+            <div class="ms-actions"><button class="ms-act" onclick="crSkuAll()">Select all</button><button class="ms-act" onclick="crSkuClear()">Clear all</button></div>
+          </div>
+          <div id="cr-skuItems"></div>
+        </div>
+      </div>
+    </div>
+    <div class="fg"><span class="fl">Partner Category</span><select id="cr-pcat"><option value="">All Categories</option></select></div>
     <div class="fg"><span class="fl">Status</span><select id="cr-status"><option value="">All Statuses</option></select></div>
     <div class="fg"><span class="fl">Assignee</span><select id="cr-assignee"><option value="">All Assignees</option></select></div>
     <button class="btn btn-p" onclick="crApply()">&#8635; Apply</button>

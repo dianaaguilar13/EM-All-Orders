@@ -1099,8 +1099,9 @@ def build_cr_data(orders, asana_rows):
         print("   ⚠️  No Asana tasks — skipping CRS")
         return None
 
-    order_to_sku = {r.get("ID","").strip(): r.get("SKU","").strip() for r in orders}
-    order_to_inv = {r.get("ID","").strip(): float(r.get("INV_TOTAL",0) or 0) for r in orders}
+    order_to_sku  = {r.get("ID","").strip(): r.get("SKU","").strip() for r in orders}
+    order_to_inv  = {r.get("ID","").strip(): float(r.get("INV_TOTAL",0) or 0) for r in orders}
+    order_to_pcat = {r.get("ID","").strip(): (r.get("REFERRAL_PARTNER_CATEGORY","") or "").strip() for r in orders}
 
     THRESHOLD = 1000
 
@@ -1134,7 +1135,8 @@ def build_cr_data(orders, asana_rows):
             excluded += 1
             continue
 
-        sku = order_to_sku.get(oid,"")
+        sku  = order_to_sku.get(oid,"")
+        pcat = order_to_pcat.get(oid,"")
         created   = parse_dt(r.get("Created At",""))
         completed = parse_dt(r.get("Completed At",""))
         procedure = (r.get("Procedure","") or "").strip()
@@ -1152,6 +1154,7 @@ def build_cr_data(orders, asana_rows):
         enriched.append({
             "id":             oid,
             "sku":            sku,
+            "pcat":           pcat,
             "date":           clean_date(r.get("Date Sold","")),
             "month":          created_at_str[:7] if created_at_str else "",
             "status":         r.get("Status","") or "",
@@ -1257,6 +1260,7 @@ def build_cr_data(orders, asana_rows):
             "req_types":  sorted(set(e["request_type"] for e in matched if e["request_type"])),
             "assignees":  sorted(set(e["assignee"]     for e in matched if e["assignee"])),
             "skus":       sorted(set(e["sku"]          for e in matched if e["sku"])),
+            "pcats":      sorted(set(e["pcat"]         for e in matched if e["pcat"])),
             "procedures": sorted(set(e["procedure"]    for e in matched if e["procedure"])),
         }
     }
