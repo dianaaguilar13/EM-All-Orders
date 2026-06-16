@@ -190,16 +190,6 @@ function crRender(){
       '<div class="kpi k2"><div class="kl">Net Impact</div><div class="kv" style="color:'+(netSave>=0?"#16a34a":"#ef4444")+';font-size:20px">'+crFmt$(netSave)+'</div><div class="ks '+(netSave>=0?"green":"red")+'">saved minus lost</div></div>'+
       '<div class="kpi k6"><div class="kl">Revenue Saved</div><div class="kv" style="color:#16a34a;font-size:20px">'+crFmt$(revSaved)+'</div><div class="ks green">recovered</div></div>'+
       '<div class="kpi k3"><div class="kl">Revenue Loss</div><div class="kv" style="color:#ef4444;font-size:20px">'+crFmt$(revLoss)+'</div><div class="ks red">lost</div></div>'+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'+
-      '<div class="kpi" style="border-left:3px solid '+resColor+';padding-left:14px">'+
-        '<div class="kl">Avg Resolution Time</div>'+
-        '<div class="kv" style="color:'+resColor+'">'+avgAll+'<span style="font-size:16px;font-weight:400">d</span></div>'+
-        '<div class="ks muted">target: <span style="color:#2563eb;font-weight:600">7 days</span> &middot; '+nComp+' resolved</div></div>'+
-      '<div class="kpi" style="border-left:3px solid '+pct7Color+';padding-left:14px">'+
-        '<div class="kl">Within 7 Days</div>'+
-        '<div class="kv" style="color:'+pct7Color+'">'+pct7+'<span style="font-size:16px;font-weight:400">%</span></div>'+
-        '<div class="ks muted">'+within7Count+' of '+nComp+' resolved cases</div></div>'+
     '</div>';
 
   // ── Resolution Insights Panel ──────────────────────────────
