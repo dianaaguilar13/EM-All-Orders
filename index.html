@@ -482,7 +482,7 @@ function showCancelTab(){
   document.getElementById("cancel-tab-btn").style.display="none";
 }
 function hideAllPanels(){
-  ["mainContent","ldp-panel","pif-panel","cr-panel"].forEach(function(id){
+  ["mainContent","ldp-panel","pif-panel","cr-panel","ar2-panel"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
   document.querySelector(".filters").style.display="none";

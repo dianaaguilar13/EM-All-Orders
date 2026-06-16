@@ -85,21 +85,68 @@ function crRender(){
   var saveRate=total>0?(saved/total*100):0;
   var revSaved=rows.reduce(function(s,r){return s+(r.rev_saved||0);},0);
   var revLoss=rows.reduce(function(s,r){return s+(r.rev_loss||0);},0);
-  var refund=rows.reduce(function(s,r){return s+(r.refund_amt||0);},0);
   var netSave=revSaved-revLoss;
+  var TARGET=7;
 
   document.getElementById("cr-rcLbl").textContent=total.toLocaleString()+" matched records";
 
-  // ── Resolution time insight panel ────────────────────────
-  var res=CR.resolution||{};
-  var ov=res.overall||{};
-  var TARGET=7;
+  // ── Resolution stats computed from filtered rows ───────────
+  var compRows=rows.filter(function(row){
+    return row.procedure==="Complete"&&row.res_days!=null&&row.res_days>=0&&row.res_days<=365;
+  });
+  var nComp=compRows.length;
+  var avgAll=nComp>0?Math.round(compRows.reduce(function(s,row){return s+row.res_days;},0)/nComp*10)/10:0;
+  var within7Count=compRows.filter(function(row){return row.res_days<=7;}).length;
+  var pct7=nComp>0?Math.round(within7Count/nComp*100):0;
 
-  // Filter resolution data by req type if selected
-  var resByReq=res.by_req||{};
-  var resBySku=res.by_sku||{};
+  var dist={"0":0,"1_3":0,"4_7":0,"8_14":0,"15_30":0,"31p":0};
+  compRows.forEach(function(row){
+    var d=row.res_days;
+    if(d===0)dist["0"]++;else if(d<=3)dist["1_3"]++;else if(d<=7)dist["4_7"]++;
+    else if(d<=14)dist["8_14"]++;else if(d<=30)dist["15_30"]++;else dist["31p"]++;
+  });
 
-  // KPI cards — Row 1: Cases | Row 2: Revenue impact
+  var skuResMap={};
+  compRows.forEach(function(row){
+    var s=row.sku||"?";
+    if(!skuResMap[s])skuResMap[s]={n:0,sum:0,within7:0};
+    skuResMap[s].n++;skuResMap[s].sum+=row.res_days;if(row.res_days<=7)skuResMap[s].within7++;
+  });
+  var resBySku={};
+  Object.keys(skuResMap).forEach(function(s){
+    var v=skuResMap[s];
+    resBySku[s]={n:v.n,avg:Math.round(v.sum/v.n*10)/10,within7:v.within7,pct7:Math.round(v.within7/v.n*100)};
+  });
+
+  var resByM={};
+  compRows.forEach(function(row){
+    var m=row.completed_at?row.completed_at.slice(0,7):(row.month||row.created_at.slice(0,7));
+    if(!m)return;
+    if(!resByM[m])resByM[m]={n:0,sum:0,within7:0};
+    resByM[m].n++;resByM[m].sum+=row.res_days;if(row.res_days<=7)resByM[m].within7++;
+  });
+  Object.keys(resByM).forEach(function(m){
+    var v=resByM[m];
+    resByM[m].avg=Math.round(v.sum/v.n*10)/10;resByM[m].pct7=Math.round(v.within7/v.n*100);
+  });
+
+  // ── SKU / Saved-By / Status maps from filtered rows ────────
+  var skuMap={},sbMap={},stMap={},reqMap={};
+  rows.forEach(function(row){
+    var s=row.sku||"?";
+    if(!skuMap[s])skuMap[s]={total:0,saved:0,rev_saved:0,rev_loss:0};
+    skuMap[s].total++;if(row.saved_by)skuMap[s].saved++;
+    skuMap[s].rev_saved+=row.rev_saved||0;skuMap[s].rev_loss+=row.rev_loss||0;
+    var sb=row.saved_by||"Not Saved";sbMap[sb]=(sbMap[sb]||0)+1;
+    var st2=row.status||"Unknown";stMap[st2]=(stMap[st2]||0)+1;
+    var rt=row.request_type||"Unknown";
+    if(!reqMap[rt])reqMap[rt]={total:0,saved:0};
+    reqMap[rt].total++;if(row.saved_by)reqMap[rt].saved++;
+  });
+
+  // ── KPI cards ─────────────────────────────────────────────
+  var resColor=avgAll<=TARGET?"#16a34a":avgAll<=TARGET*2?"#d97706":"#dc2626";
+  var pct7Color=pct7>=50?"#16a34a":pct7>=25?"#d97706":"#dc2626";
   document.getElementById("cr-kpis").innerHTML=
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
       '<div class="kpi k1"><div class="kl">Total Cases</div><div class="kv">'+total.toLocaleString()+'</div><div class="ks muted">matched to orders</div></div>'+
@@ -110,18 +157,24 @@ function crRender(){
       '<div class="kpi k2"><div class="kl">Net Impact</div><div class="kv" style="color:'+(netSave>=0?"#16a34a":"#ef4444")+';font-size:20px">'+crFmt$(netSave)+'</div><div class="ks '+(netSave>=0?"green":"red")+'">saved minus lost</div></div>'+
       '<div class="kpi k6"><div class="kl">Revenue Saved</div><div class="kv" style="color:#16a34a;font-size:20px">'+crFmt$(revSaved)+'</div><div class="ks green">recovered</div></div>'+
       '<div class="kpi k3"><div class="kl">Revenue Loss</div><div class="kv" style="color:#ef4444;font-size:20px">'+crFmt$(revLoss)+'</div><div class="ks red">lost</div></div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">'+
+      '<div class="kpi" style="border-left:3px solid '+resColor+';padding-left:14px">'+
+        '<div class="kl">Avg Resolution Time</div>'+
+        '<div class="kv" style="color:'+resColor+'">'+avgAll+'<span style="font-size:16px;font-weight:400">d</span></div>'+
+        '<div class="ks muted">target: <span style="color:#2563eb;font-weight:600">7 days</span> &middot; '+nComp+' resolved</div></div>'+
+      '<div class="kpi" style="border-left:3px solid '+pct7Color+';padding-left:14px">'+
+        '<div class="kl">Within 7 Days</div>'+
+        '<div class="kv" style="color:'+pct7Color+'">'+pct7+'<span style="font-size:16px;font-weight:400">%</span></div>'+
+        '<div class="ks muted">'+within7Count+' of '+nComp+' resolved cases</div></div>'+
     '</div>';
 
   // ── Resolution Insights Panel ──────────────────────────────
-  var avgAll=ov.avg||0,pct7=ov.pct7||0,nComp=ov.n||0;
-  var resColor=avgAll<=TARGET?"#16a34a":avgAll<=TARGET*2?"#d97706":"#dc2626";
-
-  // Top slowest and fastest SKUs
   var skuRes=Object.entries(resBySku).filter(function(e){return e[1].n>=3;});
-  var slowest=skuRes.slice().sort(function(a,b){return b[1].avg-a[1].avg;}).slice(0,8);
-  var fastest=skuRes.slice().sort(function(a,b){return a[1].avg-b[1].avg;}).slice(0,8);
+  var slowest=skuRes.slice().sort(function(a,b){return b[1].avg-a[1].avg;}).slice(0,1);
+  var fastest=skuRes.slice().sort(function(a,b){return a[1].avg-b[1].avg;}).slice(0,1);
 
-  var skuRowsHTML=skuRes.sort(function(a,b){return b[1].n-a[1].n;}).slice(0,20).map(function(e){
+  var skuRowsHTML=skuRes.slice().sort(function(a,b){return b[1].n-a[1].n;}).slice(0,20).map(function(e){
     var s=e[0],v=e[1];
     var c=v.avg<=TARGET?"#16a34a":v.avg<=TARGET*2?"#d97706":"#dc2626";
     var w=Math.min(v.avg/(TARGET*3)*100,100);
@@ -136,56 +189,48 @@ function crRender(){
       '</tr>';
   }).join("");
 
-  var pct7Color=pct7>=50?"#16a34a":pct7>=25?"#d97706":"#dc2626";
   document.getElementById("cr-resPanel").innerHTML=
-    // Top summary row — day mode cards
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">'+
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px">'+
         '<div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Avg Resolution Time</div>'+
         '<div style="font-size:32px;font-weight:700;color:'+resColor+';letter-spacing:-1px">'+avgAll+'<span style="font-size:16px">d</span></div>'+
-        '<div style="font-size:11px;color:#64748b;margin-top:2px">target: <span style="color:#2563eb;font-weight:600">7 days</span> · '+nComp+' resolved</div>'+
+        '<div style="font-size:11px;color:#64748b;margin-top:2px">target: <span style="color:#2563eb;font-weight:600">7 days</span> &middot; '+nComp+' resolved</div>'+
         '<div style="height:5px;background:#e2e8f0;border-radius:3px;margin-top:8px;overflow:hidden">'+
           '<div style="height:100%;width:'+Math.min(TARGET/Math.max(avgAll,1)*100,100).toFixed(0)+'%;background:'+resColor+';border-radius:3px"></div></div></div>'+
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px">'+
         '<div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Within 7 Days</div>'+
         '<div style="font-size:32px;font-weight:700;color:'+pct7Color+';letter-spacing:-1px">'+pct7+'<span style="font-size:16px">%</span></div>'+
-        '<div style="font-size:11px;color:#64748b;margin-top:2px">'+(ov.within7||0)+' of '+nComp+' cases</div>'+
+        '<div style="font-size:11px;color:#64748b;margin-top:2px">'+within7Count+' of '+nComp+' cases</div>'+
         '<div style="height:5px;background:#e2e8f0;border-radius:3px;margin-top:8px;overflow:hidden">'+
           '<div style="height:100%;width:'+pct7.toFixed(0)+'%;background:'+pct7Color+';border-radius:3px"></div></div></div>'+
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px">'+
         '<div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Fastest SKU</div>'+
-        (fastest.length?'<div style="font-size:18px;font-weight:700;color:#16a34a;line-height:1.2">'+fastest[0][0]+'</div><div style="font-size:12px;color:#16a34a;margin-top:4px">'+fastest[0][1].avg+'d avg · '+fastest[0][1].n+' cases</div>':'<div style="color:#64748b">No data</div>')+
+        (fastest.length?'<div style="font-size:18px;font-weight:700;color:#16a34a;line-height:1.2">'+fastest[0][0]+'</div><div style="font-size:12px;color:#16a34a;margin-top:4px">'+fastest[0][1].avg+'d avg &middot; '+fastest[0][1].n+' cases</div>':'<div style="color:#64748b">No data</div>')+
         '</div>'+
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px">'+
         '<div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Slowest SKU</div>'+
-        (slowest.length?'<div style="font-size:18px;font-weight:700;color:#dc2626;line-height:1.2">'+slowest[0][0]+'</div><div style="font-size:12px;color:#dc2626;margin-top:4px">'+slowest[0][1].avg+'d avg · '+slowest[0][1].n+' cases</div>':'<div style="color:#64748b">No data</div>')+
+        (slowest.length?'<div style="font-size:18px;font-weight:700;color:#dc2626;line-height:1.2">'+slowest[0][0]+'</div><div style="font-size:12px;color:#dc2626;margin-top:4px">'+slowest[0][1].avg+'d avg &middot; '+slowest[0][1].n+' cases</div>':'<div style="color:#64748b">No data</div>')+
         '</div>'+
     '</div>'+
-    // Distribution bar chart
     '<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:16px">'+
       '<div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;writing-mode:vertical-rl;transform:rotate(180deg);padding-right:4px">Cases</div>'+
-crBuildDistBars(ov.dist)+
+      crBuildDistBars(dist)+
     '</div>'+
-    // SKU table
     '<div class="tbl-wrap" style="max-height:280px">'+
     '<table><thead><tr><th>SKU</th><th>Resolved</th><th>Avg Days</th><th>Within 7d</th><th>% On Time</th></tr></thead>'+
     '<tbody>'+skuRowsHTML+'</tbody></table></div>';
 
-  // ── Monthly trend ──────────────────────────────────────
-  var ts=Object.keys(CR.M).filter(function(m){return m>=r.df&&m<=r.dt;}).sort()
-    .map(function(m){return{m:m,b:CR.M[m]};});
-  // Apply req filter
-  if(crSelReq.size>0||st||as){
-    var byM2={};
-    rows.forEach(function(row){
-      var m=row.month||row.created_at.slice(0,7);if(!m)return;
-      if(!byM2[m])byM2[m]={total:0,saved:0,lost:0,rev_saved:0,rev_loss:0,refund:0};
-      byM2[m].total++;
-      if(row.saved_by)byM2[m].saved++;else byM2[m].lost++;
-      byM2[m].rev_saved+=row.rev_saved||0;byM2[m].rev_loss+=row.rev_loss||0;byM2[m].refund+=row.refund_amt||0;
-    });
-    ts=Object.keys(byM2).sort().map(function(m){return{m:m,b:byM2[m]};});
-  }
+  // ── Monthly trend (always from filtered rows) ──────────────
+  var byM={};
+  rows.forEach(function(row){
+    var m=row.month||row.created_at.slice(0,7);if(!m)return;
+    if(!byM[m])byM[m]={total:0,saved:0,lost:0,rev_saved:0,rev_loss:0};
+    byM[m].total++;
+    if(row.saved_by)byM[m].saved++;else byM[m].lost++;
+    byM[m].rev_saved+=row.rev_saved||0;byM[m].rev_loss+=row.rev_loss||0;
+  });
+  var ts=Object.keys(byM).filter(function(m){return m>=r.df&&m<=r.dt;}).sort()
+    .map(function(m){return{m:m,b:byM[m]};});
 
   var mLabels=ts.map(function(x){return crFmtM(x.m);});
   crCharts.trend=new Chart(document.getElementById("cr-trendChart"),{
@@ -205,8 +250,7 @@ crBuildDistBars(ov.dist)+
       }}
   });
 
-  // ── Resolution trend ──────────────────────────────────
-  var resByM=CR.resolution.by_month||{};
+  // ── Resolution trend (from filtered rows) ────────────────
   var resMonths=Object.keys(resByM).filter(function(m){return m>=r.df&&m<=r.dt;}).sort();
   if(resMonths.length>0){
     crCharts.resTrend=new Chart(document.getElementById("cr-resTrendChart"),{
@@ -238,12 +282,10 @@ crBuildDistBars(ov.dist)+
               y:{ticks:{color:"#64748b",font:{size:10},callback:function(v){return"$"+(v>=1000?(v/1000).toFixed(0)+"k":v);}},grid:{color:"#e2e8f044"}}}}
   });
 
-  // ── Request type chart ────────────────────────────────
-  var reqData=Object.entries(CR.REQ).filter(function(e){
-    if(crSelReq.size>0&&!crSelReq.has(e[0]))return false;
-    return e[1].total>5;
-  }).map(function(e){return{rt:e[0],total:e[1].total,saved:e[1].saved,rate:e[1].total>0?(e[1].saved/e[1].total*100):0};})
-  .sort(function(a,b){return b.total-a.total;}).slice(0,12);
+  // ── Request type chart (from filtered rows) ──────────────
+  var reqData=Object.entries(reqMap).filter(function(e){return e[1].total>5;})
+    .map(function(e){return{rt:e[0],total:e[1].total,saved:e[1].saved};})
+    .sort(function(a,b){return b.total-a.total;}).slice(0,12);
 
   crCharts.req=new Chart(document.getElementById("cr-reqChart"),{
     type:"bar",
@@ -258,8 +300,8 @@ crBuildDistBars(ov.dist)+
               y:{stacked:false,ticks:{color:"#1e293b",font:{size:9}},grid:{display:false}}}}
   });
 
-  // ── Donuts ────────────────────────────────────────────
-  var sbData=Object.entries(CR.SB).filter(function(e){return e[1]>0;}).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+  // ── Donuts (from filtered rows) ───────────────────────
+  var sbData=Object.entries(sbMap).filter(function(e){return e[1]>0;}).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
   crCharts.sb=new Chart(document.getElementById("cr-sbChart"),{
     type:"doughnut",
     data:{labels:sbData.map(function(x){return x[0]||"Not Saved";}),
@@ -269,7 +311,7 @@ crBuildDistBars(ov.dist)+
       plugins:{legend:{position:"right",labels:{color:"#1e293b",font:{size:10},boxWidth:10,padding:8}}}}
   });
 
-  var stData=Object.entries(CR.ST).filter(function(e){return e[1]>0;}).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+  var stData=Object.entries(stMap).filter(function(e){return e[1]>0;}).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
   crCharts.st=new Chart(document.getElementById("cr-stChart"),{
     type:"doughnut",
     data:{labels:stData.map(function(x){return x[0]||"Unknown";}),
@@ -279,10 +321,10 @@ crBuildDistBars(ov.dist)+
       plugins:{legend:{position:"right",labels:{color:"#1e293b",font:{size:10},boxWidth:10,padding:8}}}}
   });
 
-  // ── SKU breakdown table ───────────────────────────────
-  var skuArr=Object.entries(CR.SKU).map(function(e){
+  // ── SKU breakdown table (from filtered rows) ──────────
+  var skuArr=Object.entries(skuMap).map(function(e){
     var v=e[1],rate=v.total>0?(v.saved/v.total*100):0;
-    var res=CR.resolution.by_sku[e[0]];
+    var res=resBySku[e[0]];
     return{sku:e[0],total:v.total,saved:v.saved,lost:v.total-v.saved,rate:rate,
       rev_saved:v.rev_saved,rev_loss:v.rev_loss,
       avg_days:res?res.avg:null,pct7:res?res.pct7:null};
