@@ -517,6 +517,34 @@ function downloadSkuDetailCsv(){
   a.click();
 }
 
+// Count cancellations by refund/credit date falling in the selected range.
+// Iterates all order_rows (any purchase date) and checks if purchase_date + rd_days lands in range.
+function getCncByRefundDate(){
+  var r=getRange();
+  var effSkus=getEffectiveSkus();
+  var pcats=selPcat.size>0?Array.from(selPcat):null;
+  var count=0,lostRev=0;
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(effSkus&&!effSkus.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      if(row[4]!=="Cancelled")return;
+      if(pcats&&pcats.indexOf(row[7])<0)return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      if(fDiv&&row[15]!==fDiv)return;
+      var rdDays=row[12];
+      if(rdDays<0)return;
+      var refDate=new Date(row[2]);
+      refDate.setDate(refDate.getDate()+rdDays);
+      var refM=refDate.getFullYear()+"-"+String(refDate.getMonth()+1).padStart(2,"0");
+      if(refM<r.df||refM>r.dt)return;
+      count++;
+      lostRev+=(row[10]||0);
+    });
+  });
+  return{count:count,lostRev:Math.round(lostRev)};
+}
+
 function render(){
   destroyCharts();
   var ts=getTimeSeries();
@@ -527,13 +555,14 @@ function render(){
   var ldpCancelRate=C>0?(LDPc/C*100):0;
   var sale=Math.max(0,T-C-E-U-Dv-Sw-Pe-NP);
   var pcat=getPcat();
+  var cncByRef=getCncByRefundDate();
   document.getElementById("rcLbl").textContent=T.toLocaleString()+" records "+(selP.size>0?selP.size+" partner(s)":pcat||"all data");
 
   document.getElementById("kpiRow").innerHTML=
     '<div class="kpi-top-row">'+
       '<div class="kpi k1"><div class="kl">Total Units</div><div class="kv">'+net.toLocaleString()+'</div><div class="ks muted">excl. entry error, pend, no pmt</div></div>'+
       '<div class="kpi k2"><div class="kl">Active</div><div class="kv" style="color:#2563eb">'+AC.toLocaleString()+'</div><div class="ks muted">'+(net>0?(AC/net*100).toFixed(1):0)+'% of units</div></div>'+
-      '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+C.toLocaleString()+'</div><div class="ks red">'+(net>0?(C/net*100).toFixed(1):0)+'% of units</div></div>'+
+      '<div class="kpi k4"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+C.toLocaleString()+'</div><div class="ks red">'+(net>0?(C/net*100).toFixed(1):0)+'% of units · by purchase date</div><div style="margin-top:6px;padding-top:6px;border-top:1px solid #fee2e2"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">Refunds in Period</div><div style="font-size:20px;font-weight:700;color:#ef4444">'+cncByRef.count.toLocaleString()+'</div><div style="font-size:10px;color:#64748b">cancelled in range · any purchase date</div></div></div>'+
       '<div class="kpi k4"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+rate.toFixed(1)+'%</div><div class="ks red">cancellations / total units</div>'+(LDPc>0?'<div style="margin-top:6px;padding-top:6px;border-top:1px solid #fee2e2"><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">LDP Cancel %</div><div style="font-size:16px;font-weight:700;color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div style="font-size:10px;color:#64748b">'+LDPc+' of '+C+' cancels</div></div>':'')+'</div>'+
       '<div class="kpi k8"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:22px">$'+Math.round(LR).toLocaleString()+'</div><div class="ks red">payments on cancels</div></div>'+
     '</div>'+
