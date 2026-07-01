@@ -789,6 +789,121 @@ document.getElementById("skuTbody").innerHTML=rows;
     });
   }
   renderCohort();
+  renderRefundSkuTable();
+}
+
+// ── Refunds in Period SKU Table ────────────────────────────
+function getRefundPeriodSkuData(){
+  var r=getRange();
+  var effSkus=getEffectiveSkus();
+  var pcats=selPcat.size>0?Array.from(selPcat):null;
+  var bySkuRows={};
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(effSkus&&!effSkus.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      if(row[4]!=="Cancelled")return;
+      if(pcats&&pcats.indexOf(row[7])<0)return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      if(fDiv&&row[15]!==fDiv)return;
+      var rdDays=row[12];
+      if(rdDays<0)return;
+      var refDate=new Date(row[2]);
+      refDate.setDate(refDate.getDate()+rdDays);
+      var refM=refDate.getFullYear()+"-"+String(refDate.getMonth()+1).padStart(2,"0");
+      if(refM<r.df||refM>r.dt)return;
+      var refDateStr=refDate.getFullYear()+"-"+String(refDate.getMonth()+1).padStart(2,"0")+"-"+String(refDate.getDate()).padStart(2,"0");
+      if(!bySkuRows[sku])bySkuRows[sku]=[];
+      bySkuRows[sku].push({row:row,refDateStr:refDateStr,rdDays:rdDays});
+    });
+  });
+  return bySkuRows;
+}
+
+function downloadRefundSkuCsv(){
+  var bySkuRows=getRefundPeriodSkuData();
+  var csvRows=[["SKU","Order ID","Contact ID","Purchase Date","Refund Date","Refund Days","Product Name","Cancel Status","Invoice Total","Lost Revenue","Partner Category","Referral Partner"]];
+  Object.keys(bySkuRows).sort().forEach(function(sku){
+    bySkuRows[sku].forEach(function(item){
+      var row=item.row;
+      csvRows.push([sku,row[0],row[1],row[2],item.refDateStr,item.rdDays,row[9]||"",row[4],row[5]||0,row[10]||0,row[7],row[8]]);
+    });
+  });
+  var csv=csvRows.map(function(r){return r.map(function(v){
+    var s=String(v==null?"":v);
+    return s.indexOf(",")>=0||s.indexOf('"')>=0?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(",");}).join("\n");
+  var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  var rng=getRange();
+  a.download="refunds_in_period_"+rng.df+"_"+rng.dt+".csv";
+  a.click();
+}
+
+function renderRefundSkuTable(){
+  var sec=document.getElementById("refundSkuSection");
+  if(!sec||!D)return;
+  var bySkuRows=getRefundPeriodSkuData();
+  var skus=Object.keys(bySkuRows).sort();
+  var totalCount=0,totalLR=0;
+  skus.forEach(function(sku){bySkuRows[sku].forEach(function(item){totalCount++;totalLR+=(item.row[10]||0);});});
+  if(totalCount===0){sec.innerHTML="";return;}
+  var html='<div class="card full" style="margin-top:0">';
+  html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+  html+='<div><div class="ct">Refunds in Period — SKU Summary</div><div class="cs">Cancellations where refund/credit date falls in the selected range · any purchase date</div></div>';
+  html+='<div style="font-size:11px;color:#8b949e">'+skus.length+' SKUs &nbsp;'+totalCount.toLocaleString()+' refunds &nbsp;';
+  html+='<button onclick="downloadRefundSkuCsv()" style="margin-left:6px;color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">&#11015; Download CSV</button></div>';
+  html+='</div>';
+  html+='<div class="tbl-wrap"><table><thead><tr>';
+  ['SKU','Count','Avg Refund Days','Lost Revenue'].forEach(function(h){
+    html+='<th>'+h+'</th>';
+  });
+  html+='</tr></thead><tbody>';
+  skus.forEach(function(sku,idx){
+    var items=bySkuRows[sku];
+    var count=items.length;
+    var lr=items.reduce(function(s,i){return s+(i.row[10]||0);},0);
+    var avgRd=count>0?Math.round(items.reduce(function(s,i){return s+i.rdDays;},0)/count):0;
+    var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
+    html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
+    html+='<td><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
+    html+='<td class="num" style="color:#ef4444">'+count.toLocaleString()+'</td>';
+    html+='<td class="num">'+avgRd+'d</td>';
+    html+='<td class="num" style="color:#ef4444">$'+Math.round(lr).toLocaleString()+'</td>';
+    html+='</tr>';
+    // Detail rows
+    html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="4" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
+    html+='<div style="padding:10px 16px 12px 24px">';
+    html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' refunds in period</div>';
+    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
+    html+='<thead><tr style="background:#f1f5f9">';
+    ['Order ID','Contact ID','Purchase Date','Refund Date','Refund Days','Product Name','Invoice Total','Lost Revenue','Partner Category'].forEach(function(h){
+      html+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
+    });
+    html+='</tr></thead><tbody>';
+    items.forEach(function(item,di){
+      var row=item.row;
+      var bg=di%2===0?"#ffffff":"#f8fafc";
+      html+='<tr style="background:'+bg+'">';
+      html+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+row[0]+'</td>';
+      html+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+row[1]+'</td>';
+      html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+row[2]+'</td>';
+      html+='<td style="padding:5px 10px;color:#ef4444;font-weight:600;white-space:nowrap">'+item.refDateStr+'</td>';
+      html+='<td style="padding:5px 10px;color:#2563eb;font-weight:600;text-align:right">'+item.rdDays+'d</td>';
+      html+='<td style="padding:5px 10px;color:#374151;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(row[9]||'')+'">'+( row[9]||'—')+'</td>';
+      html+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(row[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
+      var lr2=row[10]||0;
+      html+='<td style="padding:5px 10px;text-align:right;color:'+(lr2>0?"#ef4444":"#94a3b8")+'">'+(lr2>0?'$'+lr2.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
+      html+='<td style="padding:5px 10px;color:#64748b">'+( row[7]||'—')+'</td>';
+      html+='</tr>';
+    });
+    html+='</tbody></table></div></div></td></tr>';
+  });
+  // Footer
+  html+='<tr class="tfoot"><td>Total</td><td class="num" style="color:#ff7b72">'+totalCount.toLocaleString()+'</td><td class="num">—</td><td class="num" style="color:#ff7b72">$'+Math.round(totalLR).toLocaleString()+'</td></tr>';
+  html+='</tbody></table></div></div>';
+  sec.innerHTML=html;
 }
 
 // ── CSV Download ───────────────────────────────────────────
@@ -1456,7 +1571,7 @@ function downloadCohortCsv(){
 
 function initDashboard(){
   document.getElementById("dt").value=todayStr();
-  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div><div id="cohortSection"></div></div>';
+  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div><div id="refundSkuSection"></div><div id="cohortSection"></div></div>';
   renderMsItems();renderMsSkuItems();render();
 }
 
