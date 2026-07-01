@@ -1102,6 +1102,7 @@ def build_cr_data(orders, asana_rows):
     order_to_sku  = {r.get("ID","").strip(): r.get("SKU","").strip() for r in orders}
     order_to_inv  = {r.get("ID","").strip(): float(r.get("INV_TOTAL",0) or 0) for r in orders}
     order_to_pcat = {r.get("ID","").strip(): (r.get("REFERRAL_PARTNER_CATEGORY","") or "").strip() for r in orders}
+    order_to_cid  = {r.get("ID","").strip(): str(r.get("CONTACTID","") or "").strip() for r in orders}
 
     THRESHOLD = 1000
 
@@ -1168,6 +1169,8 @@ def build_cr_data(orders, asana_rows):
             "contract_amt":   amt,
             "assignee":       r.get("Assignee","") or "",
             "client_id":      r.get("Client ID","") or "",
+            "client_name":    r.get("Name","") or "",
+            "contact_id":     order_to_cid.get(oid,""),
             "res_days":       res_days,
             "days_to_cancel": days_to_cancel,
             "created_at":     created_at_str[:10] if created_at_str else "",

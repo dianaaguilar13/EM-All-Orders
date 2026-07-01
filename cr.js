@@ -379,8 +379,11 @@ function crRender(){
     var saved=!!row.saved_by;
     return"<tr>"+
       "<td class='num' style='font-size:10px;color:#475569'>"+row.id+"</td>"+
+      "<td style='font-size:10px;color:#64748b;font-family:monospace'>"+(row.contact_id||row.client_id||"—")+"</td>"+
+      "<td style='font-size:10px;color:#334155;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' title='"+(row.client_name||"").replace(/'/g,"&#39;")+"'>"+(row.client_name||"—")+"</td>"+
       "<td><span class='pill'>"+(row.sku||"?")+"</span></td>"+
-      "<td style='font-size:10px;color:#475569'>"+(row.requested_date||row.created_at||"")+"</td>"+
+      "<td style='font-size:10px;color:#475569;white-space:nowrap'>"+(row.date||"—")+"</td>"+
+      "<td style='font-size:10px;color:#2563eb;font-weight:600;white-space:nowrap'>"+(row.created_at||"—")+"</td>"+
       "<td style='font-size:10px;color:#8b949e;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>"+row.request_type+"</td>"+
       "<td><span style='font-size:10px;font-weight:600;color:"+(saved?"#3fb950":"#f85149")+"'>"+(saved?"Saved":"Lost")+"</span></td>"+
       "<td style='font-size:10px;color:#388bfd'>"+row.saved_by+"</td>"+
@@ -403,14 +406,17 @@ function crRender(){
 // ── CSV Download ──────────────────────────────────────────
 function crDownloadCsv(){
   var rows=crFilterRows();
-  var headers=["Order ID","SKU","Purchase Date","Request Type","Outcome","Saved By","Status","Procedure","Resolution Days","Rev Loss","Rev Saved","Assignee","Client ID"];
+  var headers=["Order ID","Contact ID","Client Name","SKU","Order Date","Case Opened","Request Type","Outcome","Saved By","Status","Procedure","Resolution Days","Rev Loss","Rev Saved","Assignee","Client ID"];
   var lines=[headers.join(",")];
   rows.forEach(function(r){
     var outcome=r.saved_by?"Saved":"Lost";
     lines.push([
       r.id,
+      r.contact_id||r.client_id||"",
+      '"'+(r.client_name||"").replace(/"/g,'""')+'"',
       '"'+(r.sku||"").replace(/"/g,'""')+'"',
-      r.requested_date||r.created_at||"",
+      r.date||"",
+      r.created_at||"",
       '"'+(r.request_type||"").replace(/"/g,'""')+'"',
       outcome,
       '"'+(r.saved_by||"").replace(/"/g,'""')+'"',
