@@ -807,8 +807,9 @@ function getCohortRows(){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
-      // row[16] = HEAVEN_DATE (effective date); row[2] = original DATE (fallback)
-      var dateM=(row[16]||row[2]).slice(0,7);
+      // Cohort is defined by PURCHASE DATE (row[2]) — "orders bought in this range"
+      // Top section uses effective/cancellation date (row[16]) via pre-aggregated maps
+      var dateM=row[2].slice(0,7);
       if(dateM<r.df||dateM>r.dt)return;
       // Exclude same statuses as top KPI "Net Units" (Entry Error, Pend, No Pmt)
       if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
