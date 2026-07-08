@@ -1150,8 +1150,8 @@ def build_cr_data(orders, asana_rows):
     excluded = 0
     enriched = []
     for r in asana_rows:
-        oid_raw = str(r.get("Order ID","") or "").strip()
-        # Handle Asana number-type fields that may return "620469.0" — normalize to "620469"
+        oid_raw = str(r.get("Invoice ID","") or "").strip()
+        # Handle Asana number-type fields that may return "622327.0" — normalize to "622327"
         try:
             oid = str(int(float(oid_raw))) if oid_raw else ""
         except:
