@@ -1110,8 +1110,8 @@ def build_cr_data(orders, asana_rows):
 
     THRESHOLD = 1000
 
-    def utc_to_eastern_date(s):
-        """Convert Asana UTC ISO timestamp to US Eastern date string (YYYY-MM-DD)."""
+    def utc_to_pacific_date(s):
+        """Convert Asana UTC ISO timestamp to US Pacific date string (YYYY-MM-DD)."""
         if not s: return ""
         try:
             s = str(s).strip()
@@ -1121,10 +1121,10 @@ def build_cr_data(orders, asana_rows):
                 dt = datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
             else:
                 dt = datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S")
-            # US Eastern: UTC-4 Apr–Oct (EDT), UTC-5 Nov–Mar (EST)
-            offset = -4 if 4 <= dt.month <= 10 else -5
-            dt_eastern = dt + timedelta(hours=offset)
-            return dt_eastern.strftime("%Y-%m-%d")
+            # US Pacific: UTC-7 Apr–Oct (PDT), UTC-8 Nov–Mar (PST)
+            offset = -7 if 4 <= dt.month <= 10 else -8
+            dt_pacific = dt + timedelta(hours=offset)
+            return dt_pacific.strftime("%Y-%m-%d")
         except:
             return s[:10] if len(s) >= 10 else s
 
@@ -1179,8 +1179,8 @@ def build_cr_data(orders, asana_rows):
         date_sold = parse_dt(r.get("Date Sold",""))
         days_to_cancel = (created - date_sold).days if created and date_sold else None
 
-        created_at_eastern  = utc_to_eastern_date(r.get("Created At",""))
-        completed_at_eastern = utc_to_eastern_date(r.get("Completed At",""))
+        created_at_eastern  = utc_to_pacific_date(r.get("Created At",""))
+        completed_at_eastern = utc_to_pacific_date(r.get("Completed At",""))
         enriched.append({
             "id":             oid,
             "sku":            sku,
