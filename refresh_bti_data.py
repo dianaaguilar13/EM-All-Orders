@@ -1022,7 +1022,11 @@ def fetch_asana_tasks():
                 ev = field.get("enum_value") or {}
                 cf[name] = ev.get("name", "") or ""
             elif ftype == "number":
-                cf[name] = field.get("number_value") if field.get("number_value") is not None else ""
+                nv = field.get("number_value")
+                if nv is not None:
+                    cf[name] = str(int(nv)) if nv == int(nv) else str(nv)
+                else:
+                    cf[name] = ""
             elif ftype == "date":
                 dv = field.get("date_value") or {}
                 cf[name] = dv.get("date", "") or ""
@@ -1106,6 +1110,24 @@ def build_cr_data(orders, asana_rows):
 
     THRESHOLD = 1000
 
+    def utc_to_eastern_date(s):
+        """Convert Asana UTC ISO timestamp to US Eastern date string (YYYY-MM-DD)."""
+        if not s: return ""
+        try:
+            s = str(s).strip()
+            if '.' in s and s.endswith('Z'):
+                dt = datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%fZ")
+            elif s.endswith('Z'):
+                dt = datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ")
+            else:
+                dt = datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S")
+            # US Eastern: UTC-4 Apr–Oct (EDT), UTC-5 Nov–Mar (EST)
+            offset = -4 if 4 <= dt.month <= 10 else -5
+            dt_eastern = dt + timedelta(hours=offset)
+            return dt_eastern.strftime("%Y-%m-%d")
+        except:
+            return s[:10] if len(s) >= 10 else s
+
     def parse_dt(s):
         if not s: return None
         s = str(s).strip()
@@ -1128,10 +1150,16 @@ def build_cr_data(orders, asana_rows):
     excluded = 0
     enriched = []
     for r in asana_rows:
-        oid = (r.get("Order ID","") or "").strip()
-        contract = clean_money(r.get("Contract Amount (after discounts)",""))
+        oid_raw = str(r.get("Order ID","") or "").strip()
+        # Handle Asana number-type fields that may return "620469.0" — normalize to "620469"
+        try:
+            oid = str(int(float(oid_raw))) if oid_raw else ""
+        except:
+            oid = oid_raw
+        contract  = clean_money(r.get("Contract Amount (after discounts)",""))
+        pre_disc  = clean_money(r.get("Contract Amt (pre disc)",""))
         inv_from_orders = order_to_inv.get(oid, 0)
-        amt = contract if contract > 0 else inv_from_orders
+        amt = contract if contract > 0 else (pre_disc if pre_disc > 0 else inv_from_orders)
         if amt > 0 and amt < THRESHOLD:
             excluded += 1
             continue
@@ -1151,13 +1179,14 @@ def build_cr_data(orders, asana_rows):
         date_sold = parse_dt(r.get("Date Sold",""))
         days_to_cancel = (created - date_sold).days if created and date_sold else None
 
-        created_at_str = r.get("Created At","")
+        created_at_eastern  = utc_to_eastern_date(r.get("Created At",""))
+        completed_at_eastern = utc_to_eastern_date(r.get("Completed At",""))
         enriched.append({
             "id":             oid,
             "sku":            sku,
             "pcat":           pcat,
             "date":           clean_date(r.get("Date Sold","")),
-            "month":          created_at_str[:7] if created_at_str else "",
+            "month":          created_at_eastern[:7] if created_at_eastern else "",
             "status":         r.get("Status","") or "",
             "request_type":   r.get("Request for Change in Programs","") or "",
             "procedure":      procedure,
@@ -1173,8 +1202,8 @@ def build_cr_data(orders, asana_rows):
             "contact_id":     order_to_cid.get(oid,""),
             "res_days":       res_days,
             "days_to_cancel": days_to_cancel,
-            "created_at":     created_at_str[:10] if created_at_str else "",
-            "completed_at":   r.get("Completed At","")[:10] if r.get("Completed At","") else "",
+            "created_at":     created_at_eastern,
+            "completed_at":   completed_at_eastern,
         })
 
     # Include all cases with an Order ID — even if not yet in Snowflake (e.g. PAYMENTS_TOTAL=0)
