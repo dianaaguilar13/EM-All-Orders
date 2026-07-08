@@ -600,6 +600,29 @@ function hideAllPanels(){
         </tr></thead><tbody id="cr-skuTbody"></tbody></table>
       </div>
     </div>
+    <!-- Cases Resolved by Month -->
+    <div class="card full" id="cr-resolvedSection" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div class="ct">&#10003; Cases Resolved by Month</div>
+          <div class="cs">Procedure = "Complete" &middot; grouped by completed date</div>
+        </div>
+        <button onclick="crDownloadResolvedCsv()" style="font-size:11px;padding:5px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;cursor:pointer;color:#334155">&#8681; Export CSV</button>
+      </div>
+      <div style="height:220px;margin-bottom:20px"><canvas id="cr-resolvedChart"></canvas></div>
+      <div class="tbl-wrap" style="max-height:400px">
+        <table>
+          <thead><tr>
+            <th>Month</th><th>Completed Cases</th><th>Contract Amount</th>
+            <th>Total Saved Sales</th><th>Total Saved %</th>
+            <th>Revenue Loss Incl. Refunds</th><th>Refund Amount</th><th>Refund %</th>
+          </tr></thead>
+          <tbody id="cr-resolvedTbody"></tbody>
+          <tfoot id="cr-resolvedFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
     <div class="card full">
       <div style="display:flex;justify-content:space-between;margin-bottom:10px">
         <div class="ct">Case detail</div><div style="font-size:11px;color:#8b949e" id="cr-casesInfo"></div>

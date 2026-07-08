@@ -374,6 +374,79 @@ function crRender(){
   document.getElementById("cr-skuTbody").innerHTML=skuRows;
   document.getElementById("cr-tblInfo").textContent=skuArr.length+" SKUs · "+total.toLocaleString()+" cases";
 
+  // ── Resolved by Month (completed_at based) ────────────
+  var resolvedByM={};
+  CR.rows.forEach(function(row){
+    if(row.procedure!=="Complete")return;
+    if(!row.completed_at)return;
+    var cm=row.completed_at.slice(0,7);
+    if(cm<r.df||cm>r.dt)return;
+    if(st&&row.status!==st)return;
+    if(crSelReq.size>0&&!crSelReq.has(row.request_type))return;
+    if(as&&row.assignee!==as)return;
+    if(crSelSku.size>0&&!crSelSku.has(row.sku))return;
+    var pc2=crGetPcat();if(pc2&&row.pcat!==pc2)return;
+    if(!resolvedByM[cm])resolvedByM[cm]={n:0,contract:0,rev_saved:0,rev_loss:0,refund:0};
+    resolvedByM[cm].n++;
+    resolvedByM[cm].contract+=row.contract_amt||0;
+    resolvedByM[cm].rev_saved+=row.rev_saved||0;
+    resolvedByM[cm].rev_loss+=row.rev_loss||0;
+    resolvedByM[cm].refund+=row.refund_amt||0;
+  });
+  var rMonths=Object.keys(resolvedByM).sort();
+
+  if(crCharts.resolved){try{crCharts.resolved.destroy();}catch(e){}}
+  if(rMonths.length>0){
+    crCharts.resolved=new Chart(document.getElementById("cr-resolvedChart"),{
+      type:"bar",
+      data:{labels:rMonths.map(crFmtM),datasets:[
+        {label:"Resolved Cases",data:rMonths.map(function(m){return resolvedByM[m].n;}),
+          backgroundColor:"rgba(37,99,235,0.8)",borderRadius:4}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{callbacks:{label:function(ctx){return"Cases: "+ctx.parsed.y;}}}},
+        scales:{x:{ticks:{color:"#64748b",font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:24},grid:{color:"#e2e8f044"}},
+                y:{ticks:{color:"#64748b",font:{size:10}},grid:{color:"#e2e8f044"}}}}
+    });
+  }
+
+  // Table sorted by count desc + total row
+  var rSorted=rMonths.slice().sort(function(a,b){return resolvedByM[b].n-resolvedByM[a].n;});
+  var totN=0,totC=0,totS=0,totL=0,totR=0;
+  rSorted.forEach(function(m){var v=resolvedByM[m];totN+=v.n;totC+=v.contract;totS+=v.rev_saved;totL+=v.rev_loss;totR+=v.refund;});
+
+  var rRows=rSorted.map(function(m){
+    var v=resolvedByM[m];
+    var pctS=v.contract>0?(v.rev_saved/v.contract*100):0;
+    var pctR=v.contract>0?(v.refund/v.contract*100):0;
+    var lossIncRef=v.rev_loss+v.refund;
+    return"<tr>"+
+      "<td style='font-weight:600'>"+crFmtM(m)+"</td>"+
+      "<td class='num'>"+v.n+"</td>"+
+      "<td class='num'>"+crFmt$(v.contract)+"</td>"+
+      "<td class='num' style='color:#16a34a'>"+crFmt$(v.rev_saved)+"</td>"+
+      "<td class='num' style='color:#16a34a'>"+pctS.toFixed(1)+"%</td>"+
+      "<td class='num' style='color:#dc2626'>"+crFmt$(lossIncRef)+"</td>"+
+      "<td class='num' style='color:#d97706'>"+crFmt$(v.refund)+"</td>"+
+      "<td class='num' style='color:#d97706'>"+pctR.toFixed(1)+"%</td>"+
+      "</tr>";
+  }).join("");
+  var totPctS=totC>0?(totS/totC*100):0;
+  var totPctR=totC>0?(totR/totC*100):0;
+  var tFoot="<tr style='font-weight:700;background:#f1f5f9'>"+
+    "<td>Total</td><td class='num'>"+totN+"</td>"+
+    "<td class='num'>"+crFmt$(totC)+"</td>"+
+    "<td class='num' style='color:#16a34a'>"+crFmt$(totS)+"</td>"+
+    "<td class='num' style='color:#16a34a'>"+totPctS.toFixed(1)+"%</td>"+
+    "<td class='num' style='color:#dc2626'>"+crFmt$(totL+totR)+"</td>"+
+    "<td class='num' style='color:#d97706'>"+crFmt$(totR)+"</td>"+
+    "<td class='num' style='color:#d97706'>"+totPctR.toFixed(1)+"%</td>"+
+    "</tr>";
+  document.getElementById("cr-resolvedTbody").innerHTML=rRows;
+  document.getElementById("cr-resolvedFoot").innerHTML=tFoot;
+  document.getElementById("cr-resolvedSection").style.display=rMonths.length>0?"block":"none";
+
   // ── Case detail table ─────────────────────────────────
   var caseRows=rows.slice(0,200).map(function(row){
     var saved=!!row.saved_by;
@@ -402,6 +475,43 @@ function crRender(){
   document.getElementById("cr-main").style.display="block";
 }
 
+
+// ── Resolved by Month CSV ────────────────────────────────
+function crDownloadResolvedCsv(){
+  var r=crGetRange(),st=crGetStatus(),as=crGetAssignee();
+  var resolvedByM={};
+  CR.rows.forEach(function(row){
+    if(row.procedure!=="Complete")return;
+    if(!row.completed_at)return;
+    var cm=row.completed_at.slice(0,7);
+    if(cm<r.df||cm>r.dt)return;
+    if(st&&row.status!==st)return;
+    if(crSelReq.size>0&&!crSelReq.has(row.request_type))return;
+    if(as&&row.assignee!==as)return;
+    if(crSelSku.size>0&&!crSelSku.has(row.sku))return;
+    var pc2=crGetPcat();if(pc2&&row.pcat!==pc2)return;
+    if(!resolvedByM[cm])resolvedByM[cm]={n:0,contract:0,rev_saved:0,rev_loss:0,refund:0};
+    resolvedByM[cm].n++;
+    resolvedByM[cm].contract+=row.contract_amt||0;
+    resolvedByM[cm].rev_saved+=row.rev_saved||0;
+    resolvedByM[cm].rev_loss+=row.rev_loss||0;
+    resolvedByM[cm].refund+=row.refund_amt||0;
+  });
+  var months=Object.keys(resolvedByM).sort(function(a,b){return resolvedByM[b].n-resolvedByM[a].n;});
+  var headers=["Month","Completed Cases","Contract Amount","Total Saved Sales","Total Saved %","Revenue Loss Incl Refunds","Refund Amount","Refund %"];
+  var lines=[headers.join(",")];
+  months.forEach(function(m){
+    var v=resolvedByM[m];
+    var pctS=v.contract>0?(v.rev_saved/v.contract*100):0;
+    var pctR=v.contract>0?(v.refund/v.contract*100):0;
+    lines.push([crFmtM(m),v.n,Math.round(v.contract),Math.round(v.rev_saved),pctS.toFixed(1)+"%",Math.round(v.rev_loss+v.refund),Math.round(v.refund),pctR.toFixed(1)+"%"].join(","));
+  });
+  var blob=new Blob([lines.join("\n")],{type:"text/csv"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="resolved_by_month_"+r.df+"_"+r.dt+".csv";
+  a.click();
+}
 
 // ── CSV Download ──────────────────────────────────────────
 function crDownloadCsv(){
