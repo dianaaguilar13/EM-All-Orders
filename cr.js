@@ -377,8 +377,7 @@ function crRender(){
   // ── Resolved by Month (completed_at based) ────────────
   var resolvedByM={};
   CR.rows.forEach(function(row){
-    if(row.procedure!=="Complete")return;
-    if(!row.completed_at)return;
+    if(!row.completed_at)return;          // any closed Asana task
     var cm=row.completed_at.slice(0,7);
     if(cm<r.df||cm>r.dt)return;
     if(st&&row.status!==st)return;
@@ -393,7 +392,7 @@ function crRender(){
     resolvedByM[cm].rev_loss+=row.rev_loss||0;
     resolvedByM[cm].refund+=row.refund_amt||0;
   });
-  var rMonths=Object.keys(resolvedByM).sort();
+  var rMonths=Object.keys(resolvedByM).sort(); // chronological
 
   if(crCharts.resolved){try{crCharts.resolved.destroy();}catch(e){}}
   if(rMonths.length>0){
@@ -411,8 +410,8 @@ function crRender(){
     });
   }
 
-  // Table sorted by count desc + total row
-  var rSorted=rMonths.slice().sort(function(a,b){return resolvedByM[b].n-resolvedByM[a].n;});
+  // Table sorted chronologically
+  var rSorted=rMonths.slice(); // already sorted chronologically above
   var totN=0,totC=0,totS=0,totL=0,totR=0;
   rSorted.forEach(function(m){var v=resolvedByM[m];totN+=v.n;totC+=v.contract;totS+=v.rev_saved;totL+=v.rev_loss;totR+=v.refund;});
 
@@ -481,7 +480,6 @@ function crDownloadResolvedCsv(){
   var r=crGetRange(),st=crGetStatus(),as=crGetAssignee();
   var resolvedByM={};
   CR.rows.forEach(function(row){
-    if(row.procedure!=="Complete")return;
     if(!row.completed_at)return;
     var cm=row.completed_at.slice(0,7);
     if(cm<r.df||cm>r.dt)return;
@@ -497,7 +495,7 @@ function crDownloadResolvedCsv(){
     resolvedByM[cm].rev_loss+=row.rev_loss||0;
     resolvedByM[cm].refund+=row.refund_amt||0;
   });
-  var months=Object.keys(resolvedByM).sort(function(a,b){return resolvedByM[b].n-resolvedByM[a].n;});
+  var months=Object.keys(resolvedByM).sort();
   var headers=["Month","Completed Cases","Contract Amount","Total Saved Sales","Total Saved %","Revenue Loss Incl Refunds","Refund Amount","Refund %"];
   var lines=[headers.join(",")];
   months.forEach(function(m){
