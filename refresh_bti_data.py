@@ -1177,7 +1177,9 @@ def build_cr_data(orders, asana_rows):
             "completed_at":   r.get("Completed At","")[:10] if r.get("Completed At","") else "",
         })
 
-    matched = [e for e in enriched if e["id"] and e["id"] in order_to_sku]
+    # Include all cases with an Order ID — even if not yet in Snowflake (e.g. PAYMENTS_TOTAL=0)
+    # Unmatched cases show with blank SKU/pcat but are not silently hidden
+    matched = [e for e in enriched if e["id"]]
 
     # Aggregations
     from collections import Counter
