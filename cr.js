@@ -38,8 +38,8 @@ function crOutcome(row){
 }
 function crIsSaved(row){return crOutcome(row)==="saved";}
 function crIsPending(row){return crOutcome(row)==="pending";}
-function crIsUpgrade(row){var a=(row.admin_only||"").toLowerCase();var rt=(row.request_type||"").toLowerCase();return a.indexOf("upgrade")>=0||rt.indexOf("upgrade")>=0;}
-function crIsDowngrade(row){var a=(row.admin_only||"").toLowerCase();var rt=(row.request_type||"").toLowerCase();return a.indexOf("downgrade")>=0||rt.indexOf("downgrade")>=0;}
+function crIsUpgrade(row){return(row.admin_only||"").toLowerCase().indexOf("upgrade")>=0;}
+function crIsDowngrade(row){return(row.admin_only||"").toLowerCase().indexOf("downgrade")>=0;}
 function crFmtPct(n,d){return d>0?(n/d*100).toFixed(1)+"%":"0%";}
 
 // ── Request Type multi-select ──────────────────────────────
