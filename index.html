@@ -94,6 +94,72 @@ tr:hover td{background:#f8fafc}
 #pw-btn:hover{background:#1d4ed8}
 #pw-remember{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:14px;font-size:11px;color:#64748b;cursor:pointer}
 #pw-remember input{accent-color:#2563eb;cursor:pointer}
+/* ── CRS Executive KPI Layout ─────────────────────────── */
+#cr-kpis .cr-exec{position:relative;width:1008px;height:239px;background:#fff}
+#cr-kpis .cr-exec .hdr-rule{position:absolute;left:15px;top:20px;width:964px;height:1px;background:#e7e9ed}
+#cr-kpis .cr-exec .ex-title{position:absolute;left:15px;top:26px;font-size:11px;line-height:13px;font-weight:700;color:#243047}
+#cr-kpis .cr-exec .ex-card{position:absolute;border:1px solid #dfe4ea;border-radius:8px;background:#fff;overflow:hidden}
+#cr-kpis .cr-exec .net-card{left:15px;top:45px;width:270px;height:160px;border:none;color:#fff;background:linear-gradient(145deg,#083b78 0%,#0757a9 56%,#063d79 100%)}
+#cr-kpis .cr-exec .total-card{left:296px;top:45px;width:166px;height:75px}
+#cr-kpis .cr-exec .saved-card{left:470px;top:45px;width:165px;height:75px}
+#cr-kpis .cr-exec .lost-card{left:644px;top:45px;width:163px;height:75px}
+#cr-kpis .cr-exec .pending-card{left:815px;top:45px;width:164px;height:75px}
+#cr-kpis .cr-exec .rev-s-card{left:296px;top:128px;width:339px;height:76px;background:#effbf2;border-color:#cfeeda}
+#cr-kpis .cr-exec .rev-l-card{left:644px;top:128px;width:335px;height:76px;background:#fff3f3;border-color:#ffd5d8}
+#cr-kpis .cr-exec .net-lbl{position:absolute;left:17px;top:14px;font-size:9px;font-weight:700;letter-spacing:.1px}
+#cr-kpis .cr-exec .net-val{position:absolute;left:17px;top:31px;font-size:28px;line-height:30px;font-weight:700;letter-spacing:-.6px}
+#cr-kpis .cr-exec .net-sub{position:absolute;left:17px;top:65px;font-size:9px;font-weight:600}
+#cr-kpis .cr-exec .net-spark{position:absolute;left:158px;top:18px;width:97px;height:57px;display:block}
+#cr-kpis .cr-exec .net-div{position:absolute;left:17px;right:17px;top:86px;height:1px;background:rgba(255,255,255,.24)}
+#cr-kpis .cr-exec .nstat{position:absolute;top:99px;height:46px}
+#cr-kpis .cr-exec .nstat.up{left:24px;width:103px}
+#cr-kpis .cr-exec .nstat.dn{left:155px;width:101px}
+#cr-kpis .cr-exec .nstat.dn:before{content:"";position:absolute;left:-15px;top:0;width:1px;height:45px;background:rgba(255,255,255,.2)}
+#cr-kpis .cr-exec .nstat .nsk{font-size:8px;line-height:10px;font-weight:700}
+#cr-kpis .cr-exec .nstat.up .nsk{color:#6ee89a}
+#cr-kpis .cr-exec .nstat.dn .nsk{color:#fbbf24}
+#cr-kpis .cr-exec .nstat .nam{margin-top:4px;font-size:15px;line-height:17px;font-weight:700}
+#cr-kpis .cr-exec .nstat .npt{margin-top:3px;font-size:8px;font-weight:700}
+#cr-kpis .cr-exec .ex-acc{position:absolute;left:0;top:0;width:100%;height:2px}
+#cr-kpis .cr-exec .total-card .ex-acc{background:#e9edf2}
+#cr-kpis .cr-exec .saved-card .ex-acc{background:#0da348}
+#cr-kpis .cr-exec .lost-card .ex-acc{background:#e31c2b}
+#cr-kpis .cr-exec .pending-card .ex-acc{background:#dc7a00}
+#cr-kpis .cr-exec .ex-icon{position:absolute;width:35px;height:35px;border-radius:50%;left:13px;top:20px;display:flex;align-items:center;justify-content:center;background:#fff}
+#cr-kpis .cr-exec .total-card .ex-icon{border:1px solid #dce8fb;color:#2b7de9}
+#cr-kpis .cr-exec .saved-card .ex-icon{border:1px solid #d8f0df;color:#08a046;left:12px}
+#cr-kpis .cr-exec .lost-card .ex-icon{border:1px solid #f8d4d7;color:#ef233c}
+#cr-kpis .cr-exec .pending-card .ex-icon{border:1px solid #f7dfb6;color:#f59e0b}
+#cr-kpis .cr-exec .ex-lbl{position:absolute;top:14px;font-size:7px;font-weight:700}
+#cr-kpis .cr-exec .ex-val{position:absolute;top:27px;font-size:21px;line-height:23px;font-weight:700;color:#111827}
+#cr-kpis .cr-exec .ex-sub{position:absolute;top:53px;font-size:7px}
+#cr-kpis .cr-exec .total-card .ex-lbl,#cr-kpis .cr-exec .total-card .ex-val,#cr-kpis .cr-exec .total-card .ex-sub{left:66px}
+#cr-kpis .cr-exec .saved-card .ex-lbl,#cr-kpis .cr-exec .saved-card .ex-val,#cr-kpis .cr-exec .saved-card .ex-sub{left:55px;color:#08753a}
+#cr-kpis .cr-exec .lost-card .ex-lbl,#cr-kpis .cr-exec .lost-card .ex-val,#cr-kpis .cr-exec .lost-card .ex-sub{left:67px;color:#e21d2b}
+#cr-kpis .cr-exec .pending-card .ex-lbl,#cr-kpis .cr-exec .pending-card .ex-val,#cr-kpis .cr-exec .pending-card .ex-sub{left:67px;color:#d97706}
+#cr-kpis .cr-exec .sv-split{position:absolute;left:111px;top:12px;width:1px;height:50px;background:#e6ece8}
+#cr-kpis .cr-exec .sv-mini{position:absolute;left:119px;width:41px;font-size:5px;line-height:6px}
+#cr-kpis .cr-exec .sv-mini.up{top:12px;color:#0b8f44}
+#cr-kpis .cr-exec .sv-mini.dn{top:39px;color:#a56100}
+#cr-kpis .cr-exec .sv-mini .smn{font-size:11px;line-height:12px;font-weight:700;color:#111827;margin-top:2px}
+#cr-kpis .cr-exec .sv-mini .smp{font-size:5px;line-height:6px;color:#6f7782;margin-top:1px}
+#cr-kpis .cr-exec .rev-main{position:absolute;left:16px;top:12px;width:143px}
+#cr-kpis .cr-exec .rv-ttl{font-size:8px;font-weight:700}
+#cr-kpis .cr-exec .rv-val{margin-top:5px;font-size:23px;line-height:24px;font-weight:700;letter-spacing:-.3px}
+#cr-kpis .cr-exec .rv-sub{margin-top:3px;font-size:7px}
+#cr-kpis .cr-exec .rev-s-card .rv-ttl,#cr-kpis .cr-exec .rev-s-card .rv-val,#cr-kpis .cr-exec .rev-s-card .rv-sub{color:#08753a}
+#cr-kpis .cr-exec .rev-l-card .rv-ttl,#cr-kpis .cr-exec .rev-l-card .rv-val,#cr-kpis .cr-exec .rev-l-card .rv-sub{color:#a7141d}
+#cr-kpis .cr-exec .rvl{position:absolute;top:13px;width:1px;height:49px}
+#cr-kpis .cr-exec .rev-s-card .rvl{background:#cce9d5}
+#cr-kpis .cr-exec .rev-l-card .rvl{background:#f6cdd1}
+#cr-kpis .cr-exec .rvl.v1{left:163px}
+#cr-kpis .cr-exec .rvl.v2{left:253px}
+#cr-kpis .cr-exec .rvst{position:absolute;top:15px;width:82px}
+#cr-kpis .cr-exec .rvst.rs1{left:177px;color:#08753a}
+#cr-kpis .cr-exec .rvst.rs2{left:267px;color:#a35b00}
+#cr-kpis .cr-exec .rvst .rsk{font-size:7px;font-weight:700}
+#cr-kpis .cr-exec .rvst .rsv{margin-top:5px;font-size:13px;line-height:14px;font-weight:700}
+#cr-kpis .cr-exec .rvst .rsp{margin-top:3px;font-size:6px}
 </style>
 </head>
 <body>
