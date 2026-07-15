@@ -463,10 +463,10 @@ function crRender(){
       :'<span style="color:#94a3b8;font-size:10px">—</span>';
     // Links
     var asanaHtml=row.task_id
-      ?'<a href="https://app.asana.com/0/'+ASANA_PROJECT+'/'+row.task_id+'" target="_blank" style="font-size:10px;color:#6366f1;text-decoration:none" title="Open in Asana">&#128279; Asana</a>'
+      ?'<a href="https://app.asana.com/0/'+ASANA_PROJECT+'/'+row.task_id+'" target="_blank" style="font-size:11px;color:#6366f1;font-weight:600;text-decoration:underline">Link</a>'
       :'<span style="color:#94a3b8">—</span>';
     var infHtml=row.inf_link
-      ?'<a href="'+row.inf_link+'" target="_blank" style="font-size:10px;color:#0ea5e9;text-decoration:none" title="Open in Infusionsoft">&#128279; INF</a>'
+      ?'<a href="'+row.inf_link+'" target="_blank" style="font-size:11px;color:#0ea5e9;font-weight:600;text-decoration:underline">Link</a>'
       :'<span style="color:#94a3b8">—</span>';
     return"<tr>"+
       "<td class='num' style='font-size:10px;color:#475569'>"+row.id+"</td>"+
