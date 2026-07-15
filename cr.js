@@ -26,8 +26,18 @@ var CR_LCC_SKUS=new Set(["DBC","LMC","DBCA","DBCE","ELEVADD","LMCA","ELEV"]);
 function crFmtM(m){var p=m.split("-");return new Date(parseInt(p[0]),parseInt(p[1])-1).toLocaleString("default",{month:"short",year:"2-digit"});}
 function crFmt$(v){return"$"+(v||0).toLocaleString(undefined,{maximumFractionDigits:0});}
 function crDestroyCharts(){Object.values(crCharts).forEach(function(c){try{c.destroy();}catch(e){}});crCharts={};}
-// A case is truly saved only if saved_by is set AND Admin Only doesn't say "Cancel"
-function crIsSaved(row){return!!row.saved_by&&(row.admin_only||"").toLowerCase().indexOf("cancel")<0;}
+// Outcome is determined by Admin Only field:
+//   blank        → Pending (still being worked, no outcome yet)
+//   has "cancel" → Lost
+//   filled, no cancel → Saved
+function crOutcome(row){
+  var a=(row.admin_only||"").trim();
+  if(!a)return"pending";
+  if(a.toLowerCase().indexOf("cancel")>=0)return"lost";
+  return"saved";
+}
+function crIsSaved(row){return crOutcome(row)==="saved";}
+function crIsPending(row){return crOutcome(row)==="pending";}
 
 // ── Request Type multi-select ──────────────────────────────
 function crToggleReq(e){e.stopPropagation();var dr=document.getElementById("cr-reqDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("cr-reqQ").focus();crRenderReqItems();}}
@@ -118,7 +128,10 @@ function crRender(){
 
   var total=rows.length;
   var saved=rows.filter(crIsSaved).length;
-  var saveRate=total>0?(saved/total*100):0;
+  var lost=rows.filter(function(r){return crOutcome(r)==="lost";}).length;
+  var pending=rows.filter(crIsPending).length;
+  var decided=saved+lost;
+  var saveRate=decided>0?(saved/decided*100):0;
   var revSaved=rows.reduce(function(s,r){return s+(r.rev_saved||0);},0);
   var revLoss=rows.reduce(function(s,r){return s+(r.rev_loss||0);},0);
   var netSave=revSaved-revLoss;
@@ -173,7 +186,7 @@ function crRender(){
     if(!skuMap[s])skuMap[s]={total:0,saved:0,rev_saved:0,rev_loss:0};
     skuMap[s].total++;if(crIsSaved(row))skuMap[s].saved++;
     skuMap[s].rev_saved+=row.rev_saved||0;skuMap[s].rev_loss+=row.rev_loss||0;
-    var sb=crIsSaved(row)?(row.saved_by||"Saved"):"Not Saved";sbMap[sb]=(sbMap[sb]||0)+1;
+    var oc2=crOutcome(row);var sb=oc2==="saved"?(row.saved_by||"Saved"):oc2==="lost"?"Not Saved":"Pending";sbMap[sb]=(sbMap[sb]||0)+1;
     var st2=row.status||"Unknown";stMap[st2]=(stMap[st2]||0)+1;
     var rt=row.request_type||"Unknown";
     if(!reqMap[rt])reqMap[rt]={total:0,saved:0};
@@ -184,10 +197,11 @@ function crRender(){
   var resColor=avgAll<=TARGET?"#16a34a":avgAll<=TARGET*2?"#d97706":"#dc2626";
   var pct7Color=pct7>=50?"#16a34a":pct7>=25?"#d97706":"#dc2626";
   document.getElementById("cr-kpis").innerHTML=
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+
       '<div class="kpi k1"><div class="kl">Total Cases</div><div class="kv">'+total.toLocaleString()+'</div><div class="ks muted">matched to orders</div></div>'+
-      '<div class="kpi k6"><div class="kl">Saved</div><div class="kv" style="color:#16a34a">'+saved.toLocaleString()+'</div><div class="ks green">'+saveRate.toFixed(1)+'% save rate</div></div>'+
-      '<div class="kpi k3"><div class="kl">Lost</div><div class="kv" style="color:#ef4444">'+(total-saved).toLocaleString()+'</div><div class="ks red">'+(100-saveRate).toFixed(1)+'% not saved</div></div>'+
+      '<div class="kpi k6"><div class="kl">Saved</div><div class="kv" style="color:#16a34a">'+saved.toLocaleString()+'</div><div class="ks green">'+saveRate.toFixed(1)+'% of decided</div></div>'+
+      '<div class="kpi k3"><div class="kl">Lost</div><div class="kv" style="color:#ef4444">'+lost.toLocaleString()+'</div><div class="ks red">'+(decided>0?(lost/decided*100):0).toFixed(1)+'% of decided</div></div>'+
+      '<div class="kpi" style="border:1px solid #fde68a;background:#fffbeb"><div class="kl" style="color:#92400e">Pending</div><div class="kv" style="color:#d97706">'+pending.toLocaleString()+'</div><div class="ks" style="color:#92400e">still being worked</div></div>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px">'+
       '<div class="kpi k2"><div class="kl">Net Impact</div><div class="kv" style="color:'+(netSave>=0?"#16a34a":"#ef4444")+';font-size:20px">'+crFmt$(netSave)+'</div><div class="ks '+(netSave>=0?"green":"red")+'">saved minus lost</div></div>'+
@@ -250,9 +264,10 @@ function crRender(){
   var byM={};
   rows.forEach(function(row){
     var m=row.month||row.created_at.slice(0,7);if(!m)return;
-    if(!byM[m])byM[m]={total:0,saved:0,lost:0,rev_saved:0,rev_loss:0};
+    if(!byM[m])byM[m]={total:0,saved:0,lost:0,pending:0,rev_saved:0,rev_loss:0};
     byM[m].total++;
-    if(crIsSaved(row))byM[m].saved++;else byM[m].lost++;
+    var oc=crOutcome(row);
+    if(oc==="saved")byM[m].saved++;else if(oc==="lost")byM[m].lost++;else byM[m].pending++;
     byM[m].rev_saved+=row.rev_saved||0;byM[m].rev_loss+=row.rev_loss||0;
   });
   var ts=Object.keys(byM).filter(function(m){return m>=r.df&&m<=r.dt;}).sort()
@@ -264,7 +279,8 @@ function crRender(){
     data:{labels:mLabels,datasets:[
       {label:"Saved",data:ts.map(function(x){return x.b.saved||0;}),backgroundColor:"rgba(63,185,80,0.8)",borderRadius:3,stack:"s"},
       {label:"Lost",data:ts.map(function(x){return x.b.lost||0;}),backgroundColor:"rgba(248,81,73,0.8)",borderRadius:3,stack:"s"},
-      {label:"Save %",data:ts.map(function(x){var t=x.b.total||0,s=x.b.saved||0;return t>0?+(s/t*100).toFixed(1):0;}),
+      {label:"Pending",data:ts.map(function(x){return x.b.pending||0;}),backgroundColor:"rgba(217,119,6,0.7)",borderRadius:3,stack:"s"},
+      {label:"Save %",data:ts.map(function(x){var d=(x.b.saved||0)+(x.b.lost||0);return d>0?+((x.b.saved||0)/d*100).toFixed(1):0;}),
         type:"line",yAxisID:"y2",borderColor:"#3fb950",backgroundColor:"rgba(63,185,80,0.07)",
         fill:true,tension:0.35,pointRadius:2,pointBackgroundColor:"#3fb950",borderWidth:2}
     ]},
@@ -452,11 +468,10 @@ function crRender(){
   var ASANA_PROJECT="1199886669661274";
   var caseRows=rows.slice(0,200).map(function(row){
     // A case is Lost if Admin Only contains "cancel" regardless of saved_by being set
-    var adminLower=(row.admin_only||"").toLowerCase();
-    var isCancelled=adminLower.indexOf("cancel")>=0;
-    var saved=!!row.saved_by&&!isCancelled;
-    var outcomeColor=saved?"#3fb950":"#f85149";
-    var outcomeLabel=saved?"Saved":"Lost";
+    var oc=crOutcome(row);
+    var outcomeColor=oc==="saved"?"#3fb950":oc==="lost"?"#f85149":"#d97706";
+    var outcomeLabel=oc==="saved"?"Saved":oc==="lost"?"Lost":"Pending";
+    var isCancelled=oc==="lost";
     // Admin Only pill
     var adminHtml=row.admin_only
       ?'<span style="font-size:9px;padding:2px 6px;border-radius:10px;background:'+(isCancelled?"#fee2e2":"#dcfce7")+';color:'+(isCancelled?"#dc2626":"#16a34a")+';white-space:nowrap;font-weight:600">'+row.admin_only+'</span>'
@@ -539,7 +554,7 @@ function crDownloadCsv(){
   var headers=["Order ID","Contact ID","Client Name","SKU","Order Date","Case Opened","Request Type","Outcome","Saved By","Admin Only","Status","Procedure","Resolution Days","Rev Loss","Rev Saved","Assignee","Client ID","Asana Link","INF Link"];
   var lines=[headers.join(",")];
   rows.forEach(function(r){
-    var outcome=crIsSaved(r)?"Saved":"Lost";
+    var oc3=crOutcome(r);var outcome=oc3==="saved"?"Saved":oc3==="lost"?"Lost":"Pending";
     lines.push([
       r.id,
       r.contact_id||r.client_id||"",
