@@ -212,99 +212,101 @@ function crRender(){
   var resColor=avgAll<=TARGET?"#16a34a":avgAll<=TARGET*2?"#d97706":"#dc2626";
   var pct7Color=pct7>=50?"#16a34a":pct7>=25?"#d97706":"#dc2626";
   document.getElementById("cr-kpis").innerHTML=
-    '<div style="overflow-x:auto">'+
     '<div class="cr-exec">'+
+    '<div class="cr-dash">'+
       '<div class="hdr-rule"></div>'+
       '<div class="ex-title">CRS — EXECUTIVE SUMMARY</div>'+
-      // Net Impact card
-      '<div class="ex-card net-card">'+
-        '<div class="net-lbl">NET IMPACT</div>'+
-        '<div class="net-val">'+crFmt$(netSave)+'</div>'+
-        '<div class="net-sub">saved minus lost</div>'+
-        '<svg class="net-spark" viewBox="0 0 97 57" aria-hidden="true">'+
-          '<polyline points="0,54 20,43 32,47 46,34 59,28 69,18 82,20 96,4" fill="none" stroke="#188be8" stroke-width="2"/>'+
-          '<circle cx="96" cy="4" r="2.4" fill="#1aa1ff"/>'+
-        '</svg>'+
-        '<div class="net-div"></div>'+
-        '<div class="nstat up">'+
-          '<div class="nsk">↑ UPGRADES</div>'+
-          '<div class="nam">'+crFmt$(netUpg)+'</div>'+
-          '<div class="npt">'+crFmtPct(Math.abs(netUpg),Math.abs(netSave))+' of net</div>'+
-        '</div>'+
-        '<div class="nstat dn">'+
-          '<div class="nsk">↓ DOWNGRADES</div>'+
-          '<div class="nam">'+crFmt$(netDwn)+'</div>'+
-          '<div class="npt">'+crFmtPct(Math.abs(netDwn),Math.abs(netSave))+' of net</div>'+
-        '</div>'+
-      '</div>'+
-      // Total Cases
-      '<div class="ex-card total-card">'+
-        '<div class="ex-acc"></div>'+
-        '<div class="ex-icon"><svg width="19" height="23" viewBox="0 0 19 23" fill="none" stroke="currentColor" stroke-width="1.6">'+
-          '<rect x="4" y="3.5" width="11" height="16" rx="1.4"/><rect x="7" y="1" width="5" height="4" rx="1"/>'+
-          '<line x1="7" y1="8" x2="12" y2="8"/><line x1="7" y1="11.5" x2="12" y2="11.5"/><line x1="7" y1="15" x2="12" y2="15"/>'+
-        '</svg></div>'+
-        '<div class="ex-lbl">TOTAL CASES</div>'+
-        '<div class="ex-val">'+total.toLocaleString()+'</div>'+
-        '<div class="ex-sub">matched to orders</div>'+
-      '</div>'+
-      // Saved
-      '<div class="ex-card saved-card">'+
-        '<div class="ex-acc"></div>'+
-        '<div class="ex-icon"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7">'+
-          '<path d="M5.2 11.4l3.4 3.3 8.1-8"/>'+
-        '</svg></div>'+
-        '<div class="ex-lbl">SAVED</div>'+
-        '<div class="ex-val">'+saved.toLocaleString()+'</div>'+
-        '<div class="ex-sub">'+saveRate.toFixed(1)+'% of decided</div>'+
-        '<div class="sv-split"></div>'+
-        '<div class="sv-mini up"><div>↑ UPGRADES</div><div class="smn">'+savedUpg+'</div><div class="smp">'+crFmtPct(savedUpg,saved)+' of saved</div></div>'+
-        '<div class="sv-mini dn"><div>↓ DOWNGRADES</div><div class="smn">'+savedDwn+'</div><div class="smp">'+crFmtPct(savedDwn,saved)+' of saved</div></div>'+
-      '</div>'+
-      // Lost
-      '<div class="ex-card lost-card">'+
-        '<div class="ex-acc"></div>'+
-        '<div class="ex-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">'+
-          '<path d="M5 5l10 10M15 5L5 15"/>'+
-        '</svg></div>'+
-        '<div class="ex-lbl">LOST</div>'+
-        '<div class="ex-val">'+lost.toLocaleString()+'</div>'+
-        '<div class="ex-sub">'+crFmtPct(lost,decided)+' of decided</div>'+
-      '</div>'+
-      // Pending
-      '<div class="ex-card pending-card">'+
-        '<div class="ex-acc"></div>'+
-        '<div class="ex-icon"><svg width="18" height="22" viewBox="0 0 18 22" fill="none" stroke="currentColor" stroke-width="1.6">'+
-          '<path d="M4 2h10M4 20h10M5 2v4l4 4-4 4v6M13 2v4l-4 4 4 4v6"/>'+
-        '</svg></div>'+
-        '<div class="ex-lbl">PENDING</div>'+
-        '<div class="ex-val">'+pending.toLocaleString()+'</div>'+
-        '<div class="ex-sub">still being worked</div>'+
-      '</div>'+
-      // Revenue Saved
-      '<div class="ex-card rev-s-card">'+
-        '<div class="rev-main">'+
-          '<div class="rv-ttl">REVENUE SAVED</div>'+
-          '<div class="rv-val">'+crFmt$(revSaved)+'</div>'+
-          '<div class="rv-sub">recovered</div>'+
-        '</div>'+
-        '<div class="rvl v1"></div><div class="rvl v2"></div>'+
-        '<div class="rvst rs1"><div class="rsk">↑ UPGRADES</div><div class="rsv">'+crFmt$(revSavedUpg)+'</div><div class="rsp">'+crFmtPct(revSavedUpg,revSaved)+' of saved rev</div></div>'+
-        '<div class="rvst rs2"><div class="rsk">↓ DOWNGRADES</div><div class="rsv">'+crFmt$(revSavedDwn)+'</div><div class="rsp">'+crFmtPct(revSavedDwn,revSaved)+' of saved rev</div></div>'+
-      '</div>'+
-      // Revenue Lost
-      '<div class="ex-card rev-l-card">'+
-        '<div class="rev-main">'+
-          '<div class="rv-ttl">REVENUE LOST</div>'+
-          '<div class="rv-val">'+crFmt$(revLoss)+'</div>'+
-          '<div class="rv-sub">lost</div>'+
-        '</div>'+
-        '<div class="rvl v1"></div><div class="rvl v2"></div>'+
-        '<div class="rvst rs1"><div class="rsk">↑ UPGRADES</div><div class="rsv">'+crFmt$(revLostUpg)+'</div><div class="rsp">'+crFmtPct(revLostUpg,revLoss)+' of loss</div></div>'+
-        '<div class="rvst rs2"><div class="rsk">↓ DOWNGRADES</div><div class="rsv">'+crFmt$(revLostDwn)+'</div><div class="rsp">'+crFmtPct(revLostDwn,revLoss)+' of loss</div></div>'+
-      '</div>'+
-    '</div>'+
-    '</div>';
+      '<div class="kpi-grid">'+
+        // Net Impact
+        '<section class="card net-card">'+
+          '<div class="net-label">NET IMPACT</div>'+
+          '<div class="net-value">'+crFmt$(netSave)+'</div>'+
+          '<div class="net-sub">saved minus lost</div>'+
+          '<svg class="spark" viewBox="0 0 97 57" aria-hidden="true">'+
+            '<polyline points="0,54 20,43 32,47 46,34 59,28 69,18 82,20 96,4" fill="none" stroke="#188be8" stroke-width="2"/>'+
+            '<circle cx="96" cy="4" r="2.4" fill="#1aa1ff"/>'+
+          '</svg>'+
+          '<div class="net-divider"></div>'+
+          '<div class="net-stat up">'+
+            '<div class="kicker">↑ UPGRADES</div>'+
+            '<div class="amount">'+crFmt$(netUpg)+'</div>'+
+            '<div class="pct">'+crFmtPct(Math.abs(netUpg),Math.abs(netSave))+' of net</div>'+
+          '</div>'+
+          '<div class="net-stat down">'+
+            '<div class="kicker">↓ DOWNGRADES</div>'+
+            '<div class="amount">'+crFmt$(netDwn)+'</div>'+
+            '<div class="pct">'+crFmtPct(Math.abs(netDwn),Math.abs(netSave))+' of net</div>'+
+          '</div>'+
+        '</section>'+
+        // Total Cases
+        '<section class="card top-card total-card">'+
+          '<div class="accent"></div>'+
+          '<div class="icon-circle"><svg width="15" height="18" viewBox="0 0 19 23" fill="none" stroke="currentColor" stroke-width="1.6">'+
+            '<rect x="4" y="3.5" width="11" height="16" rx="1.4"/><rect x="7" y="1" width="5" height="4" rx="1"/>'+
+            '<line x1="7" y1="8" x2="12" y2="8"/><line x1="7" y1="11.5" x2="12" y2="11.5"/><line x1="7" y1="15" x2="12" y2="15"/>'+
+          '</svg></div>'+
+          '<div class="top-label">TOTAL CASES</div>'+
+          '<div class="top-value">'+total.toLocaleString()+'</div>'+
+          '<div class="top-sub">matched to orders</div>'+
+        '</section>'+
+        // Saved
+        '<section class="card top-card saved-card">'+
+          '<div class="accent"></div>'+
+          '<div class="icon-circle"><svg width="18" height="18" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7">'+
+            '<path d="M5.2 11.4l3.4 3.3 8.1-8"/>'+
+          '</svg></div>'+
+          '<div class="top-label">SAVED</div>'+
+          '<div class="top-value">'+saved.toLocaleString()+'</div>'+
+          '<div class="top-sub">'+saveRate.toFixed(1)+'% of decided</div>'+
+          '<div class="saved-split"></div>'+
+          '<div class="saved-mini up"><div>↑ UPGRADES</div><div class="n">'+savedUpg+'</div><div class="p">'+crFmtPct(savedUpg,saved)+' of saved</div></div>'+
+          '<div class="saved-mini down"><div>↓ DOWNGRADES</div><div class="n">'+savedDwn+'</div><div class="p">'+crFmtPct(savedDwn,saved)+' of saved</div></div>'+
+        '</section>'+
+        // Lost
+        '<section class="card top-card lost-card">'+
+          '<div class="accent"></div>'+
+          '<div class="icon-circle"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7">'+
+            '<path d="M5 5l10 10M15 5L5 15"/>'+
+          '</svg></div>'+
+          '<div class="top-label">LOST</div>'+
+          '<div class="top-value">'+lost.toLocaleString()+'</div>'+
+          '<div class="top-sub">'+crFmtPct(lost,decided)+' of decided</div>'+
+        '</section>'+
+        // Pending
+        '<section class="card top-card pending-card">'+
+          '<div class="accent"></div>'+
+          '<div class="icon-circle"><svg width="15" height="18" viewBox="0 0 18 22" fill="none" stroke="currentColor" stroke-width="1.6">'+
+            '<path d="M4 2h10M4 20h10M5 2v4l4 4-4 4v6M13 2v4l-4 4 4 4v6"/>'+
+          '</svg></div>'+
+          '<div class="top-label">PENDING</div>'+
+          '<div class="top-value">'+pending.toLocaleString()+'</div>'+
+          '<div class="top-sub">still being worked</div>'+
+        '</section>'+
+        // Revenue Saved
+        '<section class="card revenue rev-saved">'+
+          '<div class="rev-main">'+
+            '<div class="rev-title">REVENUE SAVED</div>'+
+            '<div class="rev-value">'+crFmt$(revSaved)+'</div>'+
+            '<div class="rev-sub">recovered</div>'+
+          '</div>'+
+          '<div class="vline v1"></div><div class="vline v2"></div>'+
+          '<div class="rev-stat s1"><div class="k">↑ UPGRADES</div><div class="amt">'+crFmt$(revSavedUpg)+'</div><div class="pct">'+crFmtPct(revSavedUpg,revSaved)+' of saved rev</div></div>'+
+          '<div class="rev-stat s2"><div class="k">↓ DOWNGRADES</div><div class="amt">'+crFmt$(revSavedDwn)+'</div><div class="pct">'+crFmtPct(revSavedDwn,revSaved)+' of saved rev</div></div>'+
+        '</section>'+
+        // Revenue Lost
+        '<section class="card revenue rev-lost">'+
+          '<div class="rev-main">'+
+            '<div class="rev-title">REVENUE LOST</div>'+
+            '<div class="rev-value">'+crFmt$(revLoss)+'</div>'+
+            '<div class="rev-sub">lost</div>'+
+          '</div>'+
+          '<div class="vline v1"></div><div class="vline v2"></div>'+
+          '<div class="rev-stat s1"><div class="k">↑ UPGRADES</div><div class="amt">'+crFmt$(revLostUpg)+'</div><div class="pct">'+crFmtPct(revLostUpg,revLoss)+' of loss</div></div>'+
+          '<div class="rev-stat s2"><div class="k">↓ DOWNGRADES</div><div class="amt">'+crFmt$(revLostDwn)+'</div><div class="pct">'+crFmtPct(revLostDwn,revLoss)+' of loss</div></div>'+
+        '</section>'+
+      '</div>'+  // .kpi-grid
+    '</div>'+    // .cr-dash
+    '</div>';    // .cr-exec
 
   // ── Resolution Insights Panel ──────────────────────────────
   var skuRes=Object.entries(resBySku).filter(function(e){return e[1].n>=3;});
