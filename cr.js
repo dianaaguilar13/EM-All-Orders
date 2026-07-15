@@ -26,6 +26,8 @@ var CR_LCC_SKUS=new Set(["DBC","LMC","DBCA","DBCE","ELEVADD","LMCA","ELEV"]);
 function crFmtM(m){var p=m.split("-");return new Date(parseInt(p[0]),parseInt(p[1])-1).toLocaleString("default",{month:"short",year:"2-digit"});}
 function crFmt$(v){return"$"+(v||0).toLocaleString(undefined,{maximumFractionDigits:0});}
 function crDestroyCharts(){Object.values(crCharts).forEach(function(c){try{c.destroy();}catch(e){}});crCharts={};}
+// A case is truly saved only if saved_by is set AND Admin Only doesn't say "Cancel"
+function crIsSaved(row){return!!row.saved_by&&(row.admin_only||"").toLowerCase().indexOf("cancel")<0;}
 
 // ── Request Type multi-select ──────────────────────────────
 function crToggleReq(e){e.stopPropagation();var dr=document.getElementById("cr-reqDrop");dr.classList.toggle("open");if(dr.classList.contains("open")){document.getElementById("cr-reqQ").focus();crRenderReqItems();}}
@@ -115,7 +117,7 @@ function crRender(){
   var rows=crFilterRows();
 
   var total=rows.length;
-  var saved=rows.filter(function(r){return r.saved_by;}).length;
+  var saved=rows.filter(crIsSaved).length;
   var saveRate=total>0?(saved/total*100):0;
   var revSaved=rows.reduce(function(s,r){return s+(r.rev_saved||0);},0);
   var revLoss=rows.reduce(function(s,r){return s+(r.rev_loss||0);},0);
@@ -169,13 +171,13 @@ function crRender(){
   rows.forEach(function(row){
     var s=row.sku||"?";
     if(!skuMap[s])skuMap[s]={total:0,saved:0,rev_saved:0,rev_loss:0};
-    skuMap[s].total++;if(row.saved_by)skuMap[s].saved++;
+    skuMap[s].total++;if(crIsSaved(row))skuMap[s].saved++;
     skuMap[s].rev_saved+=row.rev_saved||0;skuMap[s].rev_loss+=row.rev_loss||0;
-    var sb=row.saved_by||"Not Saved";sbMap[sb]=(sbMap[sb]||0)+1;
+    var sb=crIsSaved(row)?(row.saved_by||"Saved"):"Not Saved";sbMap[sb]=(sbMap[sb]||0)+1;
     var st2=row.status||"Unknown";stMap[st2]=(stMap[st2]||0)+1;
     var rt=row.request_type||"Unknown";
     if(!reqMap[rt])reqMap[rt]={total:0,saved:0};
-    reqMap[rt].total++;if(row.saved_by)reqMap[rt].saved++;
+    reqMap[rt].total++;if(crIsSaved(row))reqMap[rt].saved++;
   });
 
   // ── KPI cards ─────────────────────────────────────────────
@@ -250,7 +252,7 @@ function crRender(){
     var m=row.month||row.created_at.slice(0,7);if(!m)return;
     if(!byM[m])byM[m]={total:0,saved:0,lost:0,rev_saved:0,rev_loss:0};
     byM[m].total++;
-    if(row.saved_by)byM[m].saved++;else byM[m].lost++;
+    if(crIsSaved(row))byM[m].saved++;else byM[m].lost++;
     byM[m].rev_saved+=row.rev_saved||0;byM[m].rev_loss+=row.rev_loss||0;
   });
   var ts=Object.keys(byM).filter(function(m){return m>=r.df&&m<=r.dt;}).sort()
@@ -447,8 +449,25 @@ function crRender(){
   document.getElementById("cr-resolvedSection").style.display=rMonths.length>0?"block":"none";
 
   // ── Case detail table ─────────────────────────────────
+  var ASANA_PROJECT="1199886669661274";
   var caseRows=rows.slice(0,200).map(function(row){
-    var saved=!!row.saved_by;
+    // A case is Lost if Admin Only contains "cancel" regardless of saved_by being set
+    var adminLower=(row.admin_only||"").toLowerCase();
+    var isCancelled=adminLower.indexOf("cancel")>=0;
+    var saved=!!row.saved_by&&!isCancelled;
+    var outcomeColor=saved?"#3fb950":"#f85149";
+    var outcomeLabel=saved?"Saved":"Lost";
+    // Admin Only pill
+    var adminHtml=row.admin_only
+      ?'<span style="font-size:9px;padding:2px 6px;border-radius:10px;background:'+(isCancelled?"#fee2e2":"#dcfce7")+';color:'+(isCancelled?"#dc2626":"#16a34a")+';white-space:nowrap;font-weight:600">'+row.admin_only+'</span>'
+      :'<span style="color:#94a3b8;font-size:10px">—</span>';
+    // Links
+    var asanaHtml=row.task_id
+      ?'<a href="https://app.asana.com/0/'+ASANA_PROJECT+'/'+row.task_id+'" target="_blank" style="font-size:10px;color:#6366f1;text-decoration:none" title="Open in Asana">&#128279; Asana</a>'
+      :'<span style="color:#94a3b8">—</span>';
+    var infHtml=row.inf_link
+      ?'<a href="'+row.inf_link+'" target="_blank" style="font-size:10px;color:#0ea5e9;text-decoration:none" title="Open in Infusionsoft">&#128279; INF</a>'
+      :'<span style="color:#94a3b8">—</span>';
     return"<tr>"+
       "<td class='num' style='font-size:10px;color:#475569'>"+row.id+"</td>"+
       "<td style='font-size:10px;color:#64748b;font-family:monospace'>"+(row.contact_id||row.client_id||"—")+"</td>"+
@@ -457,14 +476,17 @@ function crRender(){
       "<td style='font-size:10px;color:#475569;white-space:nowrap'>"+(row.date||"—")+"</td>"+
       "<td style='font-size:10px;color:#2563eb;font-weight:600;white-space:nowrap'>"+(row.created_at||"—")+"</td>"+
       "<td style='font-size:10px;color:#8b949e;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>"+row.request_type+"</td>"+
-      "<td><span style='font-size:10px;font-weight:600;color:"+(saved?"#3fb950":"#f85149")+"'>"+(saved?"Saved":"Lost")+"</span></td>"+
+      "<td><span style='font-size:10px;font-weight:600;color:"+outcomeColor+"'>"+outcomeLabel+"</span></td>"+
       "<td style='font-size:10px;color:#388bfd'>"+row.saved_by+"</td>"+
+      "<td style='max-width:180px'>"+adminHtml+"</td>"+
       "<td style='font-size:10px;color:#475569'>"+row.status+"</td>"+
       "<td style='font-size:10px;color:#475569'>"+row.procedure+"</td>"+
       (row.res_days!=null?"<td class='num' style='font-size:11px;font-weight:700;color:"+(row.res_days<=7?"#16a34a":row.res_days<=14?"#d97706":"#dc2626")+"'>"+row.res_days+"d</td>":"<td style='color:#64748b'>-</td>")+
       "<td class='num' style='color:#dc2626'>"+crFmt$(row.rev_loss)+"</td>"+
       "<td class='num' style='color:#16a34a'>"+crFmt$(row.rev_saved)+"</td>"+
       "<td style='font-size:10px;color:#475569'>"+row.assignee+"</td>"+
+      "<td style='white-space:nowrap'>"+asanaHtml+"</td>"+
+      "<td style='white-space:nowrap'>"+infHtml+"</td>"+
       "</tr>";
   }).join("");
   document.getElementById("cr-casesTbody").innerHTML=caseRows;
@@ -514,10 +536,10 @@ function crDownloadResolvedCsv(){
 // ── CSV Download ──────────────────────────────────────────
 function crDownloadCsv(){
   var rows=crFilterRows();
-  var headers=["Order ID","Contact ID","Client Name","SKU","Order Date","Case Opened","Request Type","Outcome","Saved By","Status","Procedure","Resolution Days","Rev Loss","Rev Saved","Assignee","Client ID"];
+  var headers=["Order ID","Contact ID","Client Name","SKU","Order Date","Case Opened","Request Type","Outcome","Saved By","Admin Only","Status","Procedure","Resolution Days","Rev Loss","Rev Saved","Assignee","Client ID","Asana Link","INF Link"];
   var lines=[headers.join(",")];
   rows.forEach(function(r){
-    var outcome=r.saved_by?"Saved":"Lost";
+    var outcome=crIsSaved(r)?"Saved":"Lost";
     lines.push([
       r.id,
       r.contact_id||r.client_id||"",
@@ -528,13 +550,16 @@ function crDownloadCsv(){
       '"'+(r.request_type||"").replace(/"/g,'""')+'"',
       outcome,
       '"'+(r.saved_by||"").replace(/"/g,'""')+'"',
+      '"'+(r.admin_only||"").replace(/"/g,'""')+'"',
       '"'+(r.status||"").replace(/"/g,'""')+'"',
       '"'+(r.procedure||"").replace(/"/g,'""')+'"',
       r.res_days!=null?r.res_days:"",
       Math.round(r.rev_loss||0),
       Math.round(r.rev_saved||0),
       '"'+(r.assignee||"").replace(/"/g,'""')+'"',
-      r.client_id||""
+      r.client_id||"",
+      r.task_id?"https://app.asana.com/0/1199886669661274/"+r.task_id:"",
+      r.inf_link||""
     ].join(","));
   });
   var csv=lines.join("\n");

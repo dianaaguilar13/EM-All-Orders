@@ -1192,6 +1192,7 @@ def build_cr_data(orders, asana_rows):
             "procedure":      procedure,
             "requested_date": clean_date(r.get("Requested Date mm/dd/yy","")),
             "saved_by":       r.get("Saved by","") or "",
+            "admin_only":     r.get("Admin Only","") or "",
             "rev_loss":       clean_money(r.get("Revenue Loss","")),
             "rev_saved":      clean_money(r.get("Total Revenue Saved","")),
             "refund_amt":     clean_money(r.get("Refund Amount","")),
@@ -1204,6 +1205,8 @@ def build_cr_data(orders, asana_rows):
             "days_to_cancel": days_to_cancel,
             "created_at":     created_at_eastern,
             "completed_at":   completed_at_eastern,
+            "task_id":        r.get("Task ID","") or "",
+            "inf_link":       r.get("INF Link","") or "",
         })
 
     # Include all cases with an Order ID — even if not yet in Snowflake (e.g. PAYMENTS_TOTAL=0)
