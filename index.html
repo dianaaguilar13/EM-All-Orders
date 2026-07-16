@@ -721,7 +721,16 @@ function hideAllPanels(){
 
     <div class="card full">
       <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-        <div class="ct">Case detail</div><div style="font-size:11px;color:#8b949e" id="cr-casesInfo"></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="ct">Case detail</div>
+          <div style="font-size:11px;color:#8b949e" id="cr-casesInfo"></div>
+        </div>
+        <button onclick="crDownloadCsv()" style="display:flex;align-items:center;gap:5px;padding:5px 11px;font-size:11px;font-weight:600;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;cursor:pointer;white-space:nowrap">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v9M4 8l4 4 4-4"/><rect x="2" y="13" width="12" height="1.5" rx=".75"/>
+          </svg>
+          Download CSV
+        </button>
       </div>
       <div class="tbl-wrap" style="max-height:500px">
         <table><thead><tr>
