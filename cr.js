@@ -203,8 +203,8 @@ function crRender(){
   var savedDwn=savedRows.filter(crIsDowngrade).length;
   var revSavedUpg=savedRows.reduce(function(s,r){return s+(crIsUpgrade(r)?r.rev_saved||0:0);},0);
   var revSavedDwn=savedRows.reduce(function(s,r){return s+(crIsDowngrade(r)?r.rev_saved||0:0);},0);
-  var revLostUpg=lostRows.reduce(function(s,r){return s+(crIsUpgrade(r)?r.rev_loss||0:0);},0);
-  var revLostDwn=lostRows.reduce(function(s,r){return s+(crIsDowngrade(r)?r.rev_loss||0:0);},0);
+  var revLostUpg=rows.reduce(function(s,r){return s+(crIsUpgrade(r)?r.rev_loss||0:0);},0);
+  var revLostDwn=rows.reduce(function(s,r){return s+(crIsDowngrade(r)?r.rev_loss||0:0);},0);
   var netUpg=revSavedUpg-revLostUpg;
   var netDwn=revSavedDwn-revLostDwn;
 
