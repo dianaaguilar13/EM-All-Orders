@@ -1580,6 +1580,9 @@ def fetch_ar_invoices(conn):
             "3RDATTEMPT"                  AS att3,
             "3RDATTEMPTDATE"              AS att3_date
         FROM ANALYTICS.MART.DIM_AR_ALL_INVOICES
+        WHERE "BALANCE" > 0
+          AND LOWER(COALESCE("NAME", '')) NOT LIKE '%test%'
+          AND COALESCE("LASTPAYMENTAMOUNT", 0) > 0
         ORDER BY "BALANCE" DESC NULLS LAST
     """
     cur = conn.cursor()
