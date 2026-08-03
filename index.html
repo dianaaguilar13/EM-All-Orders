@@ -732,6 +732,11 @@ function hideAllPanels(){
           Download CSV
         </button>
       </div>
+      <div style="margin-bottom:8px">
+        <input id="cr-caseSearch" type="text" placeholder="Search by name, order ID, contact ID, SKU, status, assignee..."
+          oninput="crCaseSearchChange(this.value)"
+          style="width:100%;box-sizing:border-box;padding:7px 12px;font-size:12px;border:1px solid #e2e8f0;border-radius:6px;outline:none;background:#f8fafc;color:#334155" />
+      </div>
       <div class="tbl-wrap" style="max-height:500px">
         <table><thead><tr>
           <th>Order ID</th><th>Contact ID</th><th>Client Name</th><th>SKU</th>
@@ -745,7 +750,7 @@ function hideAllPanels(){
   </div>
 </div>
 <script src="pif.js?v=1780000003"></script>
-<script src="cr.js?v=1780000003"></script>
+<script src="cr.js?v=1780000004"></script>
 
 
 <!-- ── AR v2 Panel ─────────────────────────────────────────────────────────── -->

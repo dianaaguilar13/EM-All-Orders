@@ -18,6 +18,7 @@ function crBuildDistBars(dist){
 }
 
 var CR=null,crCharts={},crSelReq=new Set(),crSelSku=new Set(),crSelPcat=new Set();
+var crLastCaseRows=[],crCaseSearch="";
 
 var CR_LT_SKUS=new Set(["BTM BT Add-on","BTM","BTM-Mopp","BTMP","BTMP-Mopp","BTME","MC-Elite","MC-Elite-Mopp","MC-Elite-MC","MM-SC-KAT","BTMP-MOPP"]);
 var CR_LCC_SKUS=new Set(["DBC","LMC","DBCA","DBCE","ELEVADD","LMCA","ELEV"]);
@@ -564,18 +565,42 @@ function crRender(){
   document.getElementById("cr-resolvedSection").style.display=rMonths.length>0?"block":"none";
 
   // ── Case detail table ─────────────────────────────────
+  crLastCaseRows=rows;
+  crRenderCasesTable();
+
+  document.getElementById("cr-loading").style.display="none";
+  document.getElementById("cr-main").style.display="block";
+}
+
+
+// ── Case detail search ────────────────────────────────────
+function crCaseSearchChange(v){crCaseSearch=(v||"").toLowerCase().trim();crRenderCasesTable();}
+
+function crRenderCasesTable(){
   var ASANA_PROJECT="1199886669661274";
-  var caseRows=rows.slice(0,200).map(function(row){
-    // A case is Lost if Admin Only contains "cancel" regardless of saved_by being set
+  var q=crCaseSearch;
+  var filtered=q
+    ?crLastCaseRows.filter(function(row){
+        var haystack=[
+          row.id, row.contact_id, row.client_id, row.client_name,
+          row.sku, row.date, row.created_at, row.request_type,
+          crOutcome(row), row.saved_by, row.admin_only,
+          row.status, row.procedure,
+          row.res_days!=null?row.res_days+"d":"",
+          row.rev_loss, row.rev_saved, row.assignee
+        ].map(function(x){return String(x||"").toLowerCase();}).join(" ");
+        return haystack.indexOf(q)!==-1;
+      })
+    :crLastCaseRows;
+  var shown=filtered.slice(0,200);
+  var caseRows=shown.map(function(row){
     var oc=crOutcome(row);
     var outcomeColor=oc==="saved"?"#3fb950":oc==="lost"?"#f85149":"#d97706";
     var outcomeLabel=oc==="saved"?"Saved":oc==="lost"?"Lost":"Pending";
     var isCancelled=oc==="lost";
-    // Admin Only pill
     var adminHtml=row.admin_only
       ?'<span style="font-size:9px;padding:2px 6px;border-radius:10px;background:'+(isCancelled?"#fee2e2":"#dcfce7")+';color:'+(isCancelled?"#dc2626":"#16a34a")+';white-space:nowrap;font-weight:600">'+row.admin_only+'</span>'
       :'<span style="color:#94a3b8;font-size:10px">—</span>';
-    // Links
     var asanaHtml=row.task_id
       ?'<a href="https://app.asana.com/0/'+ASANA_PROJECT+'/'+row.task_id+'" target="_blank" style="font-size:11px;color:#6366f1;font-weight:600;text-decoration:underline">Link</a>'
       :'<span style="color:#94a3b8">—</span>';
@@ -604,12 +629,11 @@ function crRender(){
       "</tr>";
   }).join("");
   document.getElementById("cr-casesTbody").innerHTML=caseRows;
-  document.getElementById("cr-casesInfo").textContent="Showing "+Math.min(200,rows.length)+" of "+rows.length+" cases";
-
-  document.getElementById("cr-loading").style.display="none";
-  document.getElementById("cr-main").style.display="block";
+  var infoTxt=q
+    ?"Showing "+shown.length+" of "+filtered.length+" matches ("+crLastCaseRows.length+" total)"
+    :"Showing "+Math.min(200,crLastCaseRows.length)+" of "+crLastCaseRows.length+" cases";
+  document.getElementById("cr-casesInfo").textContent=infoTxt;
 }
-
 
 // ── Resolved by Month CSV ────────────────────────────────
 function crDownloadResolvedCsv(){
