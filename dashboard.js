@@ -453,6 +453,7 @@ function applyFilters(){
   ["msDrop","msSkuDrop","msPcatDrop"].forEach(function(id){document.getElementById(id).classList.remove("open");});
   fDiv=document.getElementById("fDiv")?document.getElementById("fDiv").value:"";
   render();
+  var cp=document.getElementById("cohort-panel");if(cp&&cp.style.display!=="none")renderCohortPanel();
 }
 function todayStr(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0");}
 function resetFilters(){
@@ -462,6 +463,7 @@ function resetFilters(){
   var fd=document.getElementById("fDiv");if(fd)fd.value="";
   fDiv="";
   selP.clear();updateMsBtn();selSku.clear();updateMsSkuBtn();selPcat.clear();updateMsPcatBtn();render();
+  var cp=document.getElementById("cohort-panel");if(cp&&cp.style.display!=="none")renderCohortPanel();
 }
 
 
@@ -788,7 +790,6 @@ document.getElementById("skuTbody").innerHTML=rows;
       }
     });
   }
-  renderCohort();
   renderRefundSkuTable();
 }
 
@@ -1569,9 +1570,65 @@ function downloadCohortCsv(){
   a.click();
 }
 
+// ── Cohort Panel (separate tab) ───────────────────────────
+function renderCohortYearTrend(){
+  if(charts.cohortYearTrend){charts.cohortYearTrend.destroy();charts.cohortYearTrend=null;}
+  var canvas=document.getElementById("cohortYearTrendChart");
+  if(!canvas||!D)return;
+  var fDivV=typeof fDiv!=="undefined"?fDiv:"";
+  var yearMonths={};
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(selSku.size>0&&!selSku.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      var st=row[4];
+      if(st==="Entry Error"||st==="Pend"||st==="No Pmt")return;
+      if(selPcat.size>0&&!selPcat.has(row[7]))return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      if(fDivV&&row[15]!==fDivV)return;
+      var d=row[2];if(!d||d.length<7)return;
+      var yr=d.slice(0,4),mo=parseInt(d.slice(5,7),10)-1;
+      if(!yearMonths[yr])yearMonths[yr]={};
+      if(!yearMonths[yr][mo])yearMonths[yr][mo]={total:0,cancelled:0};
+      yearMonths[yr][mo].total++;
+      if(st==="Cancelled")yearMonths[yr][mo].cancelled++;
+    });
+  });
+  var years=Object.keys(yearMonths).sort();
+  var moLabels=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var palette={"2022":"#94a3b8","2023":"#3b82f6","2024":"#f59e0b","2025":"#10b981","2026":"#ef4444","2027":"#a855f7"};
+  var fallback=["#64748b","#3b82f6","#f59e0b","#10b981","#ef4444","#a855f7"];
+  var datasets=years.map(function(yr,i){
+    var color=palette[yr]||fallback[i%fallback.length];
+    var data=moLabels.map(function(_,mi){
+      var m=yearMonths[yr][mi];
+      return(m&&m.total>0)?parseFloat((m.cancelled/m.total*100).toFixed(2)):null;
+    });
+    return{label:yr,data:data,borderColor:color,backgroundColor:"transparent",fill:false,
+      tension:0.35,pointRadius:3,pointBackgroundColor:color,borderWidth:2.5,spanGaps:false};
+  });
+  charts.cohortYearTrend=new Chart(canvas,{type:"line",data:{labels:moLabels,datasets:datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:"index",intersect:false},
+    plugins:{
+      legend:{display:true,position:"top",labels:{font:{size:11},color:"#475569",boxWidth:14,padding:14}},
+      tooltip:{callbacks:{label:function(ctx){return" "+ctx.dataset.label+": "+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(1)+"% cancel rate":"—");}}}
+    },
+    scales:{
+      x:{ticks:{color:"#64748b",font:{size:11}},grid:{display:false}},
+      y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},grid:{color:"#f1f5f9"}}
+    }
+  }});
+}
+
+function renderCohortPanel(){
+  renderCohortYearTrend();
+  renderCohort();
+}
+
 function initDashboard(){
   document.getElementById("dt").value=todayStr();
-  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div><div id="refundSkuSection"></div><div id="cohortSection"></div></div>';
+  document.getElementById("mainContent").innerHTML='<div class="main"><div class="kpi-row" id="kpiRow"></div><div class="card full"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div class="ct">Cancel % rate by month</div><div class="cs" style="margin-bottom:0">Stacked by status with cancel rate line</div></div><div class="legend" style="margin-bottom:0"><div class="li"><div class="ld" style="background:#f85149"></div>Cancelled</div><div class="li"><div class="ld" style="background:#e3b341"></div>Entry Error</div><div class="li"><div class="ld" style="background:#3fb950"></div>Upgrade</div><div class="li"><div class="ld" style="background:#bc8cff"></div>Downgrade</div><div class="li"><div class="ld" style="background:#0d9488"></div>Switch</div><div class="li"><div class="ld" style="background:#fbbf24"></div>Pend</div><div class="li"><div class="ld" style="background:#64748b"></div>No Pmt</div><div class="li"><div class="ld" style="background:#388bfd;width:18px;height:2px;border-radius:0"></div>Cancel %</div></div></div><div style="height:260px;position:relative"><canvas id="trendChart"></canvas></div></div><div class="grid2"><div class="card"><div class="ct">Cancel % by SKU</div><div class="cs">Top 15</div><div id="skuBarWrap" style="height:320px;position:relative"><canvas id="skuBarChart"></canvas></div></div><div class="card"><div class="ct">Volume by SKU</div><div class="cs">Cancelled - Entry Error - Upgrade - Downgrade</div><div id="skuGrpWrap" style="height:320px;position:relative"><canvas id="skuGrpChart"></canvas></div></div></div><div class="grid2"><div class="card"><div class="ct">By partner category</div><div class="cs">Share of cancellations</div><div style="height:200px;position:relative"><canvas id="pcatChart"></canvas></div></div><div class="card"><div class="ct">Cancel Window</div><div class="cs">Refund timing &amp; cancel rate by window — all cancelled orders including N/A (no refund date on record)</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px"><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Days to Refund — count</div><div style="height:180px;position:relative"><canvas id="rdChart"></canvas></div></div><div><div style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Cancel Rate % by Window</div><div style="height:180px;position:relative"><canvas id="rdRateChart"></canvas></div></div></div></div></div><div class="card full"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><div class="ct">SKU summary</div><div style="font-size:11px;color:#8b949e" id="tblInfo"></div></div><div class="tbl-wrap"><table><thead><tr><th>SKU</th><th>Net Units</th><th>Active</th><th>Inactive</th><th>Sale</th><th>Cancelled</th><th>Entry Error</th><th>Upgrade</th><th>Downgrade</th><th>Switch</th><th>Pend</th><th>No Pmt</th><th>Refund Days</th><th>Cancel %</th><th>Lost Revenue</th></tr></thead><tbody id="skuTbody"></tbody><tfoot><tr class="tfoot" id="skuTfoot"></tr></tfoot></table></div></div><div class="card full"><div class="ct">FY Cancel Rate by Quarter</div><div class="cs">Cancellations ÷ (Total − Entry Errors) · Calendar year · Q1=Jan–Mar, Q2=Apr–Jun, Q3=Jul–Sep, Q4=Oct–Dec</div><div style="height:300px;position:relative"><canvas id="qfyChart"></canvas></div></div><div id="refundSkuSection"></div></div>';
   renderMsItems();renderMsSkuItems();render();
 }
 

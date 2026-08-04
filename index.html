@@ -246,6 +246,7 @@ function pwCheck(){
     <button class="btn" id="pif-tab-btn" onclick="showPifTab()" style="color:#16a34a;border-color:#16a34a33;background:transparent;font-weight:500">&#128200; PIF/PP</button>
     <button class="btn" id="cr-tab-btn" onclick="showCrTab()" style="color:#ef4444;border-color:#ef444433;background:transparent;font-weight:500">&#128203; CRS</button>
       <button onclick="showAr2Tab()" style="color:#0d9488;border-color:#0d948833;background:transparent;border:1px solid;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:500">&#128176; AR</button>
+    <button class="btn" id="cohort-tab-btn" onclick="showCohortTab()" style="color:#7c3aed;border-color:#7c3aed33;background:transparent;font-weight:500">&#128200; Cohort</button>
     <button class="btn" id="cancel-tab-btn" onclick="showCancelTab()" style="display:none;color:#64748b;background:transparent;border-color:#dde3ea">&#8592; Cancellations</button>
   </div>
 </div>
@@ -305,7 +306,7 @@ function pwCheck(){
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option><option>Pend</option><option>No Pmt</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
-<script src="dashboard.js?v=1790000026"></script>
+<script src="dashboard.js?v=1790000027"></script>
 
 <!-- LDP Tab Content -->
 <div id="ldp-panel" style="display:none">
@@ -567,6 +568,12 @@ function showCrTab(){
   document.getElementById("cr-panel").style.display="block";
   document.getElementById("cancel-tab-btn").style.display="inline";
 }
+function showCohortTab(){
+  hideAllPanels();
+  document.getElementById("cohort-panel").style.display="block";
+  document.getElementById("cancel-tab-btn").style.display="inline";
+  if(typeof renderCohortPanel==="function")renderCohortPanel();
+}
 function showCancelTab(){
   hideAllPanels();
   document.getElementById("mainContent").style.display="block";
@@ -574,18 +581,40 @@ function showCancelTab(){
   document.getElementById("ldp-tab-btn").style.display="inline";
   document.getElementById("pif-tab-btn").style.display="inline";
   document.getElementById("cr-tab-btn").style.display="inline";
+  document.getElementById("cohort-tab-btn").style.display="inline";
   document.getElementById("cancel-tab-btn").style.display="none";
 }
 function hideAllPanels(){
-  ["mainContent","ldp-panel","pif-panel","cr-panel","ar2-panel"].forEach(function(id){
+  ["mainContent","ldp-panel","pif-panel","cr-panel","ar2-panel","cohort-panel"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
   document.querySelector(".filters").style.display="none";
-  ["ldp-tab-btn","pif-tab-btn","cr-tab-btn","cancel-tab-btn"].forEach(function(id){
+  ["ldp-tab-btn","pif-tab-btn","cr-tab-btn","cohort-tab-btn","cancel-tab-btn"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
 }
 </script>
+<!-- Cancel Cohort Panel -->
+<div id="cohort-panel" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#ffffff;border-bottom:1px solid #dde3ea;position:sticky;top:57px;z-index:100">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:14px;font-weight:600;color:#7c3aed">&#128200; Cancel Cohort</span>
+      <span style="font-size:11px;color:#8b949e">Cancel rate by purchase cohort · year-over-year comparison</span>
+    </div>
+  </div>
+  <div class="main">
+    <div class="card full" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div class="ct">Cancel Rate — Year by Year</div>
+          <div class="cs">Cohort cancel rate % per month, one line per calendar year · all orders grouped by purchase date (respects SKU, partner &amp; category filters)</div>
+        </div>
+      </div>
+      <div style="height:320px;position:relative"><canvas id="cohortYearTrendChart"></canvas></div>
+    </div>
+    <div id="cohortSection"></div>
+  </div>
+</div>
 <!-- Client Resolution Panel -->
 <div id="cr-panel" style="display:none">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#ffffff;border-bottom:1px solid #dde3ea;position:sticky;top:57px;z-index:100">
