@@ -611,13 +611,19 @@ function hideAllPanels(){
   </div>
   <div class="main">
     <div class="card full" style="margin-bottom:16px">
+      <div class="ct">Cancel Rate — Month by Month</div>
+      <div class="cs">Cancel rate % per month, one line per year · respects all filters &amp; cancel window</div>
+      <div style="height:300px;position:relative"><canvas id="cohortYearTrendChart"></canvas></div>
+    </div>
+    <div class="card full" style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
         <div>
-          <div class="ct">Cancel Rate — Year by Year</div>
-          <div class="cs">Cohort cancel rate % per month, one line per calendar year · all orders grouped by purchase date (respects SKU, partner &amp; category filters)</div>
+          <div class="ct">Year-over-Year Summary</div>
+          <div class="cs">Total cohort units (bars, left axis) &amp; cohort cancel rate % (line, right axis) per calendar year</div>
         </div>
+        <div class="legend"><div class="li"><div class="ld" style="background:#7c3aed"></div>Total Units</div><div class="li"><div class="ld" style="background:#ef4444;width:18px;height:2px;border-radius:0"></div>Cancel Rate %</div></div>
       </div>
-      <div style="height:320px;position:relative"><canvas id="cohortYearTrendChart"></canvas></div>
+      <div style="height:280px;position:relative"><canvas id="cohortYoYChart"></canvas></div>
     </div>
     <div id="cohortSection"></div>
   </div>

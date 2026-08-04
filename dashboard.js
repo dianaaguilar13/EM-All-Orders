@@ -1614,8 +1614,58 @@ function renderCohortYearTrend(){
   }});
 }
 
+function renderCohortYoY(){
+  if(charts.cohortYoY){charts.cohortYoY.destroy();charts.cohortYoY=null;}
+  var canvas=document.getElementById("cohortYoYChart");
+  if(!canvas||!D)return;
+  var fDivV=typeof fDiv!=="undefined"?fDiv:"";
+  var byYear={};
+  Object.keys(D.order_rows||{}).forEach(function(sku){
+    if(EXCLUDED_SKUS.has(sku))return;
+    if(selSku.size>0&&!selSku.has(sku))return;
+    (D.order_rows[sku]||[]).forEach(function(row){
+      var st=row[4];
+      if(st==="Entry Error"||st==="Pend"||st==="No Pmt")return;
+      if(selPcat.size>0&&!selPcat.has(row[7]))return;
+      if(selP.size>0&&!selP.has(row[8]))return;
+      if(fDivV&&row[15]!==fDivV)return;
+      var d=row[2];if(!d||d.length<7)return;
+      var yr=d.slice(0,4),mo=parseInt(d.slice(5,7),10)-1;
+      if(!byYear[yr])byYear[yr]={total:0,cancelled:0};
+      byYear[yr].total++;
+      var monthEndMs=new Date(parseInt(yr),mo+1,0).getTime();
+      if(isInCohortWindow(row,cohortWindow,monthEndMs))byYear[yr].cancelled++;
+    });
+  });
+  var years=Object.keys(byYear).sort();
+  var totals=years.map(function(yr){return byYear[yr].total;});
+  var rates=years.map(function(yr){var b=byYear[yr];return b.total>0?parseFloat((b.cancelled/b.total*100).toFixed(2)):null;});
+  charts.cohortYoY=new Chart(canvas,{type:"bar",data:{labels:years,datasets:[
+    {label:"Total Units",data:totals,backgroundColor:"rgba(124,58,237,0.75)",borderRadius:5,yAxisID:"y"},
+    {label:"Cancel Rate %",data:rates,type:"line",yAxisID:"y2",borderColor:"#ef4444",backgroundColor:"rgba(239,68,68,0.08)",fill:true,tension:0.35,pointRadius:4,pointBackgroundColor:"#ef4444",borderWidth:2.5}
+  ]},options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:"index",intersect:false},
+    plugins:{
+      legend:{display:false},
+      tooltip:{callbacks:{
+        label:function(ctx){
+          if(ctx.dataset.label==="Cancel Rate %")return" Cancel Rate: "+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(1)+"%":"—");
+          return" Total Units: "+ctx.parsed.y.toLocaleString();
+        }
+      }}
+    },
+    scales:{
+      x:{ticks:{color:"#64748b",font:{size:12,weight:"600"}},grid:{display:false}},
+      y:{beginAtZero:true,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v.toLocaleString();}},grid:{color:"#f1f5f9"},title:{display:true,text:"Total Units",color:"#7c3aed",font:{size:10}}},
+      y2:{beginAtZero:true,position:"right",ticks:{color:"#ef4444",font:{size:10},callback:function(v){return v+"%";}},grid:{display:false},title:{display:true,text:"Cancel Rate %",color:"#ef4444",font:{size:10}}}
+    }
+  }});
+}
+
 function renderCohortPanel(){
   renderCohortYearTrend();
+  renderCohortYoY();
   renderCohort();
 }
 
