@@ -1566,6 +1566,7 @@ function renderCohortYearTrend(){
   if(charts.cohortYearTrend){charts.cohortYearTrend.destroy();charts.cohortYearTrend=null;}
   var canvas=document.getElementById("cohortYearTrendChart");
   if(!canvas||!D)return;
+  var r=getRange();
   var fDivV=typeof fDiv!=="undefined"?fDiv:"";
   var yearMonths={};
   Object.keys(D.order_rows||{}).forEach(function(sku){
@@ -1578,6 +1579,7 @@ function renderCohortYearTrend(){
       if(selP.size>0&&!selP.has(row[8]))return;
       if(fDivV&&row[15]!==fDivV)return;
       var d=row[2];if(!d||d.length<7)return;
+      var dateM=d.slice(0,7);if(dateM<r.df||dateM>r.dt)return;
       var yr=d.slice(0,4),mo=parseInt(d.slice(5,7),10)-1;
       // cutoff = Dec 31 of purchase year + window (same logic as Cohort KPI end-of-period)
       if(!yearMonths[yr]){yearMonths[yr]={_endMs:new Date(parseInt(yr),12,0).getTime()};}
@@ -1617,6 +1619,7 @@ function renderCohortYoY(){
   if(charts.cohortYoY){charts.cohortYoY.destroy();charts.cohortYoY=null;}
   var canvas=document.getElementById("cohortYoYChart");
   if(!canvas||!D)return;
+  var r=getRange();
   var fDivV=typeof fDiv!=="undefined"?fDiv:"";
   var byYear={};
   Object.keys(D.order_rows||{}).forEach(function(sku){
@@ -1629,6 +1632,7 @@ function renderCohortYoY(){
       if(selP.size>0&&!selP.has(row[8]))return;
       if(fDivV&&row[15]!==fDivV)return;
       var d=row[2];if(!d||d.length<7)return;
+      var dateM=d.slice(0,7);if(dateM<r.df||dateM>r.dt)return;
       var yr=d.slice(0,4);
       // cutoff = Dec 31 of purchase year + window (same logic as Cohort KPI end-of-period)
       if(!byYear[yr])byYear[yr]={total:0,cancelled:0,endMs:new Date(parseInt(yr),12,0).getTime()};
