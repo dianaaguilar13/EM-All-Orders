@@ -1579,12 +1579,11 @@ function renderCohortYearTrend(){
       if(fDivV&&row[15]!==fDivV)return;
       var d=row[2];if(!d||d.length<7)return;
       var yr=d.slice(0,4),mo=parseInt(d.slice(5,7),10)-1;
-      if(!yearMonths[yr])yearMonths[yr]={};
+      // cutoff = Dec 31 of purchase year + window (same logic as Cohort KPI end-of-period)
+      if(!yearMonths[yr]){yearMonths[yr]={_endMs:new Date(parseInt(yr),12,0).getTime()};}
       if(!yearMonths[yr][mo])yearMonths[yr][mo]={total:0,cancelled:0};
       yearMonths[yr][mo].total++;
-      // use per-month cutoff: last day of that purchase month + window
-      var monthEndMs=new Date(parseInt(yr),mo+1,0).getTime();
-      if(isInCohortWindow(row,cohortWindow,monthEndMs))yearMonths[yr][mo].cancelled++;
+      if(isInCohortWindow(row,cohortWindow,yearMonths[yr]._endMs))yearMonths[yr][mo].cancelled++;
     });
   });
   var years=Object.keys(yearMonths).sort();
@@ -1630,11 +1629,11 @@ function renderCohortYoY(){
       if(selP.size>0&&!selP.has(row[8]))return;
       if(fDivV&&row[15]!==fDivV)return;
       var d=row[2];if(!d||d.length<7)return;
-      var yr=d.slice(0,4),mo=parseInt(d.slice(5,7),10)-1;
-      if(!byYear[yr])byYear[yr]={total:0,cancelled:0};
+      var yr=d.slice(0,4);
+      // cutoff = Dec 31 of purchase year + window (same logic as Cohort KPI end-of-period)
+      if(!byYear[yr])byYear[yr]={total:0,cancelled:0,endMs:new Date(parseInt(yr),12,0).getTime()};
       byYear[yr].total++;
-      var monthEndMs=new Date(parseInt(yr),mo+1,0).getTime();
-      if(isInCohortWindow(row,cohortWindow,monthEndMs))byYear[yr].cancelled++;
+      if(isInCohortWindow(row,cohortWindow,byYear[yr].endMs))byYear[yr].cancelled++;
     });
   });
   var years=Object.keys(byYear).sort();
