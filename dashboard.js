@@ -1562,13 +1562,37 @@ function downloadCohortCsv(){
 }
 
 // ── Cohort Panel (separate tab) ───────────────────────────
+// Returns the set of years to render + shared month window.
+// Rules:
+//   - All years in the selected date range are included.
+//   - Current year is always added (same months, for comparison).
+//   - If the current year IS in the selected range, also add 2 prior years.
+function buildCohortYears(r){
+  var curYr=new Date().getFullYear(),curStr=String(curYr);
+  var dfYr=parseInt(r.df.slice(0,4)),dtYr=parseInt(r.dt.slice(0,4));
+  var dfMo=r.df.slice(5,7),dtMo=r.dt.slice(5,7);
+  var set=new Set();
+  for(var y=dfYr;y<=dtYr;y++)set.add(String(y));
+  set.add(curStr);
+  if(curYr>=dfYr&&curYr<=dtYr){set.add(String(curYr-1));set.add(String(curYr-2));}
+  return{years:Array.from(set).sort(),curStr:curStr,dfMo:dfMo,dtMo:dtMo};
+}
+
+var YR_PALETTE={"2022":"#94a3b8","2023":"#3b82f6","2024":"#f59e0b","2025":"#10b981","2026":"#7c3aed","2027":"#a855f7"};
+var YR_FALLBACK=["#64748b","#3b82f6","#f59e0b","#10b981","#7c3aed","#a855f7"];
+
 function renderCohortYearTrend(){
   if(charts.cohortYearTrend){charts.cohortYearTrend.destroy();charts.cohortYearTrend=null;}
   var canvas=document.getElementById("cohortYearTrendChart");
   if(!canvas||!D)return;
   var r=getRange();
+  var cy=buildCohortYears(r);
+  var dfMo=cy.dfMo,dtMo=cy.dtMo,dtMoInt=parseInt(dtMo),dfMoInt=parseInt(dfMo);
   var fDivV=typeof fDiv!=="undefined"?fDiv:"";
+  var yearSet=new Set(cy.years);
+  // Pre-initialise each year with its cutoff = last day of dtMo in that year
   var yearMonths={};
+  cy.years.forEach(function(yr){yearMonths[yr]={_end:new Date(parseInt(yr),dtMoInt,0).getTime()};});
   Object.keys(D.order_rows||{}).forEach(function(sku){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
@@ -1579,34 +1603,32 @@ function renderCohortYearTrend(){
       if(selP.size>0&&!selP.has(row[8]))return;
       if(fDivV&&row[15]!==fDivV)return;
       var d=row[2];if(!d||d.length<7)return;
-      var dateM=d.slice(0,7);if(dateM<r.df||dateM>r.dt)return;
-      var yr=d.slice(0,4),mo=parseInt(d.slice(5,7),10)-1;
-      // cutoff = Dec 31 of purchase year + window (same logic as Cohort KPI end-of-period)
-      if(!yearMonths[yr]){yearMonths[yr]={_endMs:new Date(parseInt(yr),12,0).getTime()};}
+      var yr=d.slice(0,4);if(!yearSet.has(yr))return;
+      var moStr=d.slice(5,7);if(moStr<dfMo||moStr>dtMo)return;
+      var mo=parseInt(moStr,10)-1;
       if(!yearMonths[yr][mo])yearMonths[yr][mo]={total:0,cancelled:0};
       yearMonths[yr][mo].total++;
-      if(isInCohortWindow(row,cohortWindow,yearMonths[yr]._endMs))yearMonths[yr][mo].cancelled++;
+      if(isInCohortWindow(row,cohortWindow,yearMonths[yr]._end))yearMonths[yr][mo].cancelled++;
     });
   });
-  var years=Object.keys(yearMonths).sort();
-  var moLabels=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  var palette={"2022":"#94a3b8","2023":"#3b82f6","2024":"#f59e0b","2025":"#10b981","2026":"#ef4444","2027":"#a855f7"};
-  var fallback=["#64748b","#3b82f6","#f59e0b","#10b981","#ef4444","#a855f7"];
-  var datasets=years.map(function(yr,i){
-    var color=palette[yr]||fallback[i%fallback.length];
-    var data=moLabels.map(function(_,mi){
-      var m=yearMonths[yr][mi];
+  var allMo=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var moLabels=allMo.slice(dfMoInt-1,dtMoInt);
+  var datasets=cy.years.map(function(yr,i){
+    var color=YR_PALETTE[yr]||YR_FALLBACK[i%YR_FALLBACK.length];
+    var isCur=yr===cy.curStr;
+    var data=moLabels.map(function(_,li){
+      var m=yearMonths[yr][dfMoInt-1+li];
       return(m&&m.total>0)?parseFloat((m.cancelled/m.total*100).toFixed(2)):null;
     });
-    return{label:yr,data:data,borderColor:color,backgroundColor:"transparent",fill:false,
-      tension:0.35,pointRadius:3,pointBackgroundColor:color,borderWidth:2.5,spanGaps:false};
+    return{label:yr+(isCur?" ★":""),data:data,borderColor:color,backgroundColor:"transparent",fill:false,
+      tension:0.35,pointRadius:isCur?4:3,pointBackgroundColor:color,borderWidth:isCur?3:2,spanGaps:false};
   });
   charts.cohortYearTrend=new Chart(canvas,{type:"line",data:{labels:moLabels,datasets:datasets},options:{
     responsive:true,maintainAspectRatio:false,
     interaction:{mode:"index",intersect:false},
     plugins:{
       legend:{display:true,position:"top",labels:{font:{size:11},color:"#475569",boxWidth:14,padding:14}},
-      tooltip:{callbacks:{label:function(ctx){return" "+ctx.dataset.label+": "+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(1)+"% cancel rate":"—");}}}
+      tooltip:{callbacks:{label:function(ctx){return" "+ctx.dataset.label+": "+(ctx.parsed.y!=null?ctx.parsed.y.toFixed(1)+"%":"—");}}}
     },
     scales:{
       x:{ticks:{color:"#64748b",font:{size:11}},grid:{display:false}},
@@ -1620,8 +1642,12 @@ function renderCohortYoY(){
   var canvas=document.getElementById("cohortYoYChart");
   if(!canvas||!D)return;
   var r=getRange();
+  var cy=buildCohortYears(r);
+  var dfMo=cy.dfMo,dtMo=cy.dtMo,dtMoInt=parseInt(dtMo);
   var fDivV=typeof fDiv!=="undefined"?fDiv:"";
+  var yearSet=new Set(cy.years);
   var byYear={};
+  cy.years.forEach(function(yr){byYear[yr]={total:0,cancelled:0,end:new Date(parseInt(yr),dtMoInt,0).getTime()};});
   Object.keys(D.order_rows||{}).forEach(function(sku){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
@@ -1632,19 +1658,21 @@ function renderCohortYoY(){
       if(selP.size>0&&!selP.has(row[8]))return;
       if(fDivV&&row[15]!==fDivV)return;
       var d=row[2];if(!d||d.length<7)return;
-      var dateM=d.slice(0,7);if(dateM<r.df||dateM>r.dt)return;
-      var yr=d.slice(0,4);
-      // cutoff = Dec 31 of purchase year + window (same logic as Cohort KPI end-of-period)
-      if(!byYear[yr])byYear[yr]={total:0,cancelled:0,endMs:new Date(parseInt(yr),12,0).getTime()};
+      var yr=d.slice(0,4);if(!yearSet.has(yr))return;
+      var moStr=d.slice(5,7);if(moStr<dfMo||moStr>dtMo)return;
       byYear[yr].total++;
-      if(isInCohortWindow(row,cohortWindow,byYear[yr].endMs))byYear[yr].cancelled++;
+      if(isInCohortWindow(row,cohortWindow,byYear[yr].end))byYear[yr].cancelled++;
     });
   });
-  var years=Object.keys(byYear).sort();
-  var totals=years.map(function(yr){return byYear[yr].total;});
-  var rates=years.map(function(yr){var b=byYear[yr];return b.total>0?parseFloat((b.cancelled/b.total*100).toFixed(2)):null;});
-  charts.cohortYoY=new Chart(canvas,{type:"bar",data:{labels:years,datasets:[
-    {label:"Total Units",data:totals,backgroundColor:"rgba(124,58,237,0.75)",borderRadius:5,yAxisID:"y"},
+  var barColors=cy.years.map(function(yr,i){
+    var hex=YR_PALETTE[yr]||YR_FALLBACK[i%YR_FALLBACK.length];
+    return hex+(yr===cy.curStr?"":"bb"); // current year fully opaque, others slightly transparent
+  });
+  var labels=cy.years.map(function(yr){return yr+(yr===cy.curStr?" ★":"");});
+  var totals=cy.years.map(function(yr){return byYear[yr].total;});
+  var rates=cy.years.map(function(yr){var b=byYear[yr];return b.total>0?parseFloat((b.cancelled/b.total*100).toFixed(2)):null;});
+  charts.cohortYoY=new Chart(canvas,{type:"bar",data:{labels:labels,datasets:[
+    {label:"Total Units",data:totals,backgroundColor:barColors,borderRadius:5,yAxisID:"y"},
     {label:"Cancel Rate %",data:rates,type:"line",yAxisID:"y2",borderColor:"#ef4444",backgroundColor:"rgba(239,68,68,0.08)",fill:true,tension:0.35,pointRadius:4,pointBackgroundColor:"#ef4444",borderWidth:2.5}
   ]},options:{
     responsive:true,maintainAspectRatio:false,
