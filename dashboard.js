@@ -1158,15 +1158,6 @@ function renderCohort(){
     +'<div><div class="ct">Cohort Cancel Rate</div>'
     +'<div class="cs">Of orders purchased in the date range — '+windowNote+'</div></div>'
     +'<div style="display:flex;align-items:center;gap:8px">'
-    +'<label style="font-size:11px;color:#64748b;font-weight:600">Cancel Window</label>'
-    +'<select id="cohortWindowSel" style="font-size:12px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;background:#fff" onchange="cohortWindow=parseInt(this.value);renderCohort()">'
-    +'<option value="30"'+(win===30?' selected':'')+'>30 days</option>'
-    +'<option value="60"'+(win===60?' selected':'')+'>60 days</option>'
-    +'<option value="90"'+(win===90?' selected':'')+'>90 days</option>'
-    +'<option value="180"'+(win===180?' selected':'')+'>180 days</option>'
-    +'<option value="365"'+(win===365?' selected':'')+'>365 days</option>'
-    +'<option value="-1"'+(win===-1?' selected':'')+'>All time</option>'
-    +'</select>'
     +'<button onclick="downloadCohortCsv()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ Export CSV</button>'
     +'</div>'
     +'<div style="display:flex;align-items:center;gap:6px;margin-top:6px">'
@@ -1591,7 +1582,9 @@ function renderCohortYearTrend(){
       if(!yearMonths[yr])yearMonths[yr]={};
       if(!yearMonths[yr][mo])yearMonths[yr][mo]={total:0,cancelled:0};
       yearMonths[yr][mo].total++;
-      if(st==="Cancelled")yearMonths[yr][mo].cancelled++;
+      // use per-month cutoff: last day of that purchase month + window
+      var monthEndMs=new Date(parseInt(yr),mo+1,0).getTime();
+      if(isInCohortWindow(row,cohortWindow,monthEndMs))yearMonths[yr][mo].cancelled++;
     });
   });
   var years=Object.keys(yearMonths).sort();

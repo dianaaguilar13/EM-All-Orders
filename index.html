@@ -304,6 +304,7 @@ function pwCheck(){
   <div class="fg"><span class="fl">Division</span><select id="fDiv"><option value="">All Divisions</option><option>LT/LCC</option><option>HWB</option><option>B&amp;L</option><option>MYM</option><option>Other</option></select></div>
   <div class="fg"><span class="fl">Active Status</span><select id="fAct"><option value="">All</option><option>Active</option><option>Inactive</option></select></div>
   <div class="fg"><span class="fl">CNCL Status</span><select id="fCncl"><option value="">All</option><option>Sale</option><option>Cancelled</option><option>Entry Error</option><option>Upgrade</option><option>Downgrade</option><option>Switch</option><option>Pend</option><option>No Pmt</option></select></div>
+  <div class="fg" id="cohortWindowFg" style="display:none"><span class="fl">Cancel Window</span><select id="cohortWindowFilt" onchange="cohortWindow=parseInt(this.value);if(typeof renderCohortPanel==='function')renderCohortPanel()"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option><option value="-1" selected>All time</option></select></div>
 </div>
 <div id="mainContent"><div class="loading"><div class="spinner"></div><div>Loading dashboard...</div></div></div>
 <script src="dashboard.js?v=1790000027"></script>
@@ -572,6 +573,7 @@ function showCohortTab(){
   hideAllPanels();
   document.getElementById("cohort-panel").style.display="block";
   document.querySelector(".filters").style.display="flex";
+  document.getElementById("cohortWindowFg").style.display="";
   document.getElementById("ldp-tab-btn").style.display="inline";
   document.getElementById("pif-tab-btn").style.display="inline";
   document.getElementById("cr-tab-btn").style.display="inline";
@@ -582,6 +584,7 @@ function showCancelTab(){
   hideAllPanels();
   document.getElementById("mainContent").style.display="block";
   document.querySelector(".filters").style.display="flex";
+  document.getElementById("cohortWindowFg").style.display="none";
   document.getElementById("ldp-tab-btn").style.display="inline";
   document.getElementById("pif-tab-btn").style.display="inline";
   document.getElementById("cr-tab-btn").style.display="inline";
