@@ -571,7 +571,11 @@ function showCrTab(){
 function showCohortTab(){
   hideAllPanels();
   document.getElementById("cohort-panel").style.display="block";
-  document.getElementById("cancel-tab-btn").style.display="inline";
+  document.querySelector(".filters").style.display="flex";
+  document.getElementById("ldp-tab-btn").style.display="inline";
+  document.getElementById("pif-tab-btn").style.display="inline";
+  document.getElementById("cr-tab-btn").style.display="inline";
+  document.getElementById("cancel-tab-btn").style.display="none";
   if(typeof renderCohortPanel==="function")renderCohortPanel();
 }
 function showCancelTab(){
