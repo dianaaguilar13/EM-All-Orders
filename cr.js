@@ -1,4 +1,14 @@
 
+function crResStage(d){
+  if(d==null) return '<span style="color:#94a3b8">—</span>';
+  var label,color;
+  if(d<1){label="1.) Current";color="#16a34a";}
+  else if(d<=6){label="2.) Overdue &lt;6 days";color="#ca8a04";}
+  else if(d<=12){label="3.) Overdue &lt;12 days";color="#f97316";}
+  else{label="4.) Overdue &ge;18 days";color="#dc2626";}
+  return'<span style="font-size:9px;font-weight:600;color:'+color+';white-space:nowrap">'+label+'</span>';
+}
+
 function crBuildDistBars(dist){
   dist=dist||{};
   if(!Object.keys(dist).length)return'<div style="color:#64748b;font-size:12px">No distribution data</div>';
@@ -621,6 +631,7 @@ function crRenderCasesTable(){
       "<td style='font-size:10px;color:#475569'>"+row.status+"</td>"+
       "<td style='font-size:10px;color:#475569'>"+row.procedure+"</td>"+
       (row.res_days!=null?"<td class='num' style='font-size:11px;font-weight:700;color:"+(row.res_days<=7?"#16a34a":row.res_days<=14?"#d97706":"#dc2626")+"'>"+row.res_days+"d</td>":"<td style='color:#64748b'>-</td>")+
+      "<td>"+crResStage(row.res_days)+"</td>"+
       "<td class='num' style='color:#dc2626'>"+crFmt$(row.rev_loss)+"</td>"+
       "<td class='num' style='color:#16a34a'>"+crFmt$(row.rev_saved)+"</td>"+
       "<td style='font-size:10px;color:#475569'>"+row.assignee+"</td>"+
