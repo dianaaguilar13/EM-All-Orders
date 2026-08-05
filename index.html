@@ -906,17 +906,23 @@ function hideAllPanels(){
 
     <!-- SKU Summary Table -->
     <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
-      <div style="font-weight:600;color:#0d9488;margin-bottom:12px">Balance by Program (SKU)</div>
-      <div style="overflow-x:auto" id="ar2-sku-table"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-weight:600;color:#0d9488">Balance by Program (SKU)</div>
+        <button onclick="ar2ToggleSection('ar2-sku-body','ar2-sku-toggle')" id="ar2-sku-toggle" style="background:none;border:1px solid #99f6e4;color:#0d9488;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">▲ Collapse</button>
+      </div>
+      <div id="ar2-sku-body"><div style="overflow-x:auto" id="ar2-sku-table"></div></div>
     </div>
 
     <!-- Detail Table -->
     <div style="padding:16px 24px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div style="font-weight:600;color:#0d9488">Full Order Detail</div>
-        <span id="ar2-detail-lbl" style="font-size:12px;color:#64748b"></span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span id="ar2-detail-lbl" style="font-size:12px;color:#64748b"></span>
+          <button onclick="ar2ToggleSection('ar2-detail-body','ar2-detail-toggle')" id="ar2-detail-toggle" style="background:none;border:1px solid #99f6e4;color:#0d9488;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">▲ Collapse</button>
+        </div>
       </div>
-      <div style="overflow-x:auto;max-height:520px;overflow-y:auto" id="ar2-detail-table"></div>
+      <div id="ar2-detail-body"><div style="overflow-x:auto;max-height:520px;overflow-y:auto" id="ar2-detail-table"></div></div>
     </div>
 
   </div><!-- /ar2-main -->
@@ -948,6 +954,6 @@ function showAr2Tab(){
 </script>
 
 <script src="ar.js?v=1778712227"></script>
-<script src="ar2.js?v=1780000012"></script>
+<script src="ar2.js?v=1780000013"></script>
 </body>
 </html>

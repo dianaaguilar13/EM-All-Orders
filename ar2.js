@@ -393,6 +393,15 @@ function ar2ToggleTrendTable(btn){
   }
 }
 
+function ar2ToggleSection(bodyId, btnId){
+  var body = document.getElementById(bodyId);
+  var btn  = document.getElementById(btnId);
+  if(!body) return;
+  var collapsed = body.style.display === "none";
+  body.style.display = collapsed ? "" : "none";
+  if(btn) btn.textContent = collapsed ? "▲ Collapse" : "▼ Expand";
+}
+
 function ar2ToggleTrendSort(){
   ar2TrendSortAsc = !ar2TrendSortAsc;
   if(AR2 && AR2.trend_v2) ar2RenderTrendTable(AR2.trend_v2);
@@ -748,10 +757,9 @@ function ar2RenderSkuTable(rows){
     return asc?av-bv:bv-av;
   });
   var maxBal = data.length ? Math.max.apply(null,data.map(function(s){return s.bal;})) : 1;
-  var hasSkc = data.some(function(s){return s.skc;});
   var cols = [
     {k:"sku",  label:"Program Name",    right:false},
-    {k:"skc",  label:"Program (SKU)",   right:false, hidden:!hasSkc},
+    {k:"skc",  label:"Program (SKU)",   right:false},
     {k:"n",    label:"Orders",          right:true},
     {k:"inv",  label:"Gross",           right:true},
     {k:"paid", label:"Paid",            right:true},
@@ -779,7 +787,7 @@ function ar2RenderSkuTable(rows){
     var bg = i%2===0?"#ffffff":"#f0fdfa";
     html += "<tr style='border-bottom:1px solid #f1f5f9;background:"+bg+"'>"+
       "<td style='padding:9px 10px;font-weight:600;color:#0d9488'>"+s.sku+"</td>"+
-      (hasSkc?"<td style='padding:9px 10px;color:#64748b;font-size:11px'>"+s.skc+"</td>":"")+
+      "<td style='padding:9px 10px;color:#64748b;font-size:11px'>"+(s.skc||"—")+"</td>"+
       "<td style='padding:9px 10px;text-align:right'>"+s.n+"</td>"+
       "<td style='padding:9px 10px;text-align:right'>"+ar2D(s.inv)+"</td>"+
       "<td style='padding:9px 10px;text-align:right;color:#16a34a'>"+ar2D(s.paid)+"</td>"+
