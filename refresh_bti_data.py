@@ -1543,47 +1543,50 @@ def fetch_ar_invoices(conn):
     print("⏳ Fetching AR invoices from DIM_AR_ALL_INVOICES...")
     sql = """
         SELECT
-            "KEY"                         AS ar_key,
-            "ID"                          AS ar_id,
-            "ORDERID"                     AS order_id,
-            "CONTACTID"                   AS contact_id,
-            "EMAIL"                       AS email,
-            "NAME"                        AS client_name,
-            "DATE"                        AS ar_date,
-            "PRODUCTNAME"                 AS product_name,
-            "DIVISION"                    AS division,
-            "REFERRALPARTNERCATEGORY"     AS pcat,
-            "REFERRALPARTNER"             AS partner,
-            "JOBTITLE"                    AS job_title,
-            "INV"                         AS inv,
-            "PAYMENT"                     AS payment,
-            "CREDIT"                      AS credit,
-            "REFUND"                      AS refund,
-            "BALANCE"                     AS balance,
-            "0-30"                        AS b0_30,
-            "31-60"                       AS b31_60,
-            "61-90"                       AS b61_90,
-            "90+"                         AS b90p,
-            "total arrears"               AS total_arrears,
-            "current"                     AS current_bal,
-            "DAYSDELAY"                   AS days_delay,
-            "LASTPAYMENTDATE"             AS last_pmt_date,
-            "LASTPAYMENTTYPE"             AS last_pmt_type,
-            "LASTPAYMENTAMOUNT"           AS last_pmt_amt,
-            "LAST_SCHEDULED_PAYMENT_DATE" AS last_sched_pmt,
-            "PASTDUEISSUE"                AS past_due_issue,
-            "CLIENT_RESOLUTION_STATUS"    AS crs_status,
-            "1STATTEMPT"                  AS att1,
-            "1STATTEMPTDATE"              AS att1_date,
-            "2NDATTEMPT"                  AS att2,
-            "2NDATTEMPTDATE"              AS att2_date,
-            "3RDATTEMPT"                  AS att3,
-            "3RDATTEMPTDATE"              AS att3_date
-        FROM ANALYTICS.MART.DIM_AR_ALL_INVOICES
-        WHERE "BALANCE" > 0
-          AND LOWER(COALESCE("NAME", '')) NOT LIKE '%test%'
-          AND COALESCE("LASTPAYMENTAMOUNT", 0) > 0
-        ORDER BY "BALANCE" DESC NULLS LAST
+            ar."KEY"                         AS ar_key,
+            ar."ID"                          AS ar_id,
+            ar."ORDERID"                     AS order_id,
+            ar."CONTACTID"                   AS contact_id,
+            ar."EMAIL"                       AS email,
+            ar."NAME"                        AS client_name,
+            ar."DATE"                        AS ar_date,
+            ar."PRODUCTNAME"                 AS product_name,
+            COALESCE(o.SKU, '')              AS sku_code,
+            COALESCE(o.CREDIT_STATUS, '')   AS order_credit_status,
+            ar."DIVISION"                    AS division,
+            ar."REFERRALPARTNERCATEGORY"     AS pcat,
+            ar."REFERRALPARTNER"             AS partner,
+            ar."JOBTITLE"                    AS job_title,
+            ar."INV"                         AS inv,
+            ar."PAYMENT"                     AS payment,
+            ar."CREDIT"                      AS credit,
+            ar."REFUND"                      AS refund,
+            ar."BALANCE"                     AS balance,
+            ar."0-30"                        AS b0_30,
+            ar."31-60"                       AS b31_60,
+            ar."61-90"                       AS b61_90,
+            ar."90+"                         AS b90p,
+            ar."total arrears"               AS total_arrears,
+            ar."current"                     AS current_bal,
+            ar."DAYSDELAY"                   AS days_delay,
+            ar."LASTPAYMENTDATE"             AS last_pmt_date,
+            ar."LASTPAYMENTTYPE"             AS last_pmt_type,
+            ar."LASTPAYMENTAMOUNT"           AS last_pmt_amt,
+            ar."LAST_SCHEDULED_PAYMENT_DATE" AS last_sched_pmt,
+            ar."PASTDUEISSUE"                AS past_due_issue,
+            ar."CLIENT_RESOLUTION_STATUS"    AS crs_status,
+            ar."1STATTEMPT"                  AS att1,
+            ar."1STATTEMPTDATE"              AS att1_date,
+            ar."2NDATTEMPT"                  AS att2,
+            ar."2NDATTEMPTDATE"              AS att2_date,
+            ar."3RDATTEMPT"                  AS att3,
+            ar."3RDATTEMPTDATE"              AS att3_date
+        FROM ANALYTICS.MART.DIM_AR_ALL_INVOICES ar
+        LEFT JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON ar."ORDERID" = o.ID
+        WHERE ar."BALANCE" > 0
+          AND LOWER(COALESCE(ar."NAME", '')) NOT LIKE '%test%'
+          AND COALESCE(ar."LASTPAYMENTAMOUNT", 0) > 0
+        ORDER BY ar."BALANCE" DESC NULLS LAST
     """
     cur = conn.cursor()
     cur.execute(sql)
@@ -2023,8 +2026,8 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
         try: return int(float(str(v) or 0))
         except: return 0
 
-    def get_v2_status(credit):
-        c = (credit or "").lower().strip()
+    def get_v2_status(order_credit_status):
+        c = (order_credit_status or "").lower().strip()
         if "cncl" in c or "lrev" in c or "cancelled" in c: return "Cancelled"
         return "Active"
 
@@ -2057,11 +2060,11 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
         b31_60  = cm(r.get("b31_60",""))
         b61_90  = cm(r.get("b61_90",""))
         b90p    = cm(r.get("b90p",""))
-        credit  = str(r.get("credit","") or "")
-        status  = get_v2_status(credit)
+        status  = get_v2_status(r.get("order_credit_status",""))
         dd      = ci(r.get("days_delay",""))
         bucket  = get_v2_bucket(dd, status)
         sku     = str(r.get("product_name","") or "Unknown").strip()
+        skc     = str(r.get("sku_code","") or "").strip()
         pcat    = str(r.get("pcat","") or "Unknown").strip()
         div_    = str(r.get("division","") or "Other").strip()
         part    = str(r.get("partner","") or "").strip()
@@ -2078,6 +2081,7 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
             "cid":  str(r.get("contact_id","") or ""),
             "name": str(r.get("client_name","")or ""),
             "sku":  sku,
+            "skc":  skc,
             "date": str(r.get("ar_date","")    or "")[:10],
             "div":  div_,
             "pcat": pcat,
