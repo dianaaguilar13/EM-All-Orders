@@ -2035,8 +2035,10 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
         if status == "Cancelled": return "Cancelled"
         try: dd = int(float(str(days_delay) or 0))
         except: dd = 0
-        if dd <= 0:   return "Current"
-        if dd <= 30:  return "0-30d"
+        if dd <= 6:   return "Current"
+        if dd <= 12:  return "7-12d"
+        if dd <= 18:  return "13-18d"
+        if dd <= 30:  return "19-30d"
         if dd <= 60:  return "31-60d"
         if dd <= 90:  return "61-90d"
         if dd <= 180: return "91-180d"

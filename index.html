@@ -829,8 +829,10 @@ function hideAllPanels(){
     <div><div style="font-size:10px;font-weight:600;color:#0f766e;text-transform:uppercase;margin-bottom:4px">AGING BUCKET</div>
       <select id="ar2-bucket" style="border:1px solid #99f6e4;border-radius:6px;padding:5px 8px;font-size:12px;background:#fff">
         <option value="">All Buckets</option>
-        <option value="Current">Current (not overdue)</option>
-        <option value="0-30d">0–30 days</option>
+        <option value="Current">Current (0–6 days)</option>
+        <option value="7-12d">7–12 days</option>
+        <option value="13-18d">13–18 days</option>
+        <option value="19-30d">19–30 days</option>
         <option value="31-60d">31–60 days</option>
         <option value="61-90d">61–90 days</option>
         <option value="91-180d">91–180 days</option>
@@ -958,6 +960,6 @@ function showAr2Tab(){
 </script>
 
 <script src="ar.js?v=1778712227"></script>
-<script src="ar2.js?v=1780000014"></script>
+<script src="ar2.js?v=1780000015"></script>
 </body>
 </html>

@@ -597,21 +597,21 @@ function ar2RenderQfyChart(){
 
 // ── Aging chart (pre-calculated $ buckets from Snowflake) ────────────────────
 function ar2RenderAgingChart(rows){
-  var buckets = ["Current","0-30d","31-60d","61-90d","91-180d","180d+","Cancelled"];
-  var colors  = ["#16a34a","#84cc16","#f59e0b","#f97316","#ef4444","#dc2626","#6b7280"];
-  // Use pre-calculated bucket columns for the "real" aging
-  var curBal  = rows.reduce(function(s,r){return s+r.cur;},0);
-  var b0      = rows.reduce(function(s,r){return s+r.b0;},0);
-  var b31     = rows.reduce(function(s,r){return s+r.b31;},0);
-  var b61     = rows.reduce(function(s,r){return s+r.b61;},0);
-  // 91-180d and 180d+ approximated from b90 split by DAYSDELAY
+  var buckets = ["Current","7-12d","13-18d","19-30d","31-60d","61-90d","91-180d","180d+","Cancelled"];
+  var colors  = ["#16a34a","#65a30d","#ca8a04","#f59e0b","#f97316","#ef4444","#dc2626","#991b1b","#6b7280"];
+  // Split b0 (0-30d Snowflake column) into sub-buckets using DAYSDELAY
+  var bCur   = rows.reduce(function(s,r){return s+(r.dd<=6 ?r.b0:0);},0);
+  var b7_12  = rows.reduce(function(s,r){return s+(r.dd>=7 &&r.dd<=12?r.b0:0);},0);
+  var b13_18 = rows.reduce(function(s,r){return s+(r.dd>=13&&r.dd<=18?r.b0:0);},0);
+  var b19_30 = rows.reduce(function(s,r){return s+(r.dd>=19&&r.dd<=30?r.b0:0);},0);
+  var b31    = rows.reduce(function(s,r){return s+r.b31;},0);
+  var b61    = rows.reduce(function(s,r){return s+r.b61;},0);
   var b91_180 = rows.reduce(function(s,r){return s+(r.dd>90&&r.dd<=180?r.b90:0);},0);
   var b180p   = rows.reduce(function(s,r){return s+(r.dd>180?r.b90:0);},0);
-  // For orders where b90 exists but no dd info, put in 91-180d
   var b90_unclassified = rows.reduce(function(s,r){return s+(r.b90>0&&r.dd<=90?r.b90:0);},0);
   b91_180 += b90_unclassified;
   var cnclBal = rows.filter(function(r){return r.status==="Cancelled";}).reduce(function(s,r){return s+r.bal;},0);
-  var vals = [curBal, b0, b31, b61, b91_180, b180p, cnclBal];
+  var vals = [bCur, b7_12, b13_18, b19_30, b31, b61, b91_180, b180p, cnclBal];
   var counts = {};
   buckets.forEach(function(b){counts[b]=0;});
   rows.forEach(function(r){ if(counts[r.bucket]!==undefined) counts[r.bucket]++; });
@@ -839,10 +839,10 @@ var ar2DetailCols = [
 ];
 function ar2RenderDetailTable(rows){
   var bucketColors = {
-    "Current":"#16a34a","0-30d":"#84cc16","31-60d":"#f59e0b",
-    "61-90d":"#f97316","91-180d":"#ef4444","180d+":"#dc2626","Cancelled":"#6b7280"
+    "Current":"#16a34a","7-12d":"#65a30d","13-18d":"#ca8a04","19-30d":"#f59e0b",
+    "31-60d":"#f97316","61-90d":"#ef4444","91-180d":"#dc2626","180d+":"#991b1b","Cancelled":"#6b7280"
   };
-  var bucketOrder = {"Current":0,"0-30d":1,"31-60d":2,"61-90d":3,"91-180d":4,"180d+":5,"Cancelled":6};
+  var bucketOrder = {"Current":0,"7-12d":1,"13-18d":2,"19-30d":3,"31-60d":4,"61-90d":5,"91-180d":6,"180d+":7,"Cancelled":8};
   var col=ar2DetailSort.col, asc=ar2DetailSort.asc;
   var data = rows.slice().map(function(r){
     return Object.assign({atts:[r.a1?'1st':'',r.a2?'2nd':'',r.a3?'3rd':''].filter(Boolean).length},r);
