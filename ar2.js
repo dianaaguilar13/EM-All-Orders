@@ -728,30 +728,58 @@ function ar2RenderAttemptsChart(rows){
 }
 
 // ── SKU Summary Table ─────────────────────────────────────────────────────────
+var ar2SkuSort = {col:"bal", asc:false};
 function ar2RenderSkuTable(rows){
   var map = {};
   rows.forEach(function(r){
-    if(!map[r.sku]) map[r.sku]={sku:r.sku, n:0, inv:0, paid:0, bal:0, arr:0, cur:0, active:0, cancelled:0, dd_sum:0, dd_n:0};
+    if(!map[r.sku]) map[r.sku]={sku:r.sku, skc:r.skc||"", n:0, inv:0, paid:0, bal:0, arr:0, cur:0, active:0, cancelled:0, dd_sum:0, dd_n:0};
     var s=map[r.sku];
     s.n++; s.inv+=r.inv; s.paid+=r.paid; s.bal+=r.bal; s.arr+=r.arr; s.cur+=r.cur;
     if(r.status==="Active") s.active++; else s.cancelled++;
     if(r.dd>0){s.dd_sum+=r.dd; s.dd_n++;}
   });
-  var sorted = Object.values(map).sort(function(a,b){return b.bal-a.bal;});
-  var maxBal = sorted.length ? sorted[0].bal : 1;
+  var data = Object.values(map).map(function(s){
+    return Object.assign(s,{pct:s.inv>0?s.paid/s.inv*100:0, avgDd:s.dd_n>0?Math.round(s.dd_sum/s.dd_n):0});
+  });
+  var col=ar2SkuSort.col, asc=ar2SkuSort.asc;
+  data.sort(function(a,b){
+    var av=col==="sku"?a.sku:(col==="skc"?a.skc:a[col]), bv=col==="sku"?b.sku:(col==="skc"?b.skc:b[col]);
+    if(typeof av==="string") return asc?av.localeCompare(bv):bv.localeCompare(av);
+    return asc?av-bv:bv-av;
+  });
+  var maxBal = data.length ? Math.max.apply(null,data.map(function(s){return s.bal;})) : 1;
+  var hasSkc = data.some(function(s){return s.skc;});
+  var cols = [
+    {k:"sku",  label:"Program Name",    right:false},
+    {k:"skc",  label:"Program (SKU)",   right:false, hidden:!hasSkc},
+    {k:"n",    label:"Orders",          right:true},
+    {k:"inv",  label:"Gross",           right:true},
+    {k:"paid", label:"Paid",            right:true},
+    {k:"bal",  label:"Balance",         right:true},
+    {k:"arr",  label:"Arrears",         right:true},
+    {k:"cur",  label:"Current",         right:true},
+    {k:"pct",  label:"Collected %",     right:true},
+    {k:"avgDd",label:"Avg Days Delay",  right:true},
+    {k:"active",   label:"Active",      right:true},
+    {k:"cancelled",label:"Cancelled",   right:true},
+  ].filter(function(c){return !c.hidden;});
+  var thStyle = function(c){
+    return "padding:9px 10px;text-align:"+(c.right?"right":"left")+";color:#0f766e;font-weight:600;font-size:10px;"+
+           "text-transform:uppercase;white-space:nowrap;cursor:pointer;user-select:none";
+  };
+  var arrow = function(k){ return ar2SkuSort.col===k?(ar2SkuSort.asc?" ▲":" ▼"):""; };
   var html = "<table style='width:100%;border-collapse:collapse;font-size:12px'>"+
     "<thead><tr style='background:#f0fdfa;border-bottom:2px solid #99f6e4'>"+
-    ["Program","Orders","Gross","Paid","Balance","Arrears","Current","Collected %","Avg Days Delay","Active","Cancelled"].map(function(h){
-      return "<th style='padding:9px 10px;text-align:"+(["Orders","Gross","Paid","Balance","Arrears","Current","Collected %","Avg Days Delay","Active","Cancelled"].includes(h)?"right":"left")+";color:#0f766e;font-weight:600;font-size:10px;text-transform:uppercase;white-space:nowrap'>"+h+"</th>";
+    cols.map(function(c){
+      return "<th style='"+thStyle(c)+"' onclick='ar2SortSkuTable(\""+c.k+"\")'>"+c.label+arrow(c.k)+"</th>";
     }).join("")+
     "</tr></thead><tbody>";
-  sorted.forEach(function(s,i){
-    var pct = s.inv > 0 ? s.paid/s.inv*100 : 0;
+  data.forEach(function(s,i){
     var arrPct = s.bal > 0 ? s.arr/s.bal*100 : 0;
-    var avgDd = s.dd_n > 0 ? Math.round(s.dd_sum/s.dd_n) : 0;
     var bg = i%2===0?"#ffffff":"#f0fdfa";
     html += "<tr style='border-bottom:1px solid #f1f5f9;background:"+bg+"'>"+
       "<td style='padding:9px 10px;font-weight:600;color:#0d9488'>"+s.sku+"</td>"+
+      (hasSkc?"<td style='padding:9px 10px;color:#64748b;font-size:11px'>"+s.skc+"</td>":"")+
       "<td style='padding:9px 10px;text-align:right'>"+s.n+"</td>"+
       "<td style='padding:9px 10px;text-align:right'>"+ar2D(s.inv)+"</td>"+
       "<td style='padding:9px 10px;text-align:right;color:#16a34a'>"+ar2D(s.paid)+"</td>"+
@@ -761,9 +789,9 @@ function ar2RenderSkuTable(rows){
       "<td style='padding:9px 10px;text-align:right;color:#ef4444'>"+ar2D(s.arr)+
         "<div style='font-size:10px;color:#94a3b8'>"+arrPct.toFixed(0)+"% of bal</div></td>"+
       "<td style='padding:9px 10px;text-align:right;color:#16a34a'>"+ar2D(s.cur)+"</td>"+
-      "<td style='padding:9px 10px;text-align:right'><span style='color:"+(pct>=70?"#16a34a":pct>=40?"#f59e0b":"#ef4444")+"'>"+ar2Pct(pct)+"</span></td>"+
-      "<td style='padding:9px 10px;text-align:right;color:"+(avgDd>90?"#ef4444":avgDd>30?"#f59e0b":"#64748b")+"'>"+
-        (avgDd>0?avgDd+"d":"—")+"</td>"+
+      "<td style='padding:9px 10px;text-align:right'><span style='color:"+(s.pct>=70?"#16a34a":s.pct>=40?"#f59e0b":"#ef4444")+"'>"+ar2Pct(s.pct)+"</span></td>"+
+      "<td style='padding:9px 10px;text-align:right;color:"+(s.avgDd>90?"#ef4444":s.avgDd>30?"#f59e0b":"#64748b")+"'>"+
+        (s.avgDd>0?s.avgDd+"d":"—")+"</td>"+
       "<td style='padding:9px 10px;text-align:right;color:#7c3aed'>"+s.active+"</td>"+
       "<td style='padding:9px 10px;text-align:right;color:#ef4444'>"+s.cancelled+"</td>"+
       "</tr>";
@@ -771,24 +799,61 @@ function ar2RenderSkuTable(rows){
   html += "</tbody></table>";
   document.getElementById("ar2-sku-table").innerHTML = html;
 }
+function ar2SortSkuTable(col){
+  if(ar2SkuSort.col===col) ar2SkuSort.asc=!ar2SkuSort.asc;
+  else{ar2SkuSort.col=col; ar2SkuSort.asc=(col==="sku"||col==="skc");}
+  ar2RenderSkuTable(ar2GetFiltered());
+}
 
 // ── Detail Table ──────────────────────────────────────────────────────────────
+var ar2DetailSort = {col:"bal", asc:false};
+var ar2DetailCols = [
+  {k:"oid",   label:"Order ID",    right:false},
+  {k:"name",  label:"Name",        right:false},
+  {k:"sku",   label:"Program",     right:false},
+  {k:"date",  label:"Date",        right:false},
+  {k:"div",   label:"Div",         right:false},
+  {k:"pcat",  label:"Partner Cat", right:false},
+  {k:"inv",   label:"Gross",       right:true},
+  {k:"paid",  label:"Paid",        right:true},
+  {k:"bal",   label:"Balance",     right:true},
+  {k:"arr",   label:"Arrears",     right:true},
+  {k:"cur",   label:"Current",     right:true},
+  {k:"cpct",  label:"Collected %", right:true},
+  {k:"dd",    label:"Days Delay",  right:true},
+  {k:"bucket",label:"Aging",       right:false},
+  {k:"status",label:"Status",      right:false},
+  {k:"crs",   label:"CRS",         right:false},
+  {k:"pdi",   label:"PDI",         right:false},
+  {k:"lpd",   label:"Last Pmt",    right:false},
+  {k:"lspd",  label:"Next Sched",  right:false},
+  {k:"atts",  label:"Attempts",    right:false},
+];
 function ar2RenderDetailTable(rows){
-  var sorted = rows.slice().sort(function(a,b){return b.bal-a.bal;});
-  var shown  = sorted.slice(0, 250);
   var bucketColors = {
     "Current":"#16a34a","0-30d":"#84cc16","31-60d":"#f59e0b",
     "61-90d":"#f97316","91-180d":"#ef4444","180d+":"#dc2626","Cancelled":"#6b7280"
   };
-  var headers = ["Order ID","Name","Program","Date","Div","Partner Cat",
-                 "Gross","Paid","Balance","Arrears","Current","Collected %",
-                 "Days Delay","Aging","Status","CRS","PDI","Last Pmt","Next Sched","Attempts"];
-  var rightAlign = ["Gross","Paid","Balance","Arrears","Current","Collected %","Days Delay"];
-
+  var bucketOrder = {"Current":0,"0-30d":1,"31-60d":2,"61-90d":3,"91-180d":4,"180d+":5,"Cancelled":6};
+  var col=ar2DetailSort.col, asc=ar2DetailSort.asc;
+  var data = rows.slice().map(function(r){
+    return Object.assign({atts:[r.a1?'1st':'',r.a2?'2nd':'',r.a3?'3rd':''].filter(Boolean).length},r);
+  });
+  data.sort(function(a,b){
+    var av, bv;
+    if(col==="bucket"){av=bucketOrder[a.bucket]||99; bv=bucketOrder[b.bucket]||99;}
+    else if(col==="pdi"){av=a.pdi?1:0; bv=b.pdi?1:0;}
+    else if(col==="atts"){av=a.atts; bv=b.atts;}
+    else{av=a[col]; bv=b[col];}
+    if(typeof av==="string") return asc?av.localeCompare(bv):bv.localeCompare(av);
+    return asc?av-bv:bv-av;
+  });
+  var shown = data.slice(0, 250);
+  var arrow = function(k){return ar2DetailSort.col===k?(ar2DetailSort.asc?" ▲":" ▼"):"";};
   var html = "<table style='width:100%;border-collapse:collapse;font-size:11px'>"+
     "<thead><tr style='background:#f0fdfa;border-bottom:2px solid #99f6e4'>"+
-    headers.map(function(h){
-      return "<th style='padding:7px 9px;text-align:"+(rightAlign.includes(h)?"right":"left")+";color:#0f766e;font-weight:600;font-size:10px;text-transform:uppercase;white-space:nowrap'>"+h+"</th>";
+    ar2DetailCols.map(function(c){
+      return "<th style='padding:7px 9px;text-align:"+(c.right?"right":"left")+";color:#0f766e;font-weight:600;font-size:10px;text-transform:uppercase;white-space:nowrap;cursor:pointer;user-select:none' onclick='ar2SortDetailTable(\""+c.k+"\")'>"+c.label+arrow(c.k)+"</th>";
     }).join("")+
     "</tr></thead><tbody>";
 
@@ -825,12 +890,17 @@ function ar2RenderDetailTable(rows){
       "</tr>";
   });
   html += "</tbody></table>";
-  if(sorted.length > 250){
+  if(data.length > 250){
     html += "<div style='padding:10px 12px;color:#64748b;font-size:11px'>Showing top 250 of "+
-             sorted.length+" records — download CSV for full list</div>";
+             data.length+" records — download CSV for full list</div>";
   }
   document.getElementById("ar2-detail-table").innerHTML = html;
-  document.getElementById("ar2-detail-lbl").textContent = shown.length+" of "+sorted.length+" orders";
+  document.getElementById("ar2-detail-lbl").textContent = shown.length+" of "+data.length+" orders";
+}
+function ar2SortDetailTable(col){
+  if(ar2DetailSort.col===col) ar2DetailSort.asc=!ar2DetailSort.asc;
+  else{ar2DetailSort.col=col; ar2DetailSort.asc=(["oid","name","sku","date","div","pcat","bucket","status","crs","lpd","lspd"].indexOf(col)>=0);}
+  ar2RenderDetailTable(ar2GetFiltered());
 }
 
 // ── CSV Download ──────────────────────────────────────────────────────────────
