@@ -4,6 +4,7 @@ var AR2 = null;
 var ar2SelSku = new Set();
 var ar2Charts = {};
 var ar2KpiRows = [];
+var ar2TrendSortAsc = true; // default: oldest → newest
 
 // ── Filter readers ────────────────────────────────────────────────────────────
 function ar2Pcat()   { return document.getElementById("ar2-pcat").value; }
@@ -128,8 +129,7 @@ function ar2Render(){
     kpi2Card("k3","Cancelled Balance",    ar2D(cncl_bal),   "on cancelled orders","font-size:18px;color:#ef4444")+
     kpi2Card("k8","Past Due Issues",      pdi_count.toLocaleString(), "flagged accounts");
 
-  // Comparison banner
-  ar2RenderComparison(total_bal);
+  // Comparison banner removed
 
   // Charts
   ar2RenderTrendChart();
@@ -254,7 +254,7 @@ function ar2RenderTrendTable(data){
   var fmtP = function(v){ return v != null ? v.toFixed(2)+"%" : "—"; };
   var fmtD = function(s){ var p=s.split('-'); return p.length===3 ? (p[1].replace(/^0/,'')+'/'+p[2].replace(/^0/,'')+'/'+p[0]) : s; };
 
-  var rows = data.slice().reverse(); // newest first
+  var rows = ar2TrendSortAsc ? data.slice() : data.slice().reverse();
 
   // ── Current in-progress week row (gray) — only if not already in completed data ──
   var cwRow = "";
@@ -349,6 +349,10 @@ function ar2RenderTrendTable(data){
   var kpiDefault = (cw && cw.week_fri && !cwAlreadyInRows) ? 1 : 0;
   if(kpiWrap){ kpiWrap.style.display = "block"; kpiWrap.innerHTML = ar2BuildKpiHtml(ar2KpiRows, kpiDefault); }
   var th = function(label, align){ return "<th style='text-align:"+(align||"right")+";padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap'>"+label+"</th>"; };
+  var sortArrow = ar2TrendSortAsc ? " ▲" : " ▼";
+  var thWeek = "<th style='text-align:left;padding:6px 8px;border-bottom:1px solid #dde3ea;font-weight:600;color:#0d9488;white-space:nowrap;cursor:pointer;user-select:none' onclick='ar2ToggleTrendSort()' title='Click to sort'>Week (Friday)"+sortArrow+"</th>";
+  // In ascending order the in-progress current week row goes at the bottom; descending at the top
+  var tbodyHtml = ar2TrendSortAsc ? (tbody + cwRow) : (cwRow + tbody);
   wrap.innerHTML =
     "<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px'>" +
       "<span style='font-size:12px;font-weight:600;color:#0d9488;cursor:pointer' onclick='ar2ToggleTrendTable(this)'>▼ Weekly Data Table (" + rows.length + " weeks)</span>" +
@@ -357,7 +361,7 @@ function ar2RenderTrendTable(data){
     "<div id='ar2-trend-tbl-body' style='overflow-x:auto'>" +
       "<table style='width:100%;border-collapse:collapse;font-size:12px;min-width:900px'>" +
         "<thead><tr style='background:#f1faf9;position:sticky;top:0'>" +
-          th("Week (Friday)","left") +
+          thWeek +
           th("Total AR Balance") +
           th("Overdue Balance") +
           th("% Overdue") +
@@ -372,7 +376,7 @@ function ar2RenderTrendTable(data){
           th("Quarter","center") +
           th("Fiscal Year","center") +
         "</tr></thead>" +
-        "<tbody>" + cwRow + tbody + "</tbody>" +
+        "<tbody>" + tbodyHtml + "</tbody>" +
       "</table>" +
     "</div>";
 }
@@ -387,6 +391,11 @@ function ar2ToggleTrendTable(btn){
     body.style.display = "none";
     btn.textContent = btn.textContent.replace("▼","▶");
   }
+}
+
+function ar2ToggleTrendSort(){
+  ar2TrendSortAsc = !ar2TrendSortAsc;
+  if(AR2 && AR2.trend_v2) ar2RenderTrendTable(AR2.trend_v2);
 }
 
 function ar2SelectKpiWeek(idx){
