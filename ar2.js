@@ -912,6 +912,29 @@ function ar2SortDetailTable(col){
 }
 
 // ── CSV Download ──────────────────────────────────────────────────────────────
+function ar2DownloadSkuCsv(){
+  var rows = ar2GetFiltered();
+  var map = {};
+  rows.forEach(function(r){
+    if(!map[r.sku]) map[r.sku]={sku:r.sku,skc:r.skc||"",n:0,inv:0,paid:0,bal:0,arr:0,cur:0,active:0,cancelled:0,dd_sum:0,dd_n:0};
+    var s=map[r.sku];
+    s.n++; s.inv+=r.inv; s.paid+=r.paid; s.bal+=r.bal; s.arr+=r.arr; s.cur+=r.cur;
+    if(r.status==="Active") s.active++; else s.cancelled++;
+    if(r.dd>0){s.dd_sum+=r.dd; s.dd_n++;}
+  });
+  var headers = ["Program Name","Program (SKU)","Orders","Gross","Paid","Balance","Arrears","Current","Collected %","Avg Days Delay","Active","Cancelled"];
+  function esc(v){var s=String(v==null?"":v);return s.includes(",")||s.includes('"')?'"'+s.replace(/"/g,'""')+'"':s;}
+  var lines=[headers.join(",")];
+  Object.values(map).forEach(function(s){
+    var pct=s.inv>0?s.paid/s.inv*100:0;
+    var avgDd=s.dd_n>0?Math.round(s.dd_sum/s.dd_n):0;
+    lines.push([s.sku,s.skc,s.n,s.inv.toFixed(2),s.paid.toFixed(2),s.bal.toFixed(2),s.arr.toFixed(2),s.cur.toFixed(2),pct.toFixed(1),avgDd,s.active,s.cancelled].map(esc).join(","));
+  });
+  var blob=new Blob([lines.join("\n")],{type:"text/csv"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="AR_Balance_by_SKU_"+new Date().toISOString().slice(0,10)+".csv"; a.click();
+}
+
 function ar2DownloadCsv(){
   var rows = ar2GetFiltered();
   var headers = ["Order ID","Name","Program","Date","Division","Partner Category","Partner",
