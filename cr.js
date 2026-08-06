@@ -2,10 +2,10 @@
 function crResStage(d){
   if(d==null) return '<span style="color:#94a3b8">—</span>';
   var label,color;
-  if(d<1){label="1.) Current";color="#16a34a";}
-  else if(d<=6){label="2.) Overdue &lt;6 days";color="#ca8a04";}
-  else if(d<=12){label="3.) Overdue &lt;12 days";color="#f97316";}
-  else{label="4.) Overdue &ge;18 days";color="#dc2626";}
+  if(d<1){label="Current";color="#16a34a";}
+  else if(d<=6){label="Overdue &lt;6 days";color="#ca8a04";}
+  else if(d<=12){label="Overdue &lt;12 days";color="#f97316";}
+  else{label="Overdue &ge;18 days";color="#dc2626";}
   return'<span style="font-size:9px;font-weight:600;color:'+color+';white-space:nowrap">'+label+'</span>';
 }
 
