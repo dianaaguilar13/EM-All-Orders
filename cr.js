@@ -1,4 +1,12 @@
 
+function crResStageText(d){
+  if(d==null) return "";
+  if(d<1)  return "Current";
+  if(d<=6) return "Overdue <6 days";
+  if(d<=12)return "Overdue <12 days";
+  return "Overdue >=18 days";
+}
+
 function crResStage(d){
   if(d==null) return '<span style="color:#94a3b8">—</span>';
   var label,color;
@@ -595,7 +603,7 @@ function crRenderCasesTable(){
           row.id, row.contact_id, row.client_id, row.client_name,
           row.sku, row.date, row.created_at, row.request_type,
           crOutcome(row), row.saved_by, row.admin_only,
-          row.status, row.procedure,
+          row.status, row.procedure, crResStageText(row.res_days),
           row.res_days!=null?row.res_days+"d":"",
           row.rev_loss, row.rev_saved, row.assignee
         ].map(function(x){return String(x||"").toLowerCase();}).join(" ");
