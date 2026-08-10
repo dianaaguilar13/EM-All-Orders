@@ -1085,7 +1085,7 @@ function renderCohort(){
   var totalNetInv=0;
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
-    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0};
+    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0,progName:row[9]||""};
     skuMap[sku].total++;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)skuMap[sku].cancelled++;
@@ -1129,6 +1129,7 @@ function renderCohort(){
     var niDisp=d.netInv>0?'$'+Math.round(d.netInv).toLocaleString():'—';
     tRows+='<tr class="cohort-sku-row" style="cursor:pointer" onclick="toggleCohortSkuDetail(event,\''+s.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
       +'<td style="text-align:left"><span class="cohort-arrow-'+safeId+'" style="font-size:11px;color:#94a3b8;margin-right:6px">▶</span>'+sEsc+'</td>'
+      +'<td style="text-align:left;font-size:11px;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.progName.replace(/"/g,"&quot;")+'">'+d.progName+'</td>'
       +'<td style="text-align:center">'+d.total.toLocaleString()+'</td>'
       +'<td style="text-align:center">'+d.cancelled.toLocaleString()+'</td>'
       +'<td style="text-align:center">'+d.ldp.toLocaleString()+'</td>'
@@ -1257,6 +1258,7 @@ function renderCohort(){
     +'</div>'
     +'<div class="tbl-wrap"><table><thead><tr>'
     +'<th style="text-align:left">SKU</th>'
+    +'<th style="text-align:left">Program Name</th>'
     +'<th style="text-align:center">Purchases</th>'
     +'<th style="text-align:center">Cancelled in Window</th>'
     +'<th style="text-align:center">LDP Orders</th>'
