@@ -598,7 +598,7 @@ function ar2RenderQfyChart(){
   });
 }
 
-// ── AR Health Over Time — Current vs Overdue stacked bar ─────────────────────
+// ── AR Health Over Time — Current vs Overdue stacked bar + AR% line ──────────
 function ar2RenderHealthChart(){
   if(ar2Charts.health){try{ar2Charts.health.destroy();}catch(e){}}
   var trend = (AR2.trend_v2||[]);
@@ -608,6 +608,7 @@ function ar2RenderHealthChart(){
   var labels  = slice.map(function(r){return r.d;});
   var current = slice.map(function(r){return Math.max(0, Math.round((r.tb||0) - (r.ob||0)));});
   var overdue = slice.map(function(r){return Math.round(r.ob||0);});
+  var pctLine = slice.map(function(r){return r.tb>0 ? +((r.ob/r.tb)*100).toFixed(1) : 0;});
   var ctx = document.getElementById("ar2-health-chart");
   if(!ctx) return;
   ar2Charts.health = new Chart(ctx.getContext("2d"),{
@@ -615,19 +616,42 @@ function ar2RenderHealthChart(){
     data:{
       labels:labels,
       datasets:[
-        {label:"Current (not overdue)", data:current, backgroundColor:"#16a34a", stack:"s"},
-        {label:"Overdue",               data:overdue, backgroundColor:"#ef4444", stack:"s"}
+        {label:"Current ($)", data:current, backgroundColor:"rgba(22,163,74,0.75)", stack:"s", yAxisID:"yBal", order:2},
+        {label:"Overdue ($)", data:overdue, backgroundColor:"rgba(239,68,68,0.75)",  stack:"s", yAxisID:"yBal", order:2},
+        {
+          label:"AR Overdue %", data:pctLine,
+          type:"line", yAxisID:"yPct", order:1,
+          borderColor:"#f97316", backgroundColor:"transparent",
+          borderWidth:2, pointRadius:0, tension:0.3
+        }
       ]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{position:"top", labels:{boxWidth:12, font:{size:11}}},
-        tooltip:{callbacks:{label:function(c){return " "+c.dataset.label+": $"+Math.round(c.raw).toLocaleString();}}}
+        tooltip:{callbacks:{
+          label:function(c){
+            if(c.dataset.label==="AR Overdue %") return " AR Overdue %: "+c.raw+"%";
+            return " "+c.dataset.label+": $"+Math.round(c.raw).toLocaleString();
+          }
+        }}
       },
       scales:{
         x:{stacked:true, ticks:{maxTicksLimit:12, font:{size:10}}, grid:{display:false}},
-        y:{stacked:true, ticks:{callback:function(v){return "$"+Math.round(v/1000)+"K";}}, grid:{color:"#f1f5f9"}}
+        yBal:{
+          stacked:true, position:"left",
+          title:{display:true, text:"Balance (USD)", font:{size:10}, color:"#64748b"},
+          ticks:{callback:function(v){return "$"+Math.round(v/1000)+"K";}},
+          grid:{color:"#f1f5f9"}
+        },
+        yPct:{
+          position:"right",
+          title:{display:true, text:"Overdue %", font:{size:10}, color:"#f97316"},
+          ticks:{callback:function(v){return v+"%";}, color:"#f97316"},
+          grid:{display:false},
+          min:0
+        }
       }
     }
   });
@@ -691,28 +715,24 @@ function ar2RenderWaterfallChart(){
   var trend = (AR2.trend_v2||[]);
   if(trend.length < 2) return;
   var nWeeks = parseInt((document.getElementById("ar2-wf-weeks")||{value:"13"}).value||13,10);
-  // Use the last nWeeks rows as the period
+  var startRow = trend[Math.max(0, trend.length - nWeeks - 1)] || trend[0];
+  var endRow   = trend[trend.length - 1];
   var periodRows = trend.slice(Math.max(0, trend.length - nWeeks));
-  var arStart = (trend[trend.length - nWeeks - 1] || trend[0]).tb || 0;
-  var arEnd   = trend[trend.length - 1].tb || 0;
+  var arStart = startRow.tb || 0;
+  var arEnd   = endRow.tb   || 0;
+  var pctStart = arStart > 0 ? +((startRow.ob||0)/arStart*100).toFixed(1) : 0;
+  var pctEnd   = arEnd   > 0 ? +((endRow.ob  ||0)/arEnd  *100).toFixed(1) : 0;
   var totalSold = periodRows.reduce(function(s,r){return s+(r.sold||0);},0);
   var totalPmts = periodRows.reduce(function(s,r){return s+(r.pmts||0);},0);
   var totalCncl = periodRows.reduce(function(s,r){return s+(r.cncl||0);},0);
   var totalDisc = periodRows.reduce(function(s,r){return s+(r.disc||0);},0);
-  // Floating bar data: [base, top] for each segment
-  // AR Start: anchor bar 0 → arStart
-  // +Sold: goes up arStart → arStart+sold
-  // -Pmts: goes down
-  // -Cncl: goes down further
-  // -Disc: goes down further
-  // AR End: anchor 0 → arEnd
   var segs = [
-    {label:"AR Start",    val:arStart,    isAnchor:true,  color:"#0d9488"},
-    {label:"+ New Orders",val:totalSold,  isUp:true,      color:"#16a34a"},
-    {label:"− Payments",  val:-totalPmts, isUp:false,     color:"#0ea5e9"},
-    {label:"− Cancelled", val:-totalCncl, isUp:false,     color:"#f97316"},
-    {label:"− Discounts", val:-totalDisc, isUp:false,     color:"#8b5cf6"},
-    {label:"AR End",      val:arEnd,      isAnchor:true,  color:"#0d9488"}
+    {label:"AR Start",     val:arStart,    isAnchor:true,  color:"#0d9488", pct:pctStart},
+    {label:"+ New Orders", val:totalSold,  isUp:true,      color:"#16a34a", pct:null},
+    {label:"− Payments",   val:-totalPmts, isUp:false,     color:"#0ea5e9", pct:null},
+    {label:"− Cancelled",  val:-totalCncl, isUp:false,     color:"#f97316", pct:null},
+    {label:"− Discounts",  val:-totalDisc, isUp:false,     color:"#8b5cf6", pct:null},
+    {label:"AR End",       val:arEnd,      isAnchor:true,  color:"#0d9488", pct:pctEnd}
   ];
   var floatData = [];
   var running = 0;
@@ -723,15 +743,41 @@ function ar2RenderWaterfallChart(){
     } else {
       var base = Math.round(running);
       running += seg.val;
-      var top  = Math.round(running);
-      if(base < top) floatData.push([base, top]);
-      else           floatData.push([top, base]);
+      var top = Math.round(running);
+      floatData.push(base < top ? [base, top] : [top, base]);
     }
   });
   var ctx = document.getElementById("ar2-waterfall-chart");
   if(!ctx) return;
+  var wfLabelPlugin = {
+    id:"wfLabels",
+    afterDatasetsDraw:function(chart){
+      var cCtx = chart.ctx;
+      cCtx.save();
+      cCtx.textAlign = "center";
+      chart.getDatasetMeta(0).data.forEach(function(bar, i){
+        var seg = segs[i];
+        var amt = seg.isAnchor ? seg.val : Math.abs(seg.val);
+        if(amt < 1) return;
+        var line1 = "$"+Math.round(amt/1000)+"K";
+        var line2 = seg.pct !== null ? seg.pct+"% overdue" : null;
+        var x = bar.x;
+        var yTop = Math.min(bar.y, bar.base);
+        cCtx.font = "600 10px sans-serif";
+        cCtx.fillStyle = seg.isAnchor ? "#0f766e" : "#475569";
+        cCtx.fillText(line1, x, yTop - (line2 ? 18 : 6));
+        if(line2){
+          cCtx.font = "500 9px sans-serif";
+          cCtx.fillStyle = "#f97316";
+          cCtx.fillText(line2, x, yTop - 6);
+        }
+      });
+      cCtx.restore();
+    }
+  };
   ar2Charts.waterfall = new Chart(ctx.getContext("2d"),{
     type:"bar",
+    plugins:[wfLabelPlugin],
     data:{
       labels:segs.map(function(s){return s.label;}),
       datasets:[{
@@ -748,16 +794,23 @@ function ar2RenderWaterfallChart(){
         legend:{display:false},
         tooltip:{callbacks:{
           label:function(c){
-            var v = c.raw;
-            var net = v[1] - v[0];
-            return " $"+Math.abs(Math.round(net)).toLocaleString();
+            var seg = segs[c.dataIndex];
+            var amt = seg.isAnchor ? seg.val : Math.abs(seg.val);
+            var line = " $"+Math.round(amt).toLocaleString();
+            if(seg.pct !== null) line += "  ·  "+seg.pct+"% overdue";
+            return line;
           }
         }}
       },
       scales:{
         x:{grid:{display:false}},
-        y:{ticks:{callback:function(v){return "$"+Math.round(v/1000)+"K";}}, grid:{color:"#f1f5f9"}}
-      }
+        y:{
+          title:{display:true, text:"Balance (USD)", font:{size:10}, color:"#64748b"},
+          ticks:{callback:function(v){return "$"+Math.round(v/1000)+"K";}},
+          grid:{color:"#f1f5f9"}
+        }
+      },
+      layout:{padding:{top:36}}
     }
   });
 }
