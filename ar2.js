@@ -134,6 +134,9 @@ function ar2Render(){
   // Charts
   ar2RenderTrendChart();
   ar2RenderQfyChart();
+  ar2RenderHealthChart();
+  ar2RenderDSOChart();
+  ar2RenderWaterfallChart();
   ar2RenderAgingChart(rows);
   ar2RenderArrearsDonut(rows);
   ar2RenderDivChart(rows);
@@ -590,6 +593,170 @@ function ar2RenderQfyChart(){
         y:{beginAtZero:true,
            ticks:{color:"#64748b", font:{size:10}, callback:function(v){return v+"%";}},
            grid:{color:"#f1f5f9"}}
+      }
+    }
+  });
+}
+
+// ── AR Health Over Time — Current vs Overdue stacked bar ─────────────────────
+function ar2RenderHealthChart(){
+  if(ar2Charts.health){try{ar2Charts.health.destroy();}catch(e){}}
+  var trend = (AR2.trend_v2||[]);
+  if(!trend.length) return;
+  var nWeeks = parseInt((document.getElementById("ar2-health-weeks")||{value:"52"}).value||52,10);
+  var slice = nWeeks >= trend.length ? trend : trend.slice(trend.length - nWeeks);
+  var labels  = slice.map(function(r){return r.d;});
+  var current = slice.map(function(r){return Math.max(0, Math.round((r.tb||0) - (r.ob||0)));});
+  var overdue = slice.map(function(r){return Math.round(r.ob||0);});
+  var ctx = document.getElementById("ar2-health-chart");
+  if(!ctx) return;
+  ar2Charts.health = new Chart(ctx.getContext("2d"),{
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {label:"Current (not overdue)", data:current, backgroundColor:"#16a34a", stack:"s"},
+        {label:"Overdue",               data:overdue, backgroundColor:"#ef4444", stack:"s"}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:"top", labels:{boxWidth:12, font:{size:11}}},
+        tooltip:{callbacks:{label:function(c){return " "+c.dataset.label+": $"+Math.round(c.raw).toLocaleString();}}}
+      },
+      scales:{
+        x:{stacked:true, ticks:{maxTicksLimit:12, font:{size:10}}, grid:{display:false}},
+        y:{stacked:true, ticks:{callback:function(v){return "$"+Math.round(v/1000)+"K";}}, grid:{color:"#f1f5f9"}}
+      }
+    }
+  });
+}
+
+// ── DSO — Days Sales Outstanding trend ────────────────────────────────────────
+function ar2RenderDSOChart(){
+  if(ar2Charts.dso){try{ar2Charts.dso.destroy();}catch(e){}}
+  var trend = (AR2.trend_v2||[]);
+  if(!trend.length) return;
+  var nWeeks = parseInt((document.getElementById("ar2-dso-weeks")||{value:"52"}).value||52,10);
+  var slice = nWeeks >= trend.length ? trend : trend.slice(trend.length - nWeeks);
+  // Rolling 13-week sum of sold for denominator
+  var allSold = (nWeeks >= trend.length ? trend : trend.slice(trend.length - nWeeks - 13));
+  var dsoVals = slice.map(function(r, i){
+    // i is index into slice; find corresponding index in trend
+    var tIdx = trend.indexOf(r);
+    var window13 = trend.slice(Math.max(0, tIdx - 12), tIdx + 1);
+    var sumSold = window13.reduce(function(s,w){return s+(w.sold||0);},0);
+    if(sumSold < 1) return null;
+    return Math.round((r.tb||0) / (sumSold / 91));
+  });
+  var labels = slice.map(function(r){return r.d;});
+  var target30 = labels.map(function(){return 30;});
+  var ctx = document.getElementById("ar2-dso-chart");
+  if(!ctx) return;
+  ar2Charts.dso = new Chart(ctx.getContext("2d"),{
+    type:"line",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          label:"DSO (days)", data:dsoVals,
+          borderColor:"#0d9488", backgroundColor:"rgba(13,148,136,0.08)",
+          fill:true, tension:0.3, pointRadius:0, borderWidth:2
+        },
+        {
+          label:"30-day target", data:target30,
+          borderColor:"#f97316", borderDash:[6,3], borderWidth:1.5,
+          pointRadius:0, fill:false
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:"top", labels:{boxWidth:12, font:{size:11}}},
+        tooltip:{callbacks:{label:function(c){return " "+c.dataset.label+": "+(c.raw===null?"N/A":c.raw+" days");}}}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:12, font:{size:10}}, grid:{display:false}},
+        y:{min:0, ticks:{callback:function(v){return v+"d";}}, grid:{color:"#f1f5f9"}}
+      }
+    }
+  });
+}
+
+// ── Roll-Forward Waterfall ────────────────────────────────────────────────────
+function ar2RenderWaterfallChart(){
+  if(ar2Charts.waterfall){try{ar2Charts.waterfall.destroy();}catch(e){}}
+  var trend = (AR2.trend_v2||[]);
+  if(trend.length < 2) return;
+  var nWeeks = parseInt((document.getElementById("ar2-wf-weeks")||{value:"13"}).value||13,10);
+  // Use the last nWeeks rows as the period
+  var periodRows = trend.slice(Math.max(0, trend.length - nWeeks));
+  var arStart = (trend[trend.length - nWeeks - 1] || trend[0]).tb || 0;
+  var arEnd   = trend[trend.length - 1].tb || 0;
+  var totalSold = periodRows.reduce(function(s,r){return s+(r.sold||0);},0);
+  var totalPmts = periodRows.reduce(function(s,r){return s+(r.pmts||0);},0);
+  var totalCncl = periodRows.reduce(function(s,r){return s+(r.cncl||0);},0);
+  var totalDisc = periodRows.reduce(function(s,r){return s+(r.disc||0);},0);
+  // Floating bar data: [base, top] for each segment
+  // AR Start: anchor bar 0 → arStart
+  // +Sold: goes up arStart → arStart+sold
+  // -Pmts: goes down
+  // -Cncl: goes down further
+  // -Disc: goes down further
+  // AR End: anchor 0 → arEnd
+  var segs = [
+    {label:"AR Start",    val:arStart,    isAnchor:true,  color:"#0d9488"},
+    {label:"+ New Orders",val:totalSold,  isUp:true,      color:"#16a34a"},
+    {label:"− Payments",  val:-totalPmts, isUp:false,     color:"#0ea5e9"},
+    {label:"− Cancelled", val:-totalCncl, isUp:false,     color:"#f97316"},
+    {label:"− Discounts", val:-totalDisc, isUp:false,     color:"#8b5cf6"},
+    {label:"AR End",      val:arEnd,      isAnchor:true,  color:"#0d9488"}
+  ];
+  var floatData = [];
+  var running = 0;
+  segs.forEach(function(seg){
+    if(seg.isAnchor){
+      floatData.push([0, Math.round(seg.val)]);
+      running = seg.val;
+    } else {
+      var base = Math.round(running);
+      running += seg.val;
+      var top  = Math.round(running);
+      if(base < top) floatData.push([base, top]);
+      else           floatData.push([top, base]);
+    }
+  });
+  var ctx = document.getElementById("ar2-waterfall-chart");
+  if(!ctx) return;
+  ar2Charts.waterfall = new Chart(ctx.getContext("2d"),{
+    type:"bar",
+    data:{
+      labels:segs.map(function(s){return s.label;}),
+      datasets:[{
+        label:"AR Waterfall",
+        data:floatData,
+        backgroundColor:segs.map(function(s){return s.color;}),
+        borderRadius:4,
+        borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:function(c){
+            var v = c.raw;
+            var net = v[1] - v[0];
+            return " $"+Math.abs(Math.round(net)).toLocaleString();
+          }
+        }}
+      },
+      scales:{
+        x:{grid:{display:false}},
+        y:{ticks:{callback:function(v){return "$"+Math.round(v/1000)+"K";}}, grid:{color:"#f1f5f9"}}
       }
     }
   });

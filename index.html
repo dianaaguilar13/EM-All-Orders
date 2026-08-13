@@ -871,6 +871,49 @@ function hideAllPanels(){
       <div style="height:300px"><canvas id="ar2-qfy-chart"></canvas></div>
     </div>
 
+    <!-- AR Health Over Time (stacked) -->
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+        <div style="font-weight:600;color:#0d9488">AR Health Over Time — Current vs Overdue Balance</div>
+        <select id="ar2-health-weeks" onchange="ar2RenderHealthChart()" style="border:1px solid #99f6e4;border-radius:6px;padding:3px 8px;font-size:11px;background:#fff;color:#0d9488">
+          <option value="26">Last 26 weeks</option>
+          <option value="52" selected>Last 52 weeks</option>
+          <option value="104">All time</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">Weekly AR balance split into Current (not overdue) vs Overdue — shows whether the portfolio is getting healthier or worse over time</div>
+      <div style="height:280px"><canvas id="ar2-health-chart"></canvas></div>
+    </div>
+
+    <!-- DSO Trend -->
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+        <div style="font-weight:600;color:#0d9488">DSO — Days Sales Outstanding</div>
+        <select id="ar2-dso-weeks" onchange="ar2RenderDSOChart()" style="border:1px solid #99f6e4;border-radius:6px;padding:3px 8px;font-size:11px;background:#fff;color:#0d9488">
+          <option value="26">Last 26 weeks</option>
+          <option value="52" selected>Last 52 weeks</option>
+          <option value="104">All time</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">AR Balance ÷ (trailing 13-week revenue ÷ 91 days) — how many days of revenue is currently sitting in AR · Dashed line = 30-day target</div>
+      <div style="height:260px"><canvas id="ar2-dso-chart"></canvas></div>
+    </div>
+
+    <!-- Roll-Forward Waterfall -->
+    <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+        <div style="font-weight:600;color:#0d9488">AR Roll-Forward — Balance Waterfall</div>
+        <select id="ar2-wf-weeks" onchange="ar2RenderWaterfallChart()" style="border:1px solid #99f6e4;border-radius:6px;padding:3px 8px;font-size:11px;background:#fff;color:#0d9488">
+          <option value="4">Last 4 weeks</option>
+          <option value="13" selected>Last 13 weeks</option>
+          <option value="26">Last 26 weeks</option>
+          <option value="52">Last 52 weeks</option>
+        </select>
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:12px">Starting AR → + New Orders → − Payments → − Cancellations → − Discounts/Adj → Ending AR — separates inflows from outflows instead of just netting</div>
+      <div style="height:300px"><canvas id="ar2-waterfall-chart"></canvas></div>
+    </div>
+
     <!-- Aging Analysis -->
     <div style="padding:16px 24px;border-bottom:1px solid #dde3ea">
       <div style="font-weight:600;color:#0d9488;margin-bottom:3px">Aging Analysis — Balance by Bucket</div>
@@ -960,6 +1003,6 @@ function showAr2Tab(){
 </script>
 
 <script src="ar.js?v=1778712227"></script>
-<script src="ar2.js?v=1780000015"></script>
+<script src="ar2.js?v=1780000016"></script>
 </body>
 </html>
