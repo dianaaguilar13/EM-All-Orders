@@ -622,7 +622,9 @@ function ar2RenderHealthChart(){
           label:"AR Overdue %", data:pctLine,
           type:"line", yAxisID:"yPct", order:1,
           borderColor:"#f97316", backgroundColor:"transparent",
-          borderWidth:2, pointRadius:0, tension:0.3
+          borderWidth:2, tension:0.3,
+          pointRadius:3, pointHoverRadius:6,
+          pointBackgroundColor:"#f97316", pointBorderColor:"#fff", pointBorderWidth:1.5
         }
       ]
     },
@@ -630,12 +632,15 @@ function ar2RenderHealthChart(){
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{position:"top", labels:{boxWidth:12, font:{size:11}}},
-        tooltip:{callbacks:{
-          label:function(c){
-            if(c.dataset.label==="AR Overdue %") return " AR Overdue %: "+c.raw+"%";
-            return " "+c.dataset.label+": $"+Math.round(c.raw).toLocaleString();
+        tooltip:{
+          mode:"index", intersect:false,
+          callbacks:{
+            label:function(c){
+              if(c.dataset.label==="AR Overdue %") return " AR Overdue %: "+c.raw+"%";
+              return " "+c.dataset.label+": $"+Math.round(c.raw).toLocaleString();
+            }
           }
-        }}
+        }
       },
       scales:{
         x:{stacked:true, ticks:{maxTicksLimit:12, font:{size:10}}, grid:{display:false}},
@@ -686,12 +691,14 @@ function ar2RenderDSOChart(){
         {
           label:"DSO (days)", data:dsoVals,
           borderColor:"#0d9488", backgroundColor:"rgba(13,148,136,0.08)",
-          fill:true, tension:0.3, pointRadius:0, borderWidth:2
+          fill:true, tension:0.3, borderWidth:2,
+          pointRadius:3, pointHoverRadius:6,
+          pointBackgroundColor:"#0d9488", pointBorderColor:"#fff", pointBorderWidth:1.5
         },
         {
           label:"30-day target", data:target30,
           borderColor:"#f97316", borderDash:[6,3], borderWidth:1.5,
-          pointRadius:0, fill:false
+          pointRadius:0, pointHoverRadius:0, fill:false
         }
       ]
     },
@@ -699,7 +706,10 @@ function ar2RenderDSOChart(){
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{position:"top", labels:{boxWidth:12, font:{size:11}}},
-        tooltip:{callbacks:{label:function(c){return " "+c.dataset.label+": "+(c.raw===null?"N/A":c.raw+" days");}}}
+        tooltip:{
+          mode:"index", intersect:false,
+          callbacks:{label:function(c){return " "+c.dataset.label+": "+(c.raw===null?"N/A":c.raw+" days");}}
+        }
       },
       scales:{
         x:{ticks:{maxTicksLimit:12, font:{size:10}}, grid:{display:false}},
