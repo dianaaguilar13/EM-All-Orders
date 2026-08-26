@@ -178,7 +178,9 @@ function ldpReset(){
 function ldpRender(){
   if(!LDP)return;
   ldpDestroyCharts();
-  var rows=ldpGetRows();
+  var allRows=ldpGetRows();
+  // rows = LDP-only for all stats/charts/summary tables; allRows = both LDP+FDP for tracker
+  var rows=allRows.filter(function(r){return r[34]===1;});
   var r_=ldpGetRange(),pcat_=ldpGetPcat();
 
   var ldpTotal=rows.length;
@@ -343,9 +345,9 @@ function ldpRender(){
   // Records table (paginated)
   ldpRenderRecords(rows);
 
-  // Summary tables + payment tracker
+  // Summary tables (LDP-only) + payment tracker (all orders: LDP + FDP)
   ldpRenderSummaryTables(rows);
-  ldpRenderTracker(rows);
+  ldpRenderTracker(allRows);
 }
 
 function ldpRenderRecords(rows){
@@ -581,6 +583,8 @@ function ldpRenderSummaryTables(rows) {
 
 // ── Upcoming payment helpers ──────────────────────────────────────────────────
 function ldpNextPmtText(r, offset) {
+  // Paid in Full — no upcoming payments
+  if (r[21] === 'Paid in Full') return '✓ PIF';
   var first = r[28]; var count = parseInt(r[18]) || 0;
   if (!first || !count) return '—';
   var d = new Date(first + 'T00:00:00');
@@ -668,9 +672,12 @@ function ldpRenderTracker(rows) {
   var trackerSort  = el._sort  || {col:20, asc:false};  // default: sort by days_since desc
   var trackerRisk  = el._riskF || "";
   var trackerSearch= el._srch  || "";
+  var trackerType  = el._typeF || "";  // "" = All, "LDP", "FDP"
 
   // Filter rows for table
   var tRows = rows.filter(function(r) {
+    if (trackerType === "LDP" && r[34] !== 1) return false;
+    if (trackerType === "FDP" && r[34] !== 0) return false;
     if (trackerRisk && r[21] !== trackerRisk) return false;
     if (trackerSearch) {
       var q = trackerSearch.toLowerCase();
@@ -711,8 +718,12 @@ function ldpRenderTracker(rows) {
     var heavenInv = (r[32] != null && r[32] > 0) ? '$'+Math.round(r[32]).toLocaleString() : '$'+(r[7]||0).toLocaleString();
     var qty       = (r[31] != null) ? r[31] : 1;
     var credits   = (r[33] != null && r[33] !== 0) ? '$'+Math.round(r[33]).toLocaleString() : '—';
+    var typeBadge = r[34]===1
+      ? '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#ede9fe;color:#7c3aed">LDP</span>'
+      : '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1">FDP</span>';
     return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
       '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
+      '<td style="text-align:center">'+typeBadge+'</td>'+
       '<td style="font-size:11px;font-weight:500;color:#1e293b;white-space:nowrap">'+(r[30]||'—')+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
       '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
@@ -746,19 +757,33 @@ function ldpRenderTracker(rows) {
     return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:rows.length)+')</button>';
   }).join("");
 
+  var ldpCount = rows.filter(function(r){return r[34]===1;}).length;
+  var fdpCount = rows.filter(function(r){return r[34]===0;}).length;
+  var typeFilterHtml = ['','LDP','FDP'].map(function(tp) {
+    var active = trackerType === tp;
+    var cnt = tp===''?rows.length:tp==='LDP'?ldpCount:fdpCount;
+    var bg  = tp===''?'#1d4ed8':tp==='LDP'?'#7c3aed':'#0369a1';
+    var style = active
+      ? 'background:'+bg+';color:#fff;border:2px solid '+bg+';font-weight:700'
+      : 'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
+    return '<button onclick="ldpTrackerTypeFilter(\''+tp+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+(tp||'All')+' ('+cnt+')</button>';
+  }).join('');
+
   el.innerHTML =
     '<div style="padding:16px 28px 14px;border-bottom:1px solid #e2e8f0">'
     +'<div style="font-size:12px;font-weight:700;color:#0d1b3e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">RISK SUMMARY</div>'
     +kpiHtml+'</div>'
+    +'<div style="padding:8px 28px 6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #f1f5f9">'
+    +'<span style="font-size:11px;font-weight:700;color:#374151;margin-right:4px">Type:</span>'+typeFilterHtml+'</div>'
     +'<div style="padding:10px 28px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #e2e8f0">'
-    +'<span style="font-size:11px;color:#64748b;margin-right:4px">Filter:</span>'+riskFilterHtml
+    +'<span style="font-size:11px;color:#64748b;margin-right:4px">Risk:</span>'+riskFilterHtml
     +'<input id="ldp-tracker-search" placeholder="Search order, contact, EM…" oninput="ldpTrackerSearch(this.value)" value="'+trackerSearch.replace(/"/g,'&quot;')+'" style="margin-left:auto;padding:5px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:5px;width:220px">'
     +'<button onclick="ldpExportTracker()" title="Export current view to CSV" style="padding:5px 12px;background:#0d1b3e;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">⬇ Export CSV</button>'
     +'</div>'
     +'<div style="overflow-x:auto;padding:0 28px 28px">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
     +'<thead style="background:#1a3566;color:#fff"><tr>'
-    +thSort(1,'Invoice ID')+thSort(30,'Client Name')+thSort(2,'Contact ID')+thSort(3,'SKU')
+    +thSort(1,'Invoice ID')+thSort(34,'Type')+thSort(30,'Client Name')+thSort(2,'Contact ID')+thSort(3,'SKU')
     +thSort(31,'Qty')+thSort(6,'Sale Date')
     +thSort(32,'Inv Total')+thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')
     +'<th style="white-space:nowrap">Credits</th>'
@@ -776,6 +801,7 @@ function ldpRenderTracker(rows) {
   // Store state on element for re-renders
   el._sort  = trackerSort;
   el._riskF = trackerRisk;
+  el._typeF = trackerType;
   el._srch  = trackerSearch;
 }
 
@@ -802,6 +828,13 @@ function ldpTrackerSearch(q) {
   ldpRenderTracker(ldpGetRows());
 }
 
+function ldpTrackerTypeFilter(tp) {
+  var el = document.getElementById("ldp-tracker-section");
+  if (!el) return;
+  el._typeF = tp;
+  ldpRenderTracker(ldpGetRows());
+}
+
 function ldpExportTracker() {
   var all = ldpGetRows();
   var el  = document.getElementById("ldp-tracker-section");
@@ -819,7 +852,7 @@ function ldpExportTracker() {
   });
 
   var hdrs = [
-    "Invoice ID","Client Name","Contact ID","SKU","SKU Category","Qty","Sale Date","Inv Total (Heaven)",
+    "Invoice ID","Type","Client Name","Contact ID","SKU","SKU Category","Qty","Sale Date","Inv Total (Heaven)",
     "Deposit","Dep %","Total Paid","Credits","Balance",
     "Days Since Pmt","Last Pmt Date","Nxt Pmt","Nxt+1 Pmt","Days Overdue",
     "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date"
@@ -834,7 +867,7 @@ function ldpExportTracker() {
   var lines = [hdrs.map(esc).join(",")];
   filtered.forEach(function(r) {
     lines.push([
-      r[1], r[30]||"", r[2], r[3], r[4],
+      r[1], r[34]===1?"LDP":"FDP", r[30]||"", r[2], r[3], r[4],
       r[31]!=null?r[31]:1,
       r[6],
       r[32]>0?r[32]:r[7], ldpDep(r), ldpPmtPct(r).toFixed(1)+"%",

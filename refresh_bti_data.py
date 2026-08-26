@@ -837,7 +837,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _thresh = get_ldp_threshold(_sku_b, _pcat_b, _prod_b, inv)
         else:
             _thresh = inv * 0.105
-        if deps[0] > _thresh: continue
+        is_ldp = deps[0] <= _thresh
 
         fa   = deps[0]  # dep_0: same-day deposit (default display / pmt_pct base)
         dep1 = deps[1]
@@ -865,10 +865,11 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         rd     = get_rd(r.get("REFUND_CREDIT_DATE",""), r.get("DATE",""))
 
         all_skus.add(sku); all_parts.add(part); all_pcats.add(pcat)
-        upd(by_month[month], cncl, active, lost)
-        upd(by_sku[sku],     cncl, active, lost)
-        upd(by_pcat[pcat],   cncl, active, lost)
-        upd(by_part[part],   cncl, active, lost)
+        if is_ldp:
+            upd(by_month[month], cncl, active, lost)
+            upd(by_sku[sku],     cncl, active, lost)
+            upd(by_pcat[pcat],   cncl, active, lost)
+            upd(by_part[part],   cncl, active, lost)
 
         # ── Tracker fields ──────────────────────────────────────────────
         # Use PAYMENTS_TOTAL from order row (authoritative total).
@@ -948,6 +949,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             round(float(r.get("HEAVEN_QTY",1) or 1), 0),         # [31] heaven qty (units)
             round(float(r.get("HEAVEN_INVOICE_TOTAL",0) or 0), 2),# [32] heaven invoice total (volume)
             round(float(r.get("CREDITS",0) or 0), 2),            # [33] credits applied
+            1 if is_ldp else 0,                                   # [34] 1=LDP, 0=FDP
         ])
 
     total   = sum(v[0] for v in by_month.values())
