@@ -138,7 +138,8 @@ def fetch_orders(conn):
             ENROLLMENT_MENTOR, SKU_CATEGORY, DIVISION,
             LOST_REVENUE, REFUNDS, CREDITS,
             PRODUCTS, NORMALIZED_PRODUCT,
-            HEAVEN_DATE, FULL_NAME
+            HEAVEN_DATE, FULL_NAME,
+            HEAVEN_QTY, HEAVEN_INVOICE_TOTAL
         FROM ANALYTICS.MART.DIM_ALL_ORDERS
         WHERE DATE >= '{CONFIG["start_date"]}'
           AND PAYMENTS_TOTAL > 0
@@ -943,7 +944,10 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             dep3,          # [27] dep_3: deposit through +3 days
             _first_d_s,    # [28] first deposit date string YYYY-MM-DD or null
             _days_overdue, # [29] days overdue vs expected monthly schedule (int or null)
-            r.get("FULL_NAME","") or "",  # [30] client full name
+            r.get("FULL_NAME","") or "",                          # [30] client full name
+            round(float(r.get("HEAVEN_QTY",1) or 1), 0),         # [31] heaven qty (units)
+            round(float(r.get("HEAVEN_INVOICE_TOTAL",0) or 0), 2),# [32] heaven invoice total (volume)
+            round(float(r.get("CREDITS",0) or 0), 2),            # [33] credits applied
         ])
 
     total   = sum(v[0] for v in by_month.values())

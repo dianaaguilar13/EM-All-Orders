@@ -675,16 +675,21 @@ function ldpRenderTracker(rows) {
     var dOvrCell = dOvr===null ? '—' : (dOvr>0 ? '+'+dOvr+'d' : dOvr===0 ? 'Due today' : dOvr+'d');
     var dOvrColor = dOvr===null?'#94a3b8':dOvr>14?'#b91c1c':dOvr>0?'#c2410c':dOvr===0?'#b45309':'#16a34a';
     var rowBg = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
+    var heavenInv = (r[32] != null && r[32] > 0) ? '$'+Math.round(r[32]).toLocaleString() : '$'+(r[7]||0).toLocaleString();
+    var qty       = (r[31] != null) ? r[31] : 1;
+    var credits   = (r[33] != null && r[33] !== 0) ? '$'+Math.round(r[33]).toLocaleString() : '—';
     return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
       '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
       '<td style="font-size:11px;font-weight:500;color:#1e293b;white-space:nowrap">'+(r[30]||'—')+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
       '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
+      '<td style="font-size:11px;text-align:center;color:#374151">'+qty+'</td>'+
       '<td style="font-size:11px">'+r[6]+'</td>'+
-      '<td style="font-size:11px;color:#374151">$'+(r[7]||0).toLocaleString()+'</td>'+
+      '<td style="font-size:11px;color:#374151">'+heavenInv+'</td>'+
       '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
       '<td style="font-size:11px">'+paidFmt+'</td>'+
+      '<td style="font-size:11px;color:#0d9488">'+(r[33]&&r[33]!==0?credits:'—')+'</td>'+
       '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
       '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+(r[19]||'—')+'</td>'+
@@ -720,8 +725,11 @@ function ldpRenderTracker(rows) {
     +'<div style="overflow-x:auto;padding:0 28px 28px">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
     +'<thead style="background:#1a3566;color:#fff"><tr>'
-    +thSort(1,'Invoice ID')+thSort(30,'Client Name')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
-    +thSort(7,'Inv Total')+thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')
+    +thSort(1,'Invoice ID')+thSort(30,'Client Name')+thSort(2,'Contact ID')+thSort(3,'SKU')
+    +thSort(31,'Qty')+thSort(6,'Sale Date')
+    +thSort(32,'Inv Total')+thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')
+    +'<th style="white-space:nowrap">Credits</th>'
+    +thSort(22,'Balance')
     +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')
     +'<th style="white-space:nowrap">Nxt Pmt</th><th style="white-space:nowrap">Nxt+1 Pmt</th>'
     +'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
@@ -778,8 +786,8 @@ function ldpExportTracker() {
   });
 
   var hdrs = [
-    "Invoice ID","Client Name","Contact ID","SKU","SKU Category","Sale Date","Inv Total",
-    "Deposit","Dep %","Total Paid","Balance",
+    "Invoice ID","Client Name","Contact ID","SKU","SKU Category","Qty","Sale Date","Inv Total (Heaven)",
+    "Deposit","Dep %","Total Paid","Credits","Balance",
     "Days Since Pmt","Last Pmt Date","Nxt Pmt","Nxt+1 Pmt","Days Overdue",
     "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date"
   ];
@@ -793,9 +801,12 @@ function ldpExportTracker() {
   var lines = [hdrs.map(esc).join(",")];
   filtered.forEach(function(r) {
     lines.push([
-      r[1], r[30]||"", r[2], r[3], r[4], r[6],
-      r[7], ldpDep(r), ldpPmtPct(r).toFixed(1)+"%",
+      r[1], r[30]||"", r[2], r[3], r[4],
+      r[31]!=null?r[31]:1,
+      r[6],
+      r[32]>0?r[32]:r[7], ldpDep(r), ldpPmtPct(r).toFixed(1)+"%",
       r[17] != null ? r[17] : "",
+      r[33] != null ? r[33] : "",
       r[22] != null ? r[22] : "",
       r[20] != null ? r[20] : "",
       r[19] || "",
