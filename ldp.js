@@ -690,6 +690,7 @@ function ldpRenderTracker(rows) {
     +'<div style="padding:10px 28px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:1px solid #e2e8f0">'
     +'<span style="font-size:11px;color:#64748b;margin-right:4px">Filter:</span>'+riskFilterHtml
     +'<input id="ldp-tracker-search" placeholder="Search order, contact, EM…" oninput="ldpTrackerSearch(this.value)" value="'+trackerSearch.replace(/"/g,'&quot;')+'" style="margin-left:auto;padding:5px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:5px;width:220px">'
+    +'<button onclick="ldpExportTracker()" title="Export current view to CSV" style="padding:5px 12px;background:#0d1b3e;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">⬇ Export CSV</button>'
     +'</div>'
     +'<div style="overflow-x:auto;padding:0 28px 28px">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
@@ -731,6 +732,63 @@ function ldpTrackerSearch(q) {
   if (!el) return;
   el._srch = q;
   ldpRenderTracker(ldpGetRows());
+}
+
+function ldpExportTracker() {
+  var all = ldpGetRows();
+  var el  = document.getElementById("ldp-tracker-section");
+  var riskF  = el ? (el._riskF || "") : "";
+  var search = el ? (el._srch  || "") : "";
+
+  var filtered = all.filter(function(r) {
+    if (riskF && r[21] !== riskF) return false;
+    if (search) {
+      var q = search.toLowerCase();
+      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+
+  var hdrs = [
+    "Invoice ID","Contact ID","SKU","SKU Category","Sale Date","Inv Total",
+    "Deposit","Dep %","Total Paid","Balance",
+    "Days Since Pmt","Last Pmt Date","Days Overdue",
+    "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date"
+  ];
+
+  function esc(v) {
+    var s = String(v == null ? "" : v);
+    if (s.search(/[,"\n\r]/) >= 0) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  var lines = [hdrs.map(esc).join(",")];
+  filtered.forEach(function(r) {
+    lines.push([
+      r[1], r[2], r[3], r[4], r[6],
+      r[7], ldpDep(r), ldpPmtPct(r).toFixed(1)+"%",
+      r[17] != null ? r[17] : "",
+      r[22] != null ? r[22] : "",
+      r[20] != null ? r[20] : "",
+      r[19] || "",
+      r[29] != null ? r[29] : "",
+      r[21] || "", r[15] || "", r[14] || "",
+      r[13] || "", r[16] != null ? r[16] : "", r[18] != null ? r[18] : "", r[28] || ""
+    ].map(esc).join(","));
+  });
+
+  var csv  = "﻿" + lines.join("\r\n");
+  var blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement("a");
+  a.href   = url;
+  var tag  = riskF ? riskF.replace(/\s+/g,"-") : "All";
+  a.download = "LDP-Tracker-" + tag + "-" + new Date().toISOString().slice(0,10) + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);}, 1500);
 }
 
 // Load data and init
