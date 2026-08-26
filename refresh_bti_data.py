@@ -943,6 +943,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             dep3,          # [27] dep_3: deposit through +3 days
             _first_d_s,    # [28] first deposit date string YYYY-MM-DD or null
             _days_overdue, # [29] days overdue vs expected monthly schedule (int or null)
+            r.get("FULL_NAME","") or "",  # [30] client full name
         ])
 
     total   = sum(v[0] for v in by_month.values())

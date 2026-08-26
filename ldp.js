@@ -546,6 +546,28 @@ function ldpRenderSummaryTables(rows) {
     + '</div>';
 }
 
+// ── Upcoming payment helpers ──────────────────────────────────────────────────
+function ldpNextPmtText(r, offset) {
+  var first = r[28]; var count = parseInt(r[18]) || 0;
+  if (!first || !count) return '—';
+  var d = new Date(first + 'T00:00:00');
+  d.setMonth(d.getMonth() + count + offset);
+  var expYM = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
+  var todayD = new Date(); var todayYM = todayD.getFullYear() + '-' + ('0'+(todayD.getMonth()+1)).slice(-2);
+  var lastYM = r[19] ? r[19].slice(0,7) : null;
+  var label = d.toLocaleString('en-US',{month:'short'}) + " '" + d.getFullYear().toString().slice(-2);
+  if (expYM > todayYM) return '↗ ' + label;
+  if (lastYM && lastYM >= expYM) return '✓ ' + label;
+  return '✗ ' + label;
+}
+function ldpNextPmtHtml(r, offset) {
+  var txt = ldpNextPmtText(r, offset);
+  if (txt === '—') return '<span style="color:#94a3b8">—</span>';
+  if (txt.charAt(0) === '✓') return '<span style="color:#16a34a;font-weight:700">'+txt+'</span>';
+  if (txt.charAt(0) === '✗') return '<span style="color:#dc2626;font-weight:700">'+txt+'</span>';
+  return '<span style="color:#94a3b8;font-size:10px">'+txt+'</span>';
+}
+
 // ── LDP Payment Tracker ───────────────────────────────────────────────────────
 function ldpRenderTracker(rows) {
   var el = document.getElementById("ldp-tracker-section");
@@ -619,7 +641,7 @@ function ldpRenderTracker(rows) {
     if (trackerRisk && r[21] !== trackerRisk) return false;
     if (trackerSearch) {
       var q = trackerSearch.toLowerCase();
-      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")).toLowerCase();
+      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")+" "+(r[30]||"")).toLowerCase();
       if (hay.indexOf(q) < 0) return false;
     }
     return true;
@@ -655,6 +677,7 @@ function ldpRenderTracker(rows) {
     var rowBg = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
     return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
       '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
+      '<td style="font-size:11px;font-weight:500;color:#1e293b;white-space:nowrap">'+(r[30]||'—')+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
       '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
       '<td style="font-size:11px">'+r[6]+'</td>'+
@@ -665,6 +688,8 @@ function ldpRenderTracker(rows) {
       '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
       '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+(r[19]||'—')+'</td>'+
+      '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,0)+'</td>'+
+      '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,1)+'</td>'+
       '<td style="font-size:11px;color:'+dOvrColor+';font-weight:600">'+dOvrCell+'</td>'+
       '<td>'+riskBadge+'</td>'+
       '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
@@ -695,9 +720,11 @@ function ldpRenderTracker(rows) {
     +'<div style="overflow-x:auto;padding:0 28px 28px">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
     +'<thead style="background:#1a3566;color:#fff"><tr>'
-    +thSort(1,'Invoice ID')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
+    +thSort(1,'Invoice ID')+thSort(30,'Client Name')+thSort(2,'Contact ID')+thSort(3,'SKU')+thSort(6,'Sale Date')
     +thSort(7,'Inv Total')+thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')+thSort(22,'Balance')
-    +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')+'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
+    +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')
+    +'<th style="white-space:nowrap">Nxt Pmt</th><th style="white-space:nowrap">Nxt+1 Pmt</th>'
+    +'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
     +'<th>EM</th><th>Partner</th>'
     +'</tr></thead>'
     +'<tbody>'+tbodyHtml+'</tbody>'
@@ -744,16 +771,16 @@ function ldpExportTracker() {
     if (riskF && r[21] !== riskF) return false;
     if (search) {
       var q = search.toLowerCase();
-      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")).toLowerCase();
+      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")+" "+(r[30]||"")).toLowerCase();
       if (hay.indexOf(q) < 0) return false;
     }
     return true;
   });
 
   var hdrs = [
-    "Invoice ID","Contact ID","SKU","SKU Category","Sale Date","Inv Total",
+    "Invoice ID","Client Name","Contact ID","SKU","SKU Category","Sale Date","Inv Total",
     "Deposit","Dep %","Total Paid","Balance",
-    "Days Since Pmt","Last Pmt Date","Days Overdue",
+    "Days Since Pmt","Last Pmt Date","Nxt Pmt","Nxt+1 Pmt","Days Overdue",
     "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date"
   ];
 
@@ -766,12 +793,13 @@ function ldpExportTracker() {
   var lines = [hdrs.map(esc).join(",")];
   filtered.forEach(function(r) {
     lines.push([
-      r[1], r[2], r[3], r[4], r[6],
+      r[1], r[30]||"", r[2], r[3], r[4], r[6],
       r[7], ldpDep(r), ldpPmtPct(r).toFixed(1)+"%",
       r[17] != null ? r[17] : "",
       r[22] != null ? r[22] : "",
       r[20] != null ? r[20] : "",
       r[19] || "",
+      ldpNextPmtText(r,0), ldpNextPmtText(r,1),
       r[29] != null ? r[29] : "",
       r[21] || "", r[15] || "", r[14] || "",
       r[13] || "", r[16] != null ? r[16] : "", r[18] != null ? r[18] : "", r[28] || ""
