@@ -478,7 +478,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             order_lr,
             order_rd,
             rd_days,                       # index 12: integer days to cancel, -1 if N/A
-            1 if is_ldp else 0,            # index 13: LDP flag (based on dep_0 ≤ 10.5%)
+            1 if is_ldp else 0,            # index 13: LDP flag (based on LDP_DOWN_PMTS threshold)
             ldp_dep0,                      # index 14: dep_0 — same-day deposit (LDP orders only)
             get_div_label(r.get("UNIQUE_ORDER_ID","")),  # index 15: division label
             eff_date,                      # index 16: HEAVEN_DATE (fallback DATE) — used by JS date filter
@@ -749,8 +749,6 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
     else:
         print(f"   ⚠️  No payments data available — LDP will be empty")
 
-    THRESHOLD = 0.105  # ≤ 10.5%
-
     # 11-element bucket: [total, cncl, entry_err, upgrade, downgrade, active, inactive, lost_rev, switch, pend, no_pmt]
     def make_b(): return [0,0,0,0,0,0,0,0.0,0,0,0]
     def upd(b, cncl, active, lost):
@@ -829,7 +827,12 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         # Deposit = 4-window tuple keyed by UNIQUE_ORDER_ID (globally unique)
         deps = uid_deps.get(uid)
         if not deps or deps[0] <= 0: continue
-        if deps[0] / inv > THRESHOLD: continue   # qualify on dep_0 (same-day, widest pool)
+        # Qualify using the SKU pricing map (all orders, no date restriction)
+        _sku_b  = r.get("SKU","") or ""
+        _pcat_b = r.get("REFERRAL_PARTNER_CATEGORY","") or ""
+        _prod_b = r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT","") or ""
+        _thresh = get_ldp_threshold(_sku_b, _pcat_b, _prod_b, inv)
+        if _thresh <= 0 or deps[0] > _thresh: continue
 
         fa   = deps[0]  # dep_0: same-day deposit (default display / pmt_pct base)
         dep1 = deps[1]
@@ -2151,7 +2154,7 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
 # ── 2026 Program Down Payment Lookup ─────────────────────────────────────────
 # Keys are SKU codes as they appear in DIM_ALL_ORDERS.
 # "phone" = Phone / Affiliate / Marketing pricing; "event" = Event pricing.
-# Applied only to orders with DATE >= 2026-01-01; older orders fall back to 10.5%.
+# Applied to ALL orders. SKUs not in this table do not qualify as LDP.
 LDP_DOWN_PMTS = {
     # LT — old SKU : kept for pre-migration orders; new SKU aliases below
     "BTME":               {"phone":   500, "event":   500},
@@ -2240,9 +2243,8 @@ LDP_DOWN_PMTS = {
 
 def get_ldp_threshold(sku, pcat, product_name, inv_total):
     """Return the dollar threshold below which dep_0 qualifies an order as LDP.
-    2026+ orders: use LDP_DOWN_PMTS table.
+    Uses LDP_DOWN_PMTS for ALL orders. SKUs not in the table return 0 (no LDP qualification).
     Ambiguous SKUs (DBCA/LMCA/MYM) are resolved via product name.
-    Falls back to 10.5% of inv_total when SKU not in table.
     """
     is_event = "event" in (pcat or "").lower()
     price_key = "event" if is_event else "phone"
@@ -2258,15 +2260,13 @@ def get_ldp_threshold(sku, pcat, product_name, inv_total):
     entry = LDP_DOWN_PMTS.get(resolved_sku)
     if entry:
         return float(entry[price_key])
-    return float(inv_total) * 0.105  # fallback: 10.5%
+    return 0.0  # SKU not in pricing map — does not qualify as LDP
 
 
 def pre_compute_ldp_ids(orders, payments_rows):
     """Return (ldp_ids set, ldp_first_pay dict {oid: (d0,d1,d2,d3)}) for orders whose
-    same-day deposit (dep_0) qualifies as LDP.
-    2026+ orders: dep_0 <= program's fixed down payment (LDP_DOWN_PMTS).
-    Pre-2026 orders: dep_0 <= 10.5% of INV_TOTAL (legacy rule).
-    Uses UNIQUE_ORDER_ID as the payments lookup key to avoid cross-account collision."""
+    same-day deposit (dep_0) qualifies as LDP per LDP_DOWN_PMTS (all orders, no date restriction).
+    SKUs not in the pricing map are excluded. Uses UNIQUE_ORDER_ID to avoid cross-account collision."""
     uid_deps = {}  # uid → (dep_0, dep_1, dep_2, dep_3)
     for row in (payments_rows or []):
         uid = str(row.get('UID', '')).strip()
@@ -2286,14 +2286,11 @@ def pre_compute_ldp_ids(orders, payments_rows):
         if inv <= 0 or not uid: continue
         deps = uid_deps.get(uid)
         if not deps or deps[0] <= 0: continue
-        order_date = str(r.get("DATE","") or "")
-        if order_date >= "2026-01-01":
-            sku      = r.get("SKU","") or ""
-            pcat     = r.get("REFERRAL_PARTNER_CATEGORY","") or ""
-            product  = r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT","") or ""
-            threshold = get_ldp_threshold(sku, pcat, product, inv)
-        else:
-            threshold = inv * 0.105  # legacy 10.5% rule for pre-2026 orders
+        sku      = r.get("SKU","") or ""
+        pcat     = r.get("REFERRAL_PARTNER_CATEGORY","") or ""
+        product  = r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT","") or ""
+        threshold = get_ldp_threshold(sku, pcat, product, inv)
+        if threshold <= 0: continue  # SKU not in pricing map — not LDP
         if deps[0] <= threshold:
             ldp_ids.add(oid)
             ldp_first_pay[oid] = (round(deps[0],2), round(deps[1],2), round(deps[2],2), round(deps[3],2))
