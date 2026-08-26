@@ -442,22 +442,55 @@ function ldpRenderSummaryTables(rows) {
   var ldpValid = Math.max(0, rows.length - ldpEE - ldpPend - ldpNoPmt);
   var ldpCxRate = ldpValid > 0 ? ldpCncl / ldpValid * 100 : 0;
 
-  // ── All-orders totals from TM aggregates ───────────────────────────────────
-  var allVol = 0, allCnclVol = 0, allCncl = 0, allEE = 0, allPend = 0, allNoPmt = 0, allUpg = 0, allDwn = 0;
+  // ── All-orders totals (filtered by active SKU/pcat selection) ─────────────
+  var allVol = 0, allCnclVol = 0;
   var hasTMV = !!(LDP.TMV);
-  Object.keys(LDP.TM || {}).forEach(function(m) {
-    if (m < df || m > dt) return;
-    var b = LDP.TM[m] || [];
-    allCncl  += (b[1] || 0);
-    allEE    += (b[2] || 0);
-    allUpg   += (b[3] || 0);
-    allDwn   += (b[4] || 0);
-    allPend  += (b[9] || 0);
-    allNoPmt += (b[10] || 0);
-  });
-  if (LDP.TMV)  Object.keys(LDP.TMV).forEach(function(m)  { if (m>=df&&m<=dt) allVol     += (LDP.TMV[m]  || 0); });
-  if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m>=df&&m<=dt) allCnclVol += (LDP.TCLV[m] || 0); });
-  var allValid = ldpGetTotalUnits(r_, ldpGetPcat());
+  var pcat_ = ldpGetPcat();
+  var allArr = [];
+  if (ldpSelSku.size > 0 && LDP.TMS) {
+    ldpSelSku.forEach(function(sku) {
+      var sd = LDP.TMS[sku] || {};
+      Object.keys(sd).forEach(function(m) { if (m >= df && m <= dt) allArr.push(sd[m]); });
+    });
+  } else if (pcat_ && LDP.TMP && LDP.TMP[pcat_]) {
+    var tmAdj = {};
+    var pd = LDP.TMP[pcat_];
+    Object.keys(pd).forEach(function(m) { if (m >= df && m <= dt) tmAdj[m] = (pd[m] || []).slice(); });
+    if (LDP.TMPS && LDP.TMPS[pcat_]) {
+      var pcSkus = LDP.TMPS[pcat_];
+      Object.keys(pcSkus).forEach(function(sku) {
+        if (!EXCLUDED_SKUS.has(sku)) return;
+        var sd = pcSkus[sku] || {};
+        Object.keys(sd).forEach(function(m) {
+          if (tmAdj[m]) { var v = sd[m]; if (v) for (var i = 0; i < 11; i++) tmAdj[m][i] = (tmAdj[m][i] || 0) - (v[i] || 0); }
+        });
+      });
+    }
+    Object.keys(tmAdj).forEach(function(m) { allArr.push(tmAdj[m]); });
+  } else {
+    var tmAdj2 = {};
+    Object.keys(LDP.TM).forEach(function(m) { if (m >= df && m <= dt) tmAdj2[m] = (LDP.TM[m] || []).slice(); });
+    if (LDP.TMS) {
+      Object.keys(LDP.TMS).forEach(function(sku) {
+        if (!EXCLUDED_SKUS.has(sku)) return;
+        var sd = LDP.TMS[sku] || {};
+        Object.keys(sd).forEach(function(m) {
+          if (tmAdj2[m]) { var v = sd[m]; if (v) for (var i = 0; i < 11; i++) tmAdj2[m][i] = (tmAdj2[m][i] || 0) - (v[i] || 0); }
+        });
+      });
+    }
+    Object.keys(tmAdj2).forEach(function(m) { allArr.push(tmAdj2[m]); });
+  }
+  var allTot   = ldpSumArr(allArr);
+  var allCncl  = allTot[LCi]  || 0;
+  var allEE    = allTot[LEi]  || 0;
+  var allUpg   = allTot[LUi]  || 0;
+  var allDwn   = allTot[LDi]  || 0;
+  var allPend  = allTot[LPi]  || 0;
+  var allNoPmt = allTot[LNPi] || 0;
+  if (LDP.TMV)  Object.keys(LDP.TMV).forEach(function(m)  { if (m >= df && m <= dt) allVol     += (LDP.TMV[m]  || 0); });
+  if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m >= df && m <= dt) allCnclVol += (LDP.TCLV[m] || 0); });
+  var allValid = Math.max(0, allTot[LTi] - allTot[LEi] - allTot[LPi] - allTot[LNPi]);
   var allCxRate = allValid > 0 ? allCncl / allValid * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
