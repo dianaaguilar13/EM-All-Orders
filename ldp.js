@@ -683,6 +683,11 @@ function ldpRenderTracker(rows) {
     return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:rows.length)+')</button>';
   }).join("");
 
+  var depWinHtml = ['Same day','+1 day','+2 days','+3 days'].map(function(lbl,i){
+    var act = ldpDepWin === i;
+    return '<button onclick="setLdpDepWin('+i+')" style="padding:3px 10px;border-radius:20px;border:1px solid '+(act?"#7c3aed":"#e2e8f0")+';background:'+(act?"#7c3aed":"#f8fafc")+';color:'+(act?"#fff":"#475569")+';font-size:11px;font-weight:'+(act?"700":"400")+';cursor:pointer">'+lbl+'</button>';
+  }).join("");
+
   el.innerHTML =
     '<div style="padding:16px 28px 14px;border-bottom:1px solid #e2e8f0">'
     +'<div style="font-size:12px;font-weight:700;color:#0d1b3e;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">RISK SUMMARY</div>'
@@ -691,6 +696,10 @@ function ldpRenderTracker(rows) {
     +'<span style="font-size:11px;color:#64748b;margin-right:4px">Filter:</span>'+riskFilterHtml
     +'<input id="ldp-tracker-search" placeholder="Search order, contact, EM…" oninput="ldpTrackerSearch(this.value)" value="'+trackerSearch.replace(/"/g,'&quot;')+'" style="margin-left:auto;padding:5px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:5px;width:220px">'
     +'<button onclick="ldpExportTracker()" title="Export current view to CSV" style="padding:5px 12px;background:#0d1b3e;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">⬇ Export CSV</button>'
+    +'</div>'
+    +'<div style="padding:8px 28px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #e2e8f0;background:#faf8ff">'
+    +'<span style="font-size:11px;font-weight:700;color:#7c3aed;white-space:nowrap">💳 LDP Window</span>'
+    +depWinHtml
     +'</div>'
     +'<div style="overflow-x:auto;padding:0 28px 28px">'
     +'<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">'
