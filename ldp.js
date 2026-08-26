@@ -204,41 +204,6 @@ function ldpRender(){
   // Deposit window pill buttons
   (function(){var wins=["Same day","+ 1 day","+ 2 days","+ 3 days"];var el=document.getElementById("ldp-depWinBar");if(!el)return;el.innerHTML=wins.map(function(lbl,i){var act=ldpDepWin===i;return'<button id="ldp-dw'+i+'" onclick="setLdpDepWin('+i+')" style="padding:3px 10px;border-radius:20px;border:1px solid '+(act?"#7c3aed":"#e2e8f0")+';background:'+(act?"#7c3aed":"#f8fafc")+';color:'+(act?"#fff":"#475569")+';font-size:11px;font-weight:'+(act?"700":"400")+';cursor:pointer;transition:all .15s">'+lbl+'</button>';}).join("");})();
 
-  // KPIs — Option C: unified card · General row on top · LDP Outcomes row below
-  document.getElementById("ldp-kpis").innerHTML=
-    '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'+
-    // ── General row ──
-    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#94a3b8;margin-bottom:8px">📋 All Orders</div>'+
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">'+
-      '<div class="kpi" style="border-top:3px solid #94a3b8"><div class="kl">Total Units</div><div class="kv" style="color:#475569">'+totalUnits.toLocaleString()+'</div><div class="ks muted">all orders (excl. EE, Pend, No Pmt)</div></div>'+
-      '<div class="kpi" style="border-top:3px solid #7c3aed"><div class="kl">Total LDP Units</div><div class="kv" style="color:#7c3aed">'+ldpValidUnits.toLocaleString()+'</div><div class="ks" style="color:#7c3aed">'+ldpPct.toFixed(1)+'% of all orders</div></div>'+
-      '<div class="kpi" style="border-top:3px solid #d97706"><div class="kl">Avg Down Payment</div><div class="kv" style="color:#d97706">'+avgPmt.toFixed(1)+'%</div><div class="ks muted">avg % of program price paid</div></div>'+
-    '</div>'+
-    // ── Divider with LDP label ──
-    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+
-      '<div style="height:1px;background:#ddd6fe;flex:1"></div>'+
-      '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#7c3aed">💳 LDP Outcomes</span>'+
-      '<div style="height:1px;background:#ddd6fe;flex:1"></div>'+
-    '</div>'+
-    // ── LDP Outcomes row: 3 KPIs + upgrade/downgrade chips ──
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">'+
-      '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Cancelled</div><div class="kv" style="color:#ef4444">'+ldpCncl.toLocaleString()+'</div><div class="ks red">'+(ldpValidUnits>0?(ldpCncl/ldpValidUnits*100).toFixed(1):0)+'%</div></div>'+
-      '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Cancel Rate</div><div class="kv" style="color:#ef4444">'+ldpCancelRate.toFixed(1)+'%</div><div class="ks muted">cancellations ÷ LDP</div></div>'+
-      '<div class="kpi" style="border-top:3px solid #ef4444"><div class="kl">Lost Revenue</div><div class="kv" style="color:#ef4444;font-size:19px">$'+Math.round(lostRev).toLocaleString()+'</div><div class="ks muted">on LDP cancels</div></div>'+
-      '<div style="display:flex;flex-direction:column;gap:5px">'+
-        '<div style="flex:1;display:flex;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:6px 10px">'+
-          '<div style="font-size:18px;font-weight:700;color:#16a34a;letter-spacing:-0.5px">'+ldpUpg.toLocaleString()+'</div>'+
-          '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#166534">↑ Upgrades</div>'+
-          '<div style="font-size:10px;color:#16a34a">'+ldpUpgPct.toFixed(1)+'% of LDP</div></div>'+
-        '</div>'+
-        '<div style="flex:1;display:flex;align-items:center;gap:8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:7px;padding:6px 10px">'+
-          '<div style="font-size:18px;font-weight:700;color:#7c3aed;letter-spacing:-0.5px">'+ldpDwn.toLocaleString()+'</div>'+
-          '<div><div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#6b21a8">↓ Downgrades</div>'+
-          '<div style="font-size:10px;color:#7c3aed">'+ldpDwnPct.toFixed(1)+'% of LDP</div></div>'+
-        '</div>'+
-      '</div>'+
-    '</div>'+
-    '</div>';
 
   // Monthly trend
   var byMonth={};
