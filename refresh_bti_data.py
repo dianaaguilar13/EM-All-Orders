@@ -2139,10 +2139,92 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
     }
 
 
+# ── 2026 Program Down Payment Lookup ─────────────────────────────────────────
+# Keys are SKU codes as they appear in DIM_ALL_ORDERS.
+# "phone" = Phone / Affiliate / Marketing pricing; "event" = Event pricing.
+# Applied only to orders with DATE >= 2026-01-01; older orders fall back to 10.5%.
+LDP_DOWN_PMTS = {
+    # LT
+    "BTME":               {"phone":   500, "event":   500},
+    "BTM":                {"phone":  2637, "event":  1900},
+    "BTM-Mopp":           {"phone":   997, "event":   997},
+    "MM-SC-KAT":          {"phone":  4700, "event":  3995},
+    "BTMP":               {"phone":  6997, "event":  6997},
+    "BTMP-Mopp":          {"phone":  6997, "event":  6997},
+    "BTMP-Add on":        {"phone":  6997, "event":  6997},
+    "BTM BT Add-on":      {"phone":  6999, "event":  5999},
+    "MC-Elite":           {"phone":  7200, "event":  5999},
+    "MC-Elite-Mopp":      {"phone":  6455, "event":  5999},
+    "MC-Elite-MC":        {"phone":  4450, "event":  5999},
+    "MC Elite 1 to 1":    {"phone": 10200, "event": 10425},
+    "MM Mary":            {"phone": 10000, "event": 10000},
+    "Elite 1 to 1 Mary":  {"phone": 24000, "event": 24000},
+    # LCC
+    "DBCE":               {"phone":   997, "event":   997},
+    "DBC":                {"phone":  3999, "event":  3999},
+    "LMC":                {"phone":  7020, "event":  5999},
+    "DBCA":               {"phone":  1636, "event":  2400},  # 6 MO default; 12 MO detected via product name
+    "DBCA 6":             {"phone":  1636, "event":  2400},
+    "DBCA 12":            {"phone":  2182, "event":  3600},
+    "LMCA":               {"phone":  1636, "event":  2400},  # 6 MO default
+    "LMCA 6":             {"phone":  1636, "event":  2400},
+    "LMCA 12":            {"phone":  2182, "event":  3600},
+    "LMCA GOLD":          {"phone":  3999, "event":  3999},
+    "ELEV":               {"phone":  7200, "event":  5999},
+    "ELEVADD":            {"phone":  5999, "event":  5999},
+    "INTSV4ADD":          {"phone":  2999, "event":  2999},
+    "ACCLIVE":            {"phone":  3749, "event":  3749},
+    # L&R
+    "MYM":                {"phone":   875, "event":   875},  # 6 MO default; 12 MO detected via product name
+    "MYM 6":              {"phone":   875, "event":   875},
+    "MYM 12":             {"phone":  1632, "event":   997},
+    "MYME":               {"phone":   450, "event":   450},
+    "MYM 2.0":            {"phone":   984, "event":   984},
+    "MYM-VIP":            {"phone":  3750, "event":  3750},
+    "MYM VIP W12":        {"phone":  5999, "event":  5999},
+    "MYM VIP W24":        {"phone":  7680, "event":  7680},
+    "MYM VIP W12- Add-On":{"phone":  2280, "event":  2280},
+    "MYM VIP W20- Add-On":{"phone":  3750, "event":  3750},
+    # HWB
+    "TFT-O":              {"phone":   780, "event":   780},
+    # B&L
+    "BTL":                {"phone":  3600, "event":  3600},
+    "BTLE":               {"phone":   750, "event":   750},
+    "HLL":                {"phone":  5999, "event":  5999},
+    "BTBPC":              {"phone":  5999, "event":  5999},
+    "BTB PC":             {"phone":  5999, "event":  5999},
+    "BTLM":               {"phone": 10500, "event": 10500},
+    "BTLM VIP":           {"phone": 22500, "event": 22500},
+}
+
+def get_ldp_threshold(sku, pcat, product_name, inv_total):
+    """Return the dollar threshold below which dep_0 qualifies an order as LDP.
+    2026+ orders: use LDP_DOWN_PMTS table.
+    Ambiguous SKUs (DBCA/LMCA/MYM) are resolved via product name.
+    Falls back to 10.5% of inv_total when SKU not in table.
+    """
+    is_event = "event" in (pcat or "").lower()
+    price_key = "event" if is_event else "phone"
+    pname = (product_name or "").upper()
+
+    # Resolve ambiguous SKUs that cover both 6 MO and 12 MO under one code
+    resolved_sku = sku
+    if sku in ("DBCA", "LMCA") and ("12 MO" in pname or "12MO" in pname or "12 MONTH" in pname):
+        resolved_sku = sku + " 12"
+    elif sku == "MYM" and "12" in pname:
+        resolved_sku = "MYM 12"
+
+    entry = LDP_DOWN_PMTS.get(resolved_sku)
+    if entry:
+        return float(entry[price_key])
+    return float(inv_total) * 0.105  # fallback: 10.5%
+
+
 def pre_compute_ldp_ids(orders, payments_rows):
     """Return (ldp_ids set, ldp_first_pay dict {oid: (d0,d1,d2,d3)}) for orders whose
-    same-day deposit (dep_0) was <= 10.5% of INV_TOTAL.  All 4 deposit windows are
-    stored so the JS deposit-window dropdown can re-qualify dynamically.
+    same-day deposit (dep_0) qualifies as LDP.
+    2026+ orders: dep_0 <= program's fixed down payment (LDP_DOWN_PMTS).
+    Pre-2026 orders: dep_0 <= 10.5% of INV_TOTAL (legacy rule).
     Uses UNIQUE_ORDER_ID as the payments lookup key to avoid cross-account collision."""
     uid_deps = {}  # uid → (dep_0, dep_1, dep_2, dep_3)
     for row in (payments_rows or []):
@@ -2163,7 +2245,15 @@ def pre_compute_ldp_ids(orders, payments_rows):
         if inv <= 0 or not uid: continue
         deps = uid_deps.get(uid)
         if not deps or deps[0] <= 0: continue
-        if deps[0] / inv <= 0.105:   # qualify on dep_0 (same-day = original rule)
+        order_date = str(r.get("DATE","") or "")
+        if order_date >= "2026-01-01":
+            sku      = r.get("SKU","") or ""
+            pcat     = r.get("REFERRAL_PARTNER_CATEGORY","") or ""
+            product  = r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT","") or ""
+            threshold = get_ldp_threshold(sku, pcat, product, inv)
+        else:
+            threshold = inv * 0.105  # legacy 10.5% rule for pre-2026 orders
+        if deps[0] <= threshold:
             ldp_ids.add(oid)
             ldp_first_pay[oid] = (round(deps[0],2), round(deps[1],2), round(deps[2],2), round(deps[3],2))
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
