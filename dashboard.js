@@ -945,6 +945,8 @@ function downloadCancelCsv(){
 // ── Cohort Cancel Rate ─────────────────────────────────────
 function getCohortRows(){
   var r=getRange();
+  var dfFull=document.getElementById("df").value.slice(0,10);
+  var dtFull=document.getElementById("dt").value.slice(0,10);
   var fAct=document.getElementById("fAct").value;
   var fCncl=document.getElementById("fCncl").value;
   var result=[];
@@ -953,9 +955,9 @@ function getCohortRows(){
     if(selSku.size>0&&!selSku.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
       // Cohort is defined by PURCHASE DATE (row[2]) — "orders bought in this range"
-      // Top section uses effective/cancellation date (row[16]) via pre-aggregated maps
-      var dateM=row[2].slice(0,7);
-      if(dateM<r.df||dateM>r.dt)return;
+      // Compare full YYYY-MM-DD so day selection is respected (not just month)
+      var rowDate=row[2].slice(0,10);
+      if(rowDate<dfFull||rowDate>dtFull)return;
       // Exclude same statuses as top KPI "Net Units" (Entry Error, Pend, No Pmt)
       if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
       if(fAct&&row[3]!==fAct)return;
@@ -970,11 +972,10 @@ function getCohortRows(){
 }
 
 function getRangeEndMs(){
-  // Returns last day of the selected date range (end of the dt month) as timestamp
-  var r=getRange();
-  var dt=r.dt; // YYYY-MM
-  var y=parseInt(dt.slice(0,4)),m=parseInt(dt.slice(5,7));
-  return new Date(y,m,0).getTime(); // day 0 of next month = last day of this month
+  // Returns the selected end date at 23:59:59 (exact day, not end of month)
+  var dtFull=document.getElementById("dt").value.slice(0,10);
+  if(!dtFull)return Date.now();
+  return new Date(dtFull+"T23:59:59").getTime();
 }
 function formatCutoffDate(ms){
   if(!ms&&ms!==0)return"";
