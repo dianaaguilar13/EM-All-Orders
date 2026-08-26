@@ -343,7 +343,8 @@ function ldpRender(){
   // Records table (paginated)
   ldpRenderRecords(rows);
 
-  // Payment tracker
+  // Summary tables + payment tracker
+  ldpRenderSummaryTables(rows);
   ldpRenderTracker(rows);
 }
 
@@ -410,6 +411,139 @@ function ldpDownloadCsv(){
   a.href=URL.createObjectURL(blob);
   a.download="ldp_records_"+range.df+"_"+range.dt+".csv";
   a.click();
+}
+
+// ── Summary Tables (Metrics + PE) ────────────────────────────────────────────
+function ldpRenderSummaryTables(rows) {
+  var el = document.getElementById("ldp-summary-tables");
+  if (!el) return;
+
+  var r_ = ldpGetRange(), df = r_.df, dt = r_.dt;
+
+  // ── LDP totals from filtered rows ──────────────────────────────────────────
+  var ldpEE = 0, ldpPend = 0, ldpNoPmt = 0, ldpCncl = 0, ldpUpg = 0, ldpDwn = 0;
+  var ldpVol = 0, ldpCnclVol = 0, ldpAtRisk = 0, ldpVolAtRisk = 0, ldpVolLost = 0;
+  rows.forEach(function(r) {
+    var st = r[10], rk = r[21];
+    if (st === "Entry Error") ldpEE++;
+    else if (st === "Pend")   ldpPend++;
+    else if (st === "No Pmt") ldpNoPmt++;
+    if (st === "Cancelled")  ldpCncl++;
+    if (st === "Upgrade")    ldpUpg++;
+    if (st === "Downgrade")  ldpDwn++;
+    ldpVol += (r[7] || 0);
+    ldpCnclVol += (r[16] || 0);
+    if (rk === "Overdue +30" || rk === "Overdue +15" || rk === "Overdue") {
+      ldpAtRisk++;
+      ldpVolAtRisk += (r[22] || 0);
+    }
+    if (st === "Downgrade") ldpVolLost += (r[16] || 0);
+  });
+  var ldpValid = Math.max(0, rows.length - ldpEE - ldpPend - ldpNoPmt);
+  var ldpCxRate = ldpValid > 0 ? ldpCncl / ldpValid * 100 : 0;
+
+  // ── All-orders totals from TM aggregates ───────────────────────────────────
+  var allVol = 0, allCnclVol = 0, allCncl = 0, allEE = 0, allPend = 0, allNoPmt = 0, allUpg = 0, allDwn = 0;
+  var hasTMV = !!(LDP.TMV);
+  Object.keys(LDP.TM || {}).forEach(function(m) {
+    if (m < df || m > dt) return;
+    var b = LDP.TM[m] || [];
+    allCncl  += (b[1] || 0);
+    allEE    += (b[2] || 0);
+    allUpg   += (b[3] || 0);
+    allDwn   += (b[4] || 0);
+    allPend  += (b[9] || 0);
+    allNoPmt += (b[10] || 0);
+  });
+  if (LDP.TMV)  Object.keys(LDP.TMV).forEach(function(m)  { if (m>=df&&m<=dt) allVol     += (LDP.TMV[m]  || 0); });
+  if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m>=df&&m<=dt) allCnclVol += (LDP.TCLV[m] || 0); });
+  var allValid = ldpGetTotalUnits(r_, ldpGetPcat());
+  var allCxRate = allValid > 0 ? allCncl / allValid * 100 : 0;
+
+  // ── FDP = All − LDP ────────────────────────────────────────────────────────
+  var fdpVol      = hasTMV ? allVol - ldpVol : null;
+  var fdpValid    = allValid - ldpValid;
+  var fdpCncl     = allCncl - ldpCncl;
+  var fdpCxRate   = fdpValid > 0 ? fdpCncl / fdpValid * 100 : 0;
+  var fdpCnclVol  = LDP.TCLV ? allCnclVol - ldpCnclVol : null;
+  var fdpUpg      = allUpg - ldpUpg;
+  var fdpDwn      = allDwn - ldpDwn;
+  var ldpVolPct   = allValid > 0 ? ldpValid / allValid * 100 : 0;
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  var $ = function(v) { return v == null ? '<span style="color:#94a3b8">—</span>' : '$' + Math.round(v).toLocaleString(); };
+  var N = function(v) { return v == null ? '<span style="color:#94a3b8">—</span>' : v.toLocaleString(); };
+  var P = function(v) { return v == null ? '<span style="color:#94a3b8">—</span>' : v.toFixed(2) + '%'; };
+  var PP = function(num, den) { return (den > 0 && num != null) ? (num/den*100).toFixed(1)+'%' : '<span style="color:#94a3b8">—</span>'; };
+
+  // ── Metrics rows ────────────────────────────────────────────────────────────
+  var rows1 = [
+    ["Volume",                $(allVol),         $(fdpVol),        $(ldpVol),         PP(ldpVol, allVol)],
+    ["Units",                 N(allValid),        N(fdpValid),       N(ldpValid),       PP(ldpValid, allValid)],
+    ["Cancelled",             N(allCncl),         N(fdpCncl),        N(ldpCncl),        PP(ldpCncl, allCncl)],
+    ["% Cancellation",        P(allCxRate),       P(fdpCxRate),      P(ldpCxRate),      ""],
+    ["Cancellations Vol Lost",$(allCnclVol||null),$(fdpCnclVol),    $(ldpCnclVol),     PP(ldpCnclVol, allCnclVol)],
+    ["At Risk",               N(ldpAtRisk),       '<span style="color:#94a3b8">—</span>',  N(ldpAtRisk),  ""],
+    ["Volume at Risk",        $(ldpVolAtRisk),    '<span style="color:#94a3b8">—</span>',  $(ldpVolAtRisk),""],
+    ["Downgrade",             N(allDwn),          N(fdpDwn),         N(ldpDwn),         PP(ldpDwn, allDwn)],
+    ["Volume Lost",           '<span style="color:#94a3b8">—</span>','<span style="color:#94a3b8">—</span>',$(ldpVolLost),""],
+    ["Upgrade",               N(allUpg),          N(fdpUpg),         N(ldpUpg),         PP(ldpUpg, allUpg)],
+  ];
+
+  var hdStyle = "text-align:left;padding:6px 10px;background:#f1f5f9;border-bottom:2px solid #e2e8f0;font-size:11px;font-weight:700;color:#475569;white-space:nowrap";
+  var tbl1 = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    + '<thead><tr>'
+    + ['Metrics','All Month Results','FDP','LDP','% of LDPs'].map(function(h){return'<th style="'+hdStyle+'">'+h+'</th>';}).join('')
+    + '</tr></thead><tbody>';
+  rows1.forEach(function(row, i) {
+    var bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+    tbl1 += '<tr style="background:'+bg+'">'
+      + '<td style="padding:5px 10px;font-weight:600;color:#374151;font-size:12px;border-bottom:1px solid #f1f5f9;white-space:nowrap">'+row[0]+'</td>'
+      + '<td style="padding:5px 10px;color:#1e293b;font-size:12px;border-bottom:1px solid #f1f5f9">'+row[1]+'</td>'
+      + '<td style="padding:5px 10px;color:#0369a1;font-size:12px;border-bottom:1px solid #f1f5f9">'+row[2]+'</td>'
+      + '<td style="padding:5px 10px;color:#7c3aed;font-weight:600;font-size:12px;border-bottom:1px solid #f1f5f9">'+row[3]+'</td>'
+      + '<td style="padding:5px 10px;color:#64748b;font-size:12px;border-bottom:1px solid #f1f5f9">'+row[4]+'</td>'
+      + '</tr>';
+  });
+  tbl1 += '</tbody></table>';
+
+  // ── PE table from LDP rows ──────────────────────────────────────────────────
+  var byEM = {};
+  rows.forEach(function(r) {
+    var em = (r[15] || "").trim() || "Unknown";
+    if (!byEM[em]) byEM[em] = {total:0, good:0, nogood:0};
+    byEM[em].total++;
+    var rk = r[21];
+    if (rk === "On Track" || rk === "Paid in Full" || rk === "Upgrade") byEM[em].good++;
+    else if (rk === "Cancelled" || rk === "Overdue +30" || rk === "Overdue +15" || rk === "Overdue" || rk === "Downgrade") byEM[em].nogood++;
+  });
+  var ems = Object.keys(byEM).filter(function(e){return e!=="Unknown";}).sort();
+  if (byEM["Unknown"]) ems.push("Unknown");
+
+  var tbl2 = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+    + '<thead><tr>'
+    + ["LDP's by PE","LDPs","Good Standing","Good %","No Good %"].map(function(h){return'<th style="'+hdStyle+'">'+h+'</th>';}).join('')
+    + '</tr></thead><tbody>';
+  ems.forEach(function(em, i) {
+    var d = byEM[em];
+    var bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+    var goodPct = d.total > 0 ? (d.good/d.total*100).toFixed(0)+'%' : '—';
+    var badPct  = d.total > 0 ? (d.nogood/d.total*100).toFixed(0)+'%' : '—';
+    var badColor = d.nogood > 0 ? '#ef4444' : '#16a34a';
+    tbl2 += '<tr style="background:'+bg+'">'
+      + '<td style="padding:5px 10px;font-weight:500;color:#374151;font-size:12px;border-bottom:1px solid #f1f5f9">'+em+'</td>'
+      + '<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;color:#7c3aed;font-weight:600">'+d.total+'</td>'
+      + '<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;color:#16a34a;font-weight:600">'+d.good+'</td>'
+      + '<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;color:#16a34a">'+goodPct+'</td>'
+      + '<td style="padding:5px 10px;font-size:12px;border-bottom:1px solid #f1f5f9;color:'+badColor+'">'+badPct+'</td>'
+      + '</tr>';
+  });
+  tbl2 += '</tbody></table>';
+
+  el.innerHTML = '<div style="display:grid;grid-template-columns:auto 1fr;gap:0;align-items:start">'
+    + '<div style="padding:16px 20px 16px 0;border-right:1px solid #e2e8f0;min-width:420px">'+tbl1+'</div>'
+    + '<div style="padding:16px 0 16px 20px;overflow-y:auto;max-height:360px">'+tbl2+'</div>'
+    + '</div>';
 }
 
 // ── LDP Payment Tracker ───────────────────────────────────────────────────────
