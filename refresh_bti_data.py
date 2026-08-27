@@ -188,13 +188,15 @@ def fetch_payments(conn):
     sql = f"""
         WITH all_pmts AS (
             -- All non-deleted positive payments for orders in scope.
-            -- order_date = HEAVEN_DATE (the effective sale date) when set, else DATE.
-            -- Pre-sale payments up to 30 days before the order are included so
-            -- that deposits paid on or before the sale date are captured in dep_0.
+            -- order_date = GREATEST(HEAVEN_DATE, DATE): for pre-event enrollments
+            -- HEAVEN_DATE >= DATE so the event date is the cutoff; for late/post-event
+            -- enrollments DATE > HEAVEN_DATE so the actual purchase date is the cutoff.
+            -- This ensures a payment made on the real sale day is always in dep_0.
+            -- Pre-sale payments up to 30 days before DATE are also included.
             SELECT
                 o.UNIQUE_ORDER_ID,
                 o.ID                                    AS order_id,
-                COALESCE(o.HEAVEN_DATE, o.DATE)         AS order_date,
+                GREATEST(COALESCE(o.HEAVEN_DATE, o.DATE), o.DATE) AS order_date,
                 p.PAYDATE,
                 p.PAYAMT,
                 p.PAYTYPE
