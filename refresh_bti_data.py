@@ -954,6 +954,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         else:
             _days_overdue = None
 
+        _is_pif     = bool(_meta.get('is_pif', 0))
         _paid_full  = (_total_paid >= inv * 0.99) or _is_pif
 
         if _paid_full:
