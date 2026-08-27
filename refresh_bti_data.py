@@ -868,12 +868,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         month  = eff_date[:7]
         rd     = get_rd(r.get("REFUND_CREDIT_DATE",""), r.get("DATE",""))
 
-        # Resolve PIF flag BEFORE aggregate updates so the override can apply.
         _meta       = uid_pmt_meta.get(uid, {})
-        _is_pif     = bool(_meta.get('is_pif', 0))
-        # Override: orders flagged Paid in Full are FDP regardless of initial deposit.
-        if is_ldp and _is_pif:
-            is_ldp = False
 
         all_skus.add(sku); all_parts.add(part); all_pcats.add(pcat)
         if is_ldp:
@@ -2248,6 +2243,9 @@ LDP_DOWN_PMTS = {
     # HWB
     "TFT-O":              {"phone":   780, "event":   780},
     "TFTO":               {"phone":   780, "event":   780},   # new SKU
+    # VHW — Vision Has Wings (confirmed threshold from user)
+    "VHW OL 6 Mo":        {"phone":  1800, "event":  1800},
+    "VHW OL 12 Mo":       {"phone":  1800, "event":  1800},   # assumed same; confirm if different
     # B&L
     "BTL":                {"phone":  3600, "event":  3600},
     "BTL MOPP":           {"phone":  1500, "event":  1500},   # new SKU
