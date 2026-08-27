@@ -823,9 +823,11 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         if inv <= 0: continue
 
         if not payments_found: continue
-        # Deposit = 4-window tuple keyed by UNIQUE_ORDER_ID (globally unique)
+        # Deposit = 4-window tuple keyed by UNIQUE_ORDER_ID (globally unique).
+        # Skip only if NO payment records exist at all.  dep_0 can legitimately be 0
+        # for orders where the client's first payment came after the sale date.
         deps = uid_deps.get(uid)
-        if not deps or deps[0] <= 0: continue
+        if deps is None: continue
         # Pre-2026: 10.5% rule.  2026+: fixed DP from SKU pricing map (falls back to 10.5% if SKU unknown)
         _order_date = str(r.get("DATE","") or "")
         if _order_date >= "2026-01-01":
@@ -835,8 +837,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _thresh = get_ldp_threshold(_sku_b, _pcat_b, _prod_b, inv)
         else:
             _thresh = inv * 0.105
-        # Strict less-than: paying exactly the required down payment = FDP, not LDP
-        is_ldp = deps[0] < _thresh
+        # LDP: deposit must be positive AND strictly below the threshold.
+        # dep_0 = 0 means no payment was made on/before the sale date → not LDP.
+        is_ldp = 0 < deps[0] < _thresh
 
         fa   = deps[0]  # dep_0: payments on/before order date (see SQL)
         dep1 = deps[1]
@@ -2301,7 +2304,7 @@ def pre_compute_ldp_ids(orders, payments_rows):
         inv = float(r.get("INV_TOTAL",0) or 0)
         if inv <= 0 or not uid: continue
         deps = uid_deps.get(uid)
-        if not deps or deps[0] <= 0: continue
+        if deps is None: continue
         order_date = str(r.get("DATE","") or "")
         if order_date >= "2026-01-01":
             sku      = r.get("SKU","") or ""
@@ -2310,7 +2313,7 @@ def pre_compute_ldp_ids(orders, payments_rows):
             threshold = get_ldp_threshold(sku, pcat, product, inv)
         else:
             threshold = inv * 0.105  # pre-2026: legacy 10.5% rule
-        if deps[0] < threshold:
+        if 0 < deps[0] < threshold:
             ldp_ids.add(oid)
             ldp_first_pay[oid] = (round(deps[0],2), round(deps[1],2), round(deps[2],2), round(deps[3],2))
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
