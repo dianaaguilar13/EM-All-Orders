@@ -187,10 +187,14 @@ def fetch_payments(conn):
     print("⏳ Fetching payments from Snowflake...")
     sql = f"""
         WITH all_pmts AS (
-            -- All non-deleted positive payments for orders in scope
+            -- All non-deleted positive payments for orders in scope.
+            -- order_date = HEAVEN_DATE (cohort date) when available, else DATE.
+            -- Pre-sale payments up to 30 days before the order are included so
+            -- that deposits paid on or before the sale date are captured in dep_0.
             SELECT
                 o.UNIQUE_ORDER_ID,
-                o.ID       AS order_id,
+                o.ID                                    AS order_id,
+                COALESCE(o.HEAVEN_DATE, o.DATE)         AS order_date,
                 p.PAYDATE,
                 p.PAYAMT,
                 p.PAYTYPE
@@ -204,50 +208,45 @@ def fetch_payments(conn):
               AND o.SKU IS NOT NULL AND o.SKU != ''
         ),
         valid_pmts AS (
-            -- Only real tender types count toward deposit amounts & dates
+            -- Only real tender types count toward deposit amounts & dates.
             SELECT * FROM all_pmts
             WHERE PAYTYPE IN (
                 'Credit Card', 'Credit Card (Manual)', 'Credit Card (MANUAL)',
                 'ACH', 'ACH Bank',
-                'PayPal', 'PayPal Payment', 'Paypal',
+                'PayPal', 'PayPal Payment', 'Paypal', 'PayPal Express Checkout',
                 'Wire', 'Wire Transfer',
                 'Check', 'Cash'
             )
         ),
         pif_flag AS (
-            -- Orders with a PIF-discount record are treated as Paid in Full
+            -- Orders with a PIF-discount record are treated as Paid in Full.
             SELECT DISTINCT UNIQUE_ORDER_ID, order_id, 1 AS is_pif
             FROM all_pmts
             WHERE PAYTYPE = 'Discount for Payment in Full'
-        ),
-        order_first_pmt AS (
-            SELECT UNIQUE_ORDER_ID, order_id, MIN(PAYDATE) AS first_date
-            FROM valid_pmts
-            GROUP BY UNIQUE_ORDER_ID, order_id
         )
         SELECT
-            v.UNIQUE_ORDER_ID                                                  AS "UID",
-            v.order_id                                                         AS "Id",
-            SUM(CASE WHEN v.PAYDATE = f.first_date
-                     THEN v.PAYAMT ELSE 0 END)                                AS "Deposit",
-            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 1, f.first_date)
-                     THEN v.PAYAMT ELSE 0 END)                                AS "dep_1",
-            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 2, f.first_date)
-                     THEN v.PAYAMT ELSE 0 END)                                AS "dep_2",
-            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 3, f.first_date)
-                     THEN v.PAYAMT ELSE 0 END)                                AS "dep_3",
-            f.first_date                                                       AS "First_Date",
-            MAX(v.PAYDATE)                                                     AS LAST_PAY_DATE,
-            COUNT(*)                                                           AS PMT_COUNT,
-            COALESCE(MAX(p.is_pif), 0)                                        AS IS_PIF
+            v.UNIQUE_ORDER_ID                                                         AS "UID",
+            v.order_id                                                                AS "Id",
+            -- dep_0: all payments on or before the order/sale date.
+            -- Anchoring on order_date (not the first payment date) ensures that
+            -- pre-sale payments and same-day payments all count toward the deposit.
+            SUM(CASE WHEN v.PAYDATE <= v.order_date
+                     THEN v.PAYAMT ELSE 0 END)                                        AS "Deposit",
+            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 1, v.order_date)
+                     THEN v.PAYAMT ELSE 0 END)                                        AS "dep_1",
+            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 2, v.order_date)
+                     THEN v.PAYAMT ELSE 0 END)                                        AS "dep_2",
+            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 3, v.order_date)
+                     THEN v.PAYAMT ELSE 0 END)                                        AS "dep_3",
+            MIN(v.PAYDATE)                                                             AS "First_Date",
+            MAX(v.PAYDATE)                                                             AS LAST_PAY_DATE,
+            COUNT(*)                                                                   AS PMT_COUNT,
+            COALESCE(MAX(p.is_pif), 0)                                                AS IS_PIF
         FROM valid_pmts v
-        JOIN order_first_pmt f
-          ON v.UNIQUE_ORDER_ID = f.UNIQUE_ORDER_ID
-         AND v.order_id        = f.order_id
         LEFT JOIN pif_flag p
           ON v.UNIQUE_ORDER_ID = p.UNIQUE_ORDER_ID
          AND v.order_id        = p.order_id
-        GROUP BY v.UNIQUE_ORDER_ID, v.order_id, f.first_date
+        GROUP BY v.UNIQUE_ORDER_ID, v.order_id, v.order_date
     """
     cur = conn.cursor()
     cur.execute(sql)
@@ -838,8 +837,12 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         else:
             _thresh = inv * 0.105
         is_ldp = deps[0] <= _thresh
+        # Override: if the deposit on/before the sale date already covers ≥98% of
+        # the invoice, the client paid in full from the start — that is FDP, not LDP.
+        if is_ldp and deps[0] >= inv * 0.98:
+            is_ldp = False
 
-        fa   = deps[0]  # dep_0: same-day deposit (default display / pmt_pct base)
+        fa   = deps[0]  # dep_0: payments on/before order date (see SQL)
         dep1 = deps[1]
         dep2 = deps[2]
         dep3 = deps[3]
@@ -864,6 +867,13 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         month  = eff_date[:7]
         rd     = get_rd(r.get("REFUND_CREDIT_DATE",""), r.get("DATE",""))
 
+        # Resolve PIF flag BEFORE aggregate updates so the override can apply.
+        _meta       = uid_pmt_meta.get(uid, {})
+        _is_pif     = bool(_meta.get('is_pif', 0))
+        # Override: orders flagged Paid in Full are FDP regardless of initial deposit.
+        if is_ldp and _is_pif:
+            is_ldp = False
+
         all_skus.add(sku); all_parts.add(part); all_pcats.add(pcat)
         if is_ldp:
             upd(by_month[month], cncl, active, lost)
@@ -880,14 +890,10 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         else:
             _balance = max(0.0, round(inv - _total_paid, 2))
 
-        # Last payment date + count: from uid_pmt_meta keyed by UNIQUE_ORDER_ID.
-        # SQL JOIN already filtered cross-account collision payments, so no
-        # additional date sanity check is needed here.
-        _meta       = uid_pmt_meta.get(uid, {})
+        # Last payment date + count: from uid_pmt_meta (already loaded above for PIF check).
         _last_d     = _meta.get('last_d')
         _first_d    = _meta.get('first_d')
         _pmt_cnt    = _meta.get('count', 0)
-        _is_pif     = bool(_meta.get('is_pif', 0))
         _last_pmt_s = _last_d.strftime("%Y-%m-%d") if _last_d else None
         _first_d_s  = _first_d.strftime("%Y-%m-%d") if _first_d else None
         _days_since = (_today - _last_d).days if _last_d else None
