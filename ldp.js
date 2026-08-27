@@ -492,7 +492,9 @@ function ldpRenderSummaryTables(rows) {
   var allNoPmt = allTot[LNPi] || 0;
   if (LDP.TMV)  Object.keys(LDP.TMV).forEach(function(m)  { if (m >= df && m <= dt) allVol     += (LDP.TMV[m]  || 0); });
   if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m >= df && m <= dt) allCnclVol += (LDP.TCLV[m] || 0); });
-  var allValid = Math.max(0, allTot[LTi] - allTot[LEi] - allTot[LPi] - allTot[LNPi]);
+  // allValid: raw total from TM — matches the tracker row count directly.
+  // (Previously subtracted EE/Pend/NoPmt, causing summary Units ≠ tracker count.)
+  var allValid  = Math.max(0, allTot[LTi] || 0);
   var allCxRate = allValid > 0 ? allCncl / allValid * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
