@@ -188,13 +188,14 @@ def fetch_payments(conn):
     sql = f"""
         WITH all_pmts AS (
             -- All non-deleted positive payments for orders in scope.
-            -- order_date = HEAVEN_DATE (cohort date) when available, else DATE.
+            -- order_date = DATE (actual sale date) — used as the deposit cutoff.
+            -- HEAVEN_DATE is only used for Python-side month grouping, not here.
             -- Pre-sale payments up to 30 days before the order are included so
             -- that deposits paid on or before the sale date are captured in dep_0.
             SELECT
                 o.UNIQUE_ORDER_ID,
                 o.ID                                    AS order_id,
-                COALESCE(o.HEAVEN_DATE, o.DATE)         AS order_date,
+                o.DATE                                  AS order_date,
                 p.PAYDATE,
                 p.PAYAMT,
                 p.PAYTYPE
@@ -227,9 +228,9 @@ def fetch_payments(conn):
         SELECT
             v.UNIQUE_ORDER_ID                                                         AS "UID",
             v.order_id                                                                AS "Id",
-            -- dep_0: all payments on or before the order/sale date.
-            -- Anchoring on order_date (not the first payment date) ensures that
-            -- pre-sale payments and same-day payments all count toward the deposit.
+            -- dep_0: all payments on or before the actual sale date (o.DATE).
+            -- This ensures pre-sale payments and same-day payments all count.
+            -- HEAVEN_DATE is NOT used here — it may differ from the sale date.
             SUM(CASE WHEN v.PAYDATE <= v.order_date
                      THEN v.PAYAMT ELSE 0 END)                                        AS "Deposit",
             SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 1, v.order_date)
