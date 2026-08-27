@@ -647,6 +647,7 @@ function ldpBuildTrackerRowHtml(r) {
     '<td style="font-size:11px">'+r[6]+'</td>'+
     '<td style="font-size:11px;color:#374151">'+heavenInv+'</td>'+
     '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
+    '<td style="font-size:11px;color:#94a3b8">'+(r[35]!=null?'$'+Math.round(r[35]).toLocaleString():'—')+'</td>'+
     '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
     '<td style="font-size:11px">'+paidFmt+'</td>'+
     '<td style="font-size:11px;color:#0d9488">'+(r[33]&&r[33]!==0?credits:'—')+'</td>'+
@@ -825,7 +826,7 @@ function ldpRenderTracker(rows) {
     +'<thead style="background:#1a3566;color:#fff"><tr>'
     +thSort(1,'Invoice ID')+thSort(34,'Type')+thSort(30,'Client Name')+thSort(2,'Contact ID')+thSort(3,'SKU')
     +thSort(31,'Qty')+thSort(6,'Sale Date')
-    +thSort(32,'Inv Total')+thSort(8,'Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')
+    +thSort(32,'Inv Total')+thSort(8,'Deposit')+thSort(35,'Req. Deposit')+thSort(9,'Dep %')+thSort(17,'Total Paid')
     +'<th style="white-space:nowrap">Credits</th>'
     +thSort(22,'Balance')
     +thSort(20,'Days Since Pmt')+thSort(19,'Last Pmt Date')
@@ -893,7 +894,7 @@ function ldpExportTracker() {
 
   var hdrs = [
     "Invoice ID","Type","Client Name","Contact ID","SKU","SKU Category","Qty","Sale Date","Inv Total (Heaven)",
-    "Deposit","Dep %","Total Paid","Credits","Balance",
+    "Deposit","Req. Deposit","Dep %","Total Paid","Credits","Balance",
     "Days Since Pmt","Last Pmt Date","Nxt Pmt","Nxt+1 Pmt","Days Overdue",
     "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date"
   ];
@@ -910,7 +911,7 @@ function ldpExportTracker() {
       r[1], r[34]===1?"LDP":"FDP", r[30]||"", r[2], r[3], r[4],
       r[31]!=null?r[31]:1,
       r[6],
-      r[32]>0?r[32]:r[7], ldpDep(r), ldpPmtPct(r).toFixed(1)+"%",
+      r[32]>0?r[32]:r[7], ldpDep(r), r[35]!=null?r[35]:"", ldpPmtPct(r).toFixed(1)+"%",
       r[17] != null ? r[17] : "",
       r[33] != null ? r[33] : "",
       r[22] != null ? r[22] : "",

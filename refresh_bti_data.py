@@ -221,25 +221,73 @@ def fetch_payments(conn):
             )
         ),
         pif_flag AS (
-            -- Orders with a PIF-discount record are treated as Paid in Full.
             SELECT DISTINCT UNIQUE_ORDER_ID, order_id, 1 AS is_pif
             FROM all_pmts
             WHERE PAYTYPE = 'Discount for Payment in Full'
+        ),
+        -- Entry-error correction: when an order is voided (CNCL-EntryError payment) and
+        -- re-entered, the replacement order receives a Payment Transfer rather than the
+        -- original Credit Card payment.  We identify source → replacement pairs and
+        -- inherit the original dep_0 so the replacement is not wrongly classified as FDP.
+        entry_err_src AS (
+            SELECT DISTINCT
+                o.CONTACTID,
+                p.INVOICEID AS src_order_id,
+                o.UNIQUE_ORDER_ID AS src_uid,
+                GREATEST(COALESCE(o.HEAVEN_DATE, o.DATE), o.DATE) AS src_sale_date
+            FROM ANALYTICS.MART.stg_inf_payments_combined p
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON o.ID = p.INVOICEID
+            WHERE p.PAYTYPE = 'CNCL-EntryError'
+              AND p.PAYAMT > 0
+              AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+              AND o.DATE >= '{CONFIG["start_date"]}'
+        ),
+        entry_err_dep0 AS (
+            -- Original dep_0 from the source order's valid tender payments
+            SELECT ees.src_uid,
+                   SUM(CASE WHEN v.PAYDATE::DATE <= ees.src_sale_date
+                            THEN v.PAYAMT ELSE 0 END) AS orig_dep0
+            FROM entry_err_src ees
+            JOIN valid_pmts v ON v.UNIQUE_ORDER_ID = ees.src_uid
+            GROUP BY ees.src_uid, ees.src_sale_date
+        ),
+        entry_err_repl AS (
+            -- Replacement orders: same client, received Payment Transfer, within 60 days
+            SELECT o2.UNIQUE_ORDER_ID AS repl_uid, MAX(eed.orig_dep0) AS inherited_dep0
+            FROM entry_err_src ees
+            JOIN entry_err_dep0 eed ON eed.src_uid = ees.src_uid
+            JOIN ANALYTICS.MART.DIM_ALL_ORDERS o2
+              ON o2.CONTACTID = ees.CONTACTID
+             AND o2.DATE BETWEEN DATEADD(day, -1, ees.src_sale_date)
+                             AND DATEADD(day, 60, ees.src_sale_date)
+             AND o2.ID != ees.src_order_id
+            JOIN ANALYTICS.MART.stg_inf_payments_combined pt
+              ON pt.INVOICEID = o2.ID
+             AND pt.PAYTYPE = 'Payment Transfer'
+             AND (pt._CHECK_IF_DELETED = 0 OR pt._CHECK_IF_DELETED IS NULL)
+            GROUP BY o2.UNIQUE_ORDER_ID
         )
         SELECT
             v.UNIQUE_ORDER_ID                                                         AS "UID",
             v.order_id                                                                AS "Id",
-            -- dep_0: all payments whose date (ignoring time) is on or before the sale date.
-            -- PAYDATE is a TIMESTAMP; casting to DATE strips the time so a payment at
-            -- 15:57 on the sale date is not wrongly excluded by a midnight comparison.
-            SUM(CASE WHEN v.PAYDATE::DATE <= v.order_date
-                     THEN v.PAYAMT ELSE 0 END)                                        AS "Deposit",
-            SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 1, v.order_date)
-                     THEN v.PAYAMT ELSE 0 END)                                        AS "dep_1",
-            SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 2, v.order_date)
-                     THEN v.PAYAMT ELSE 0 END)                                        AS "dep_2",
-            SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 3, v.order_date)
-                     THEN v.PAYAMT ELSE 0 END)                                        AS "dep_3",
+            -- dep_0: payments on/before sale date. For entry-error replacements, inherit
+            -- the original order's dep_0 (Payment Transfer came days later than sale date).
+            GREATEST(
+                COALESCE(MAX(eer.inherited_dep0), 0),
+                SUM(CASE WHEN v.PAYDATE::DATE <= v.order_date THEN v.PAYAMT ELSE 0 END)
+            )                                                                         AS "Deposit",
+            GREATEST(
+                COALESCE(MAX(eer.inherited_dep0), 0),
+                SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 1, v.order_date) THEN v.PAYAMT ELSE 0 END)
+            )                                                                         AS "dep_1",
+            GREATEST(
+                COALESCE(MAX(eer.inherited_dep0), 0),
+                SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 2, v.order_date) THEN v.PAYAMT ELSE 0 END)
+            )                                                                         AS "dep_2",
+            GREATEST(
+                COALESCE(MAX(eer.inherited_dep0), 0),
+                SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 3, v.order_date) THEN v.PAYAMT ELSE 0 END)
+            )                                                                         AS "dep_3",
             MIN(v.PAYDATE)                                                             AS "First_Date",
             MAX(v.PAYDATE)                                                             AS LAST_PAY_DATE,
             COUNT(*)                                                                   AS PMT_COUNT,
@@ -248,6 +296,7 @@ def fetch_payments(conn):
         LEFT JOIN pif_flag p
           ON v.UNIQUE_ORDER_ID = p.UNIQUE_ORDER_ID
          AND v.order_id        = p.order_id
+        LEFT JOIN entry_err_repl eer ON eer.repl_uid = v.UNIQUE_ORDER_ID
         GROUP BY v.UNIQUE_ORDER_ID, v.order_id, v.order_date
     """
     cur = conn.cursor()
@@ -952,6 +1001,7 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             round(float(r.get("HEAVEN_INVOICE_TOTAL",0) or 0), 2),# [32] heaven invoice total (volume)
             round(float(r.get("CREDITS",0) or 0), 2),            # [33] credits applied
             1 if is_ldp else 0,                                   # [34] 1=LDP, 0=FDP
+            round(_thresh, 2),                                    # [35] required deposit threshold
         ])
 
     total   = sum(v[0] for v in by_month.values())
