@@ -6,6 +6,28 @@ var ldpSelP = new Set();
 var ldpSelSku = new Set();
 var ldpSelDiv = "";  // division filter ("" = all)
 var ldpDepWin = 0;  // 0=same day, 1=+1d, 2=+2d, 3=+3d
+var ldpThreshOverrides = {};
+try { ldpThreshOverrides = JSON.parse(localStorage.getItem('ldp_thresh_overrides') || '{}'); } catch(e) {}
+function ldpGetThresh(r) { var ov = ldpThreshOverrides[r[3]]; return (ov != null) ? ov : r[35]; }
+function ldpEditThresh(evt, sku, curVal) {
+  evt.stopPropagation();
+  var td = evt.target.closest('td');
+  if (!td) return;
+  var inp = document.createElement('input');
+  inp.type = 'number'; inp.min = '0';
+  inp.value = (curVal != null && curVal !== '') ? curVal : '';
+  inp.style.cssText = 'width:72px;font-size:11px;padding:2px 4px;border:1px solid #7c3aed;border-radius:3px;outline:none;';
+  td.innerHTML = ''; td.appendChild(inp); inp.focus(); inp.select();
+  function save() {
+    var v = parseFloat(inp.value);
+    if (!isNaN(v) && v > 0) { ldpThreshOverrides[sku] = v; }
+    else if (inp.value === '') { delete ldpThreshOverrides[sku]; }
+    try { localStorage.setItem('ldp_thresh_overrides', JSON.stringify(ldpThreshOverrides)); } catch(e) {}
+    ldpRenderTracker(ldpGetRows());
+  }
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } if (e.key === 'Escape') { ldpRenderTracker(ldpGetRows()); } });
+}
 // Return deposit for row based on selected window
 function ldpDep(r){if(ldpDepWin===1)return r[25]||r[8];if(ldpDepWin===2)return r[26]||r[8];if(ldpDepWin===3)return r[27]||r[8];return r[8];}
 // Return payment % for row based on selected window
@@ -647,7 +669,7 @@ function ldpBuildTrackerRowHtml(r) {
     '<td style="font-size:11px">'+r[6]+'</td>'+
     '<td style="font-size:11px;color:#374151">'+heavenInv+'</td>'+
     '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
-    '<td style="font-size:11px;color:#94a3b8">'+(r[35]!=null?'$'+Math.round(r[35]).toLocaleString():'—')+'</td>'+
+    (function(){var t=ldpGetThresh(r);var isOv=ldpThreshOverrides[r[3]]!=null;var txt=t!=null?('$'+Math.round(t).toLocaleString()):'—';var col=isOv?'#7c3aed':'#94a3b8';var skuEsc=(r[3]||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");var cval=t!=null?Math.round(t):'';return'<td style="font-size:11px;white-space:nowrap"><span style="color:'+col+'">'+(isOv?'<span title="User override" style="font-size:8px;vertical-align:middle;margin-right:2px;opacity:0.7">★</span>':'')+txt+'</span><button onclick="ldpEditThresh(event,\''+skuEsc+'\','+JSON.stringify(cval)+')" title="Edit threshold" style="background:none;border:none;cursor:pointer;padding:0 0 0 4px;font-size:10px;color:#cbd5e1;line-height:1;vertical-align:middle">✏</button></td>';})()+
     '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
     '<td style="font-size:11px">'+paidFmt+'</td>'+
     '<td style="font-size:11px;color:#0d9488">'+(r[33]&&r[33]!==0?credits:'—')+'</td>'+
@@ -911,7 +933,7 @@ function ldpExportTracker() {
       r[1], r[34]===1?"LDP":"FDP", r[30]||"", r[2], r[3], r[4],
       r[31]!=null?r[31]:1,
       r[6],
-      r[32]>0?r[32]:r[7], ldpDep(r), r[35]!=null?r[35]:"", ldpPmtPct(r).toFixed(1)+"%",
+      r[32]>0?r[32]:r[7], ldpDep(r), ldpGetThresh(r)!=null?ldpGetThresh(r):"", ldpPmtPct(r).toFixed(1)+"%",
       r[17] != null ? r[17] : "",
       r[33] != null ? r[33] : "",
       r[22] != null ? r[22] : "",
