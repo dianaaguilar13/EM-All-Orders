@@ -229,15 +229,16 @@ def fetch_payments(conn):
         SELECT
             v.UNIQUE_ORDER_ID                                                         AS "UID",
             v.order_id                                                                AS "Id",
-            -- dep_0: all payments on or before the effective sale date (HEAVEN_DATE).
-            -- Captures pre-sale payments and same-day payments toward the deposit.
-            SUM(CASE WHEN v.PAYDATE <= v.order_date
+            -- dep_0: all payments whose date (ignoring time) is on or before the sale date.
+            -- PAYDATE is a TIMESTAMP; casting to DATE strips the time so a payment at
+            -- 15:57 on the sale date is not wrongly excluded by a midnight comparison.
+            SUM(CASE WHEN v.PAYDATE::DATE <= v.order_date
                      THEN v.PAYAMT ELSE 0 END)                                        AS "Deposit",
-            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 1, v.order_date)
+            SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 1, v.order_date)
                      THEN v.PAYAMT ELSE 0 END)                                        AS "dep_1",
-            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 2, v.order_date)
+            SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 2, v.order_date)
                      THEN v.PAYAMT ELSE 0 END)                                        AS "dep_2",
-            SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 3, v.order_date)
+            SUM(CASE WHEN v.PAYDATE::DATE <= DATEADD(day, 3, v.order_date)
                      THEN v.PAYAMT ELSE 0 END)                                        AS "dep_3",
             MIN(v.PAYDATE)                                                             AS "First_Date",
             MAX(v.PAYDATE)                                                             AS LAST_PAY_DATE,
