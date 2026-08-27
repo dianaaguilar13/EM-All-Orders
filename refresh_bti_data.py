@@ -188,14 +188,13 @@ def fetch_payments(conn):
     sql = f"""
         WITH all_pmts AS (
             -- All non-deleted positive payments for orders in scope.
-            -- order_date = DATE (actual sale date) — used as the deposit cutoff.
-            -- HEAVEN_DATE is only used for Python-side month grouping, not here.
+            -- order_date = HEAVEN_DATE (the effective sale date) when set, else DATE.
             -- Pre-sale payments up to 30 days before the order are included so
             -- that deposits paid on or before the sale date are captured in dep_0.
             SELECT
                 o.UNIQUE_ORDER_ID,
                 o.ID                                    AS order_id,
-                o.DATE                                  AS order_date,
+                COALESCE(o.HEAVEN_DATE, o.DATE)         AS order_date,
                 p.PAYDATE,
                 p.PAYAMT,
                 p.PAYTYPE
@@ -228,9 +227,8 @@ def fetch_payments(conn):
         SELECT
             v.UNIQUE_ORDER_ID                                                         AS "UID",
             v.order_id                                                                AS "Id",
-            -- dep_0: all payments on or before the actual sale date (o.DATE).
-            -- This ensures pre-sale payments and same-day payments all count.
-            -- HEAVEN_DATE is NOT used here — it may differ from the sale date.
+            -- dep_0: all payments on or before the effective sale date (HEAVEN_DATE).
+            -- Captures pre-sale payments and same-day payments toward the deposit.
             SUM(CASE WHEN v.PAYDATE <= v.order_date
                      THEN v.PAYAMT ELSE 0 END)                                        AS "Deposit",
             SUM(CASE WHEN v.PAYDATE <= DATEADD(day, 1, v.order_date)
@@ -837,11 +835,8 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             _thresh = get_ldp_threshold(_sku_b, _pcat_b, _prod_b, inv)
         else:
             _thresh = inv * 0.105
-        is_ldp = deps[0] <= _thresh
-        # Override: if the deposit on/before the sale date already covers ≥98% of
-        # the invoice, the client paid in full from the start — that is FDP, not LDP.
-        if is_ldp and deps[0] >= inv * 0.98:
-            is_ldp = False
+        # Strict less-than: paying exactly the required down payment = FDP, not LDP
+        is_ldp = deps[0] < _thresh
 
         fa   = deps[0]  # dep_0: payments on/before order date (see SQL)
         dep1 = deps[1]
@@ -2315,7 +2310,7 @@ def pre_compute_ldp_ids(orders, payments_rows):
             threshold = get_ldp_threshold(sku, pcat, product, inv)
         else:
             threshold = inv * 0.105  # pre-2026: legacy 10.5% rule
-        if deps[0] <= threshold:
+        if deps[0] < threshold:
             ldp_ids.add(oid)
             ldp_first_pay[oid] = (round(deps[0],2), round(deps[1],2), round(deps[2],2), round(deps[3],2))
     print(f"   → Pre-computed {len(ldp_ids):,} LDP order IDs")
