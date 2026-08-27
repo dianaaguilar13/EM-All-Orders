@@ -166,8 +166,8 @@ function ldpApply(){
   ldpRender();
 }
 function ldpReset(){
-  document.getElementById("ldp-df").value="2022-01-01";
-  document.getElementById("ldp-dt").value="2026-04-26";
+  document.getElementById("ldp-df").value="2026-06-01";
+  document.getElementById("ldp-dt").value="2026-06-30";
   ["ldp-pcat","ldp-div"].forEach(function(id){var el=document.getElementById(id);if(el)el.value="";});
   ldpSelDiv="";
   ldpSelP.clear();ldpUpdateMsBtn();
