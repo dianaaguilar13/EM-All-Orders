@@ -824,10 +824,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
 
         if not payments_found: continue
         # Deposit = 4-window tuple keyed by UNIQUE_ORDER_ID (globally unique).
-        # Skip only if NO payment records exist at all.  dep_0 can legitimately be 0
-        # for orders where the client's first payment came after the sale date.
-        deps = uid_deps.get(uid)
-        if deps is None: continue
+        # Default to all-zero tuple when no payment records exist so the order still
+        # appears in the tracker as FDP with $0 deposit.
+        deps = uid_deps.get(uid) or (0.0, 0.0, 0.0, 0.0)
         # Pre-2026: 10.5% rule.  2026+: fixed DP from SKU pricing map (falls back to 10.5% if SKU unknown)
         _order_date = str(r.get("DATE","") or "")
         if _order_date >= "2026-01-01":
