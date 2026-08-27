@@ -717,7 +717,10 @@ function ldpRefreshTrackerRows(allRows) {
   var tbody = document.getElementById("ldp-tracker-tbody");
   if (tbody) tbody.innerHTML = tRows.slice(0, SHOW).map(ldpBuildTrackerRowHtml).join("");
   var countEl = document.getElementById("ldp-tracker-count");
-  if (countEl) countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+tRows.length+" records — use filters to narrow down" : "";
+  if (countEl) {
+    var ncShow = tRows.filter(function(r){return r[10]!=="Entry Error";}).length;
+    countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+ncShow+" records (entry errors shown but not counted) — use filters to narrow down" : "";
+  }
 }
 
 function ldpRenderTracker(rows) {
@@ -734,7 +737,7 @@ function ldpRenderTracker(rows) {
   var RISK_COLOR = LDP_RISK_COLOR;
   var RISK_ORDER = ["Overdue +30","Overdue +15","Overdue","On Track","Paid in Full","Cancelled","Downgrade","Upgrade","Entry Error","Pend","Switch","Inactive"];
 
-  // Count by risk
+  // Count by risk — entry errors visible but excluded from totals (same as Pend)
   var riskCounts = {};
   var riskInv = {};
   var riskBal = {};
@@ -744,6 +747,7 @@ function ldpRenderTracker(rows) {
     riskInv[risk]    = (riskInv[risk]    || 0) + (r[7] || 0);
     riskBal[risk]    = (riskBal[risk]    || 0) + (r[22] || 0);
   });
+  var trackerTotal = rows.filter(function(r){return r[10]!=="Entry Error";}).length;
 
   // KPI summary chips
   var kpiDefs = [
@@ -817,14 +821,14 @@ function ldpRenderTracker(rows) {
     var style = active
       ? 'background:'+col.bg+';color:'+col.txt+';border:2px solid '+col.txt+';font-weight:700'
       : 'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
-    return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:rows.length)+')</button>';
+    return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:trackerTotal)+')</button>';
   }).join("");
 
-  var ldpCount = rows.filter(function(r){return r[34]===1;}).length;
-  var fdpCount = rows.filter(function(r){return r[34]===0;}).length;
+  var ldpCount = rows.filter(function(r){return r[34]===1&&r[10]!=="Entry Error";}).length;
+  var fdpCount = rows.filter(function(r){return r[34]===0&&r[10]!=="Entry Error";}).length;
   var typeFilterHtml = ['','LDP','FDP'].map(function(tp) {
     var active = trackerType === tp;
-    var cnt = tp===''?rows.length:tp==='LDP'?ldpCount:fdpCount;
+    var cnt = tp===''?trackerTotal:tp==='LDP'?ldpCount:fdpCount;
     var bg  = tp===''?'#1d4ed8':tp==='LDP'?'#7c3aed':'#0369a1';
     var style = active
       ? 'background:'+bg+';color:#fff;border:2px solid '+bg+';font-weight:700'
@@ -858,7 +862,8 @@ function ldpRenderTracker(rows) {
     +'</tr></thead>'
     +'<tbody id="ldp-tracker-tbody">'+tbodyHtml+'</tbody>'
     +'</table>'
-    +'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+tRows.length+' records — use filters to narrow down':'')+'</div>'
+    +(function(){var nc=tRows.filter(function(r){return r[10]!=="Entry Error";}).length;return'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+nc+' records (entry errors shown but not counted) — use filters to narrow down':'')+'</div>';})()
+
     +'</div>';
 
   // Store state on element for re-renders
