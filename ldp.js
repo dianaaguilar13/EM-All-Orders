@@ -606,6 +606,95 @@ function ldpNextPmtHtml(r, offset) {
 }
 
 // ── LDP Payment Tracker ───────────────────────────────────────────────────────
+var LDP_RISK_COLOR = {
+  "Paid in Full": {bg:"#dcfce7",txt:"#15803d",border:"#86efac"},
+  "On Track":     {bg:"#f0fdf4",txt:"#16a34a",border:"#bbf7d0"},
+  "Overdue":      {bg:"#fff7ed",txt:"#c2410c",border:"#fed7aa"},
+  "Overdue +15":  {bg:"#fffbeb",txt:"#b45309",border:"#fde68a"},
+  "Overdue +30":  {bg:"#fff1f2",txt:"#b91c1c",border:"#fecaca"},
+  "Cancelled":    {bg:"#f1f5f9",txt:"#475569",border:"#cbd5e1"},
+  "Downgrade":    {bg:"#f5f3ff",txt:"#6d28d9",border:"#ddd6fe"},
+  "Upgrade":      {bg:"#ecfdf5",txt:"#059669",border:"#6ee7b7"},
+};
+
+function ldpBuildTrackerRowHtml(r) {
+  var risk = r[21] || "";
+  var col  = LDP_RISK_COLOR[risk] || {bg:"",txt:"#475569",border:""};
+  var riskBadge = '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+col.bg+';color:'+col.txt+';border:1px solid '+col.border+'">'+risk+'</span>';
+  var dayCell  = (r[20]!==null && r[20]!==undefined) ? r[20]+'d' : '—';
+  var dayColor = r[20]>=60?"#b91c1c":r[20]>=45?"#b45309":r[20]>30?"#c2410c":"#374151";
+  var balFmt   = r[22]>0 ? '$'+Math.round(r[22]).toLocaleString() : '—';
+  var paidFmt  = r[17]>0 ? '$'+Math.round(r[17]).toLocaleString() : '—';
+  var dOvr     = (r[29]!==null && r[29]!==undefined) ? r[29] : null;
+  var dOvrCell = dOvr===null ? '—' : (dOvr>0 ? '+'+dOvr+'d' : dOvr===0 ? 'Due today' : dOvr+'d');
+  var dOvrColor= dOvr===null?'#94a3b8':dOvr>14?'#b91c1c':dOvr>0?'#c2410c':dOvr===0?'#b45309':'#16a34a';
+  var rowBg    = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
+  var heavenInv= (r[32]!=null&&r[32]>0)?'$'+Math.round(r[32]).toLocaleString():'$'+(r[7]||0).toLocaleString();
+  var qty      = (r[31]!=null)?r[31]:1;
+  var credits  = (r[33]!=null&&r[33]!==0)?'$'+Math.round(r[33]).toLocaleString():'—';
+  var typeBadge= r[34]===1
+    ? '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#ede9fe;color:#7c3aed">LDP</span>'
+    : '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1">FDP</span>';
+  return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
+    '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
+    '<td style="text-align:center">'+typeBadge+'</td>'+
+    '<td style="font-size:11px;font-weight:500;color:#1e293b;white-space:nowrap">'+(r[30]||'—')+'</td>'+
+    '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
+    '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
+    '<td style="font-size:11px;text-align:center;color:#374151">'+qty+'</td>'+
+    '<td style="font-size:11px">'+r[6]+'</td>'+
+    '<td style="font-size:11px;color:#374151">'+heavenInv+'</td>'+
+    '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
+    '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
+    '<td style="font-size:11px">'+paidFmt+'</td>'+
+    '<td style="font-size:11px;color:#0d9488">'+(r[33]&&r[33]!==0?credits:'—')+'</td>'+
+    '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
+    '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
+    '<td style="font-size:11px;color:#64748b">'+(r[19]||'—')+'</td>'+
+    '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,0)+'</td>'+
+    '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,1)+'</td>'+
+    '<td style="font-size:11px;color:'+dOvrColor+';font-weight:600">'+dOvrCell+'</td>'+
+    '<td>'+riskBadge+'</td>'+
+    '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
+    '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
+    '</tr>';
+}
+
+// Update only tbody + count — no full re-render, preserves search input focus
+function ldpRefreshTrackerRows(allRows) {
+  var el = document.getElementById("ldp-tracker-section");
+  if (!el) return;
+  var trackerSort   = el._sort  || {col:20, asc:false};
+  var trackerRisk   = el._riskF || "";
+  var trackerSearch = el._srch  || "";
+  var trackerType   = el._typeF || "";
+
+  var tRows = allRows.filter(function(r) {
+    if (trackerType === "LDP" && r[34] !== 1) return false;
+    if (trackerType === "FDP" && r[34] !== 0) return false;
+    if (trackerRisk && r[21] !== trackerRisk) return false;
+    if (trackerSearch) {
+      var q = trackerSearch.toLowerCase();
+      var hay = ((r[1]||"")+" "+(r[2]||"")+" "+(r[3]||"")+" "+(r[15]||"")+" "+(r[14]||"")+" "+(r[30]||"")).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+  tRows.sort(function(a, b) {
+    var av = a[trackerSort.col], bv = b[trackerSort.col];
+    if (av===null||av===undefined) av = trackerSort.asc ? Infinity : -Infinity;
+    if (bv===null||bv===undefined) bv = trackerSort.asc ? Infinity : -Infinity;
+    if (av < bv) return trackerSort.asc ? -1 :  1;
+    if (av > bv) return trackerSort.asc ?  1 : -1;
+    return 0;
+  });
+  var SHOW = Math.min(300, tRows.length);
+  var tbody = document.getElementById("ldp-tracker-tbody");
+  if (tbody) tbody.innerHTML = tRows.slice(0, SHOW).map(ldpBuildTrackerRowHtml).join("");
+  var countEl = document.getElementById("ldp-tracker-count");
+  if (countEl) countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+tRows.length+" records — use filters to narrow down" : "";
+}
+
 function ldpRenderTracker(rows) {
   var el = document.getElementById("ldp-tracker-section");
   if (!el) return;
@@ -617,18 +706,8 @@ function ldpRenderTracker(rows) {
     return;
   }
 
-  // Risk level colors and order
+  var RISK_COLOR = LDP_RISK_COLOR;
   var RISK_ORDER = ["Overdue +30","Overdue +15","Overdue","On Track","Paid in Full","Cancelled","Downgrade","Upgrade","Entry Error","Pend","Switch","Inactive"];
-  var RISK_COLOR = {
-    "Paid in Full": {bg:"#dcfce7",txt:"#15803d",border:"#86efac"},
-    "On Track":     {bg:"#f0fdf4",txt:"#16a34a",border:"#bbf7d0"},
-    "Overdue":      {bg:"#fff7ed",txt:"#c2410c",border:"#fed7aa"},
-    "Overdue +15":  {bg:"#fffbeb",txt:"#b45309",border:"#fde68a"},
-    "Overdue +30":  {bg:"#fff1f2",txt:"#b91c1c",border:"#fecaca"},
-    "Cancelled":    {bg:"#f1f5f9",txt:"#475569",border:"#cbd5e1"},
-    "Downgrade":    {bg:"#f5f3ff",txt:"#6d28d9",border:"#ddd6fe"},
-    "Upgrade":      {bg:"#ecfdf5",txt:"#059669",border:"#6ee7b7"},
-  };
 
   // Count by risk
   var riskCounts = {};
@@ -703,48 +782,7 @@ function ldpRenderTracker(rows) {
   }
 
   var SHOW = Math.min(300, tRows.length);
-  var tbodyHtml = tRows.slice(0, SHOW).map(function(r) {
-    var risk = r[21] || "";
-    var col  = RISK_COLOR[risk] || {bg:"",txt:"#475569",border:""};
-    var riskBadge = '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+col.bg+';color:'+col.txt+';border:1px solid '+col.border+'">'+risk+'</span>';
-    var dayCell = (r[20]!==null && r[20]!==undefined) ? r[20]+'d' : '—';
-    var dayColor = r[20]>=60?"#b91c1c":r[20]>=45?"#b45309":r[20]>30?"#c2410c":"#374151";
-    var balFmt = r[22]>0 ? '$'+Math.round(r[22]).toLocaleString() : '—';
-    var paidFmt = r[17]>0 ? '$'+Math.round(r[17]).toLocaleString() : '—';
-    var dOvr = (r[29]!==null && r[29]!==undefined) ? r[29] : null;
-    var dOvrCell = dOvr===null ? '—' : (dOvr>0 ? '+'+dOvr+'d' : dOvr===0 ? 'Due today' : dOvr+'d');
-    var dOvrColor = dOvr===null?'#94a3b8':dOvr>14?'#b91c1c':dOvr>0?'#c2410c':dOvr===0?'#b45309':'#16a34a';
-    var rowBg = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
-    var heavenInv = (r[32] != null && r[32] > 0) ? '$'+Math.round(r[32]).toLocaleString() : '$'+(r[7]||0).toLocaleString();
-    var qty       = (r[31] != null) ? r[31] : 1;
-    var credits   = (r[33] != null && r[33] !== 0) ? '$'+Math.round(r[33]).toLocaleString() : '—';
-    var typeBadge = r[34]===1
-      ? '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#ede9fe;color:#7c3aed">LDP</span>'
-      : '<span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#e0f2fe;color:#0369a1">FDP</span>';
-    return '<tr style="'+(rowBg?'background:'+rowBg:'')+'">'+
-      '<td style="font-size:11px;color:#64748b">'+r[1]+'</td>'+
-      '<td style="text-align:center">'+typeBadge+'</td>'+
-      '<td style="font-size:11px;font-weight:500;color:#1e293b;white-space:nowrap">'+(r[30]||'—')+'</td>'+
-      '<td style="font-size:11px;color:#64748b">'+r[2]+'</td>'+
-      '<td><span style="font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;padding:1px 5px;border-radius:3px">'+r[3]+'</span></td>'+
-      '<td style="font-size:11px;text-align:center;color:#374151">'+qty+'</td>'+
-      '<td style="font-size:11px">'+r[6]+'</td>'+
-      '<td style="font-size:11px;color:#374151">'+heavenInv+'</td>'+
-      '<td style="font-size:11px;color:#6d28d9">$'+ldpDep(r).toLocaleString()+'</td>'+
-      '<td style="font-size:11px;color:#64748b">'+ldpPmtPct(r).toFixed(1)+'%</td>'+
-      '<td style="font-size:11px">'+paidFmt+'</td>'+
-      '<td style="font-size:11px;color:#0d9488">'+(r[33]&&r[33]!==0?credits:'—')+'</td>'+
-      '<td style="font-size:11px;color:#dc2626;font-weight:600">'+balFmt+'</td>'+
-      '<td style="font-size:11px;color:'+dayColor+';font-weight:600">'+dayCell+'</td>'+
-      '<td style="font-size:11px;color:#64748b">'+(r[19]||'—')+'</td>'+
-      '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,0)+'</td>'+
-      '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,1)+'</td>'+
-      '<td style="font-size:11px;color:'+dOvrColor+';font-weight:600">'+dOvrCell+'</td>'+
-      '<td>'+riskBadge+'</td>'+
-      '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
-      '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
-      '</tr>';
-  }).join("");
+  var tbodyHtml = tRows.slice(0, SHOW).map(ldpBuildTrackerRowHtml).join("");
 
   // Risk filter buttons
   var riskFilterHtml = ['', 'Overdue +30','Overdue +15','Overdue','On Track','Paid in Full','Cancelled','Downgrade'].map(function(rk) {
@@ -793,9 +831,9 @@ function ldpRenderTracker(rows) {
     +'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
     +'<th>EM</th><th>Partner</th>'
     +'</tr></thead>'
-    +'<tbody>'+tbodyHtml+'</tbody>'
+    +'<tbody id="ldp-tracker-tbody">'+tbodyHtml+'</tbody>'
     +'</table>'
-    +(tRows.length>SHOW?'<div style="padding:8px 18px;font-size:11px;color:#94a3b8">Showing '+SHOW+' of '+tRows.length+' records — use filters to narrow down</div>':'')
+    +'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+tRows.length+' records — use filters to narrow down':'')+'</div>'
     +'</div>';
 
   // Store state on element for re-renders
@@ -825,7 +863,7 @@ function ldpTrackerSearch(q) {
   var el = document.getElementById("ldp-tracker-section");
   if (!el) return;
   el._srch = q;
-  ldpRenderTracker(ldpGetRows());
+  ldpRefreshTrackerRows(ldpGetRows());
 }
 
 function ldpTrackerTypeFilter(tp) {
