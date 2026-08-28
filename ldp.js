@@ -618,18 +618,15 @@ function ldpRenderSummaryTables(rows, allRows) {
 
 // ── Upcoming payment helpers ──────────────────────────────────────────────────
 function ldpNextPmtText(r, offset) {
-  // Paid in Full — no upcoming payments
   if (r[21] === 'Paid in Full') return '✓ PIF';
-  var first = r[28]; var count = parseInt(r[18]) || 0;
-  if (!first || !count) return '—';
-  var d = new Date(first + 'T00:00:00');
-  d.setMonth(d.getMonth() + count + offset);
+  var lastStr = r[19];
+  if (!lastStr) return '—';
+  var d = new Date(lastStr + 'T00:00:00');
+  d.setMonth(d.getMonth() + 1 + offset);
   var expYM = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
   var todayD = new Date(); var todayYM = todayD.getFullYear() + '-' + ('0'+(todayD.getMonth()+1)).slice(-2);
-  var lastYM = r[19] ? r[19].slice(0,7) : null;
   var label = d.toLocaleString('en-US',{month:'short'}) + " '" + d.getFullYear().toString().slice(-2);
   if (expYM > todayYM) return '↗ ' + label;
-  if (lastYM && lastYM >= expYM) return '✓ ' + label;
   return '✗ ' + label;
 }
 function ldpNextPmtHtml(r, offset) {
