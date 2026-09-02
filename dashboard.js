@@ -823,11 +823,11 @@ function getRefundPeriodSkuData(){
 
 function downloadRefundSkuCsv(){
   var bySkuRows=getRefundPeriodSkuData();
-  var csvRows=[["SKU","Order ID","Contact ID","Purchase Date","Refund Date","Refund Days","Product Name","Cancel Status","Invoice Total","Lost Revenue","Partner Category","Referral Partner"]];
+  var csvRows=[["SKU","Order ID","Contact ID","Client Name","Purchase Date","Refund Date","Refund Days","Product Name","Cancel Status","Invoice Total","Lost Revenue","Partner Category","Referral Partner"]];
   Object.keys(bySkuRows).sort().forEach(function(sku){
     bySkuRows[sku].forEach(function(item){
       var row=item.row;
-      csvRows.push([sku,row[0],row[1],row[2],item.refDateStr,item.rdDays,row[9]||"",row[4],row[5]||0,row[10]||0,row[7],row[8]]);
+      csvRows.push([sku,row[0],row[1],row[21]||"",row[2],item.refDateStr,item.rdDays,row[9]||"",row[4],row[5]||0,row[10]||0,row[7],row[8]]);
     });
   });
   var csv=csvRows.map(function(r){return r.map(function(v){
@@ -879,7 +879,7 @@ function renderRefundSkuTable(){
     html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' refunds in period</div>';
     html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
     html+='<thead><tr style="background:#f1f5f9">';
-    ['Order ID','Contact ID','Purchase Date','Refund Date','Refund Days','Product Name','Invoice Total','Lost Revenue','Partner Category'].forEach(function(h){
+    ['Order ID','Contact ID','Client Name','Purchase Date','Refund Date','Refund Days','Product Name','Invoice Total','Lost Revenue','Partner Category'].forEach(function(h){
       html+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
     });
     html+='</tr></thead><tbody>';
@@ -889,6 +889,7 @@ function renderRefundSkuTable(){
       html+='<tr style="background:'+bg+'">';
       html+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+row[0]+'</td>';
       html+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+row[1]+'</td>';
+      html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap;font-weight:500">'+(row[21]||'—')+'</td>';
       html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+row[2]+'</td>';
       html+='<td style="padding:5px 10px;color:#ef4444;font-weight:600;white-space:nowrap">'+item.refDateStr+'</td>';
       html+='<td style="padding:5px 10px;color:#2563eb;font-weight:600;text-align:right">'+item.rdDays+'d</td>';
