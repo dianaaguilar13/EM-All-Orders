@@ -2221,14 +2221,12 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
 # ── Pricing tier detection from referral partner code ────────────────────────
 def get_price_type(partner):
     """Detect pricing tier from REFERRAL_PARTNER code.
-    Post  : contains '50'  OR starts with PADPV / PPV / PV / IHPV
+    Post  : contains '50'
     Event : starts with EV
     Phone : everything else (default)
     """
     p = (partner or "").upper().strip()
-    if ("50" in p or
-        p.startswith("PADPV") or p.startswith("PPV") or
-        p.startswith("PV")    or p.startswith("IHPV")):
+    if "50" in p:
         return "post"
     if p.startswith("EV"):
         return "event"
