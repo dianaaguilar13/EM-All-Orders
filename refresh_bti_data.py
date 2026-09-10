@@ -884,8 +884,9 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
         if _order_date >= "2026-01-01":
             _sku_b  = r.get("SKU","") or ""
             _pcat_b = r.get("REFERRAL_PARTNER_CATEGORY","") or ""
+            _part_b = r.get("REFERRAL_PARTNER","") or ""
             _prod_b = r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT","") or ""
-            _thresh = get_ldp_threshold(_sku_b, _pcat_b, _prod_b, inv)
+            _thresh = get_ldp_threshold(_sku_b, _pcat_b, _prod_b, inv, _part_b)
         else:
             _thresh = inv * 0.105
         # LDP: deposit must be positive AND strictly below the threshold.
@@ -2215,10 +2216,29 @@ def build_ar_v2_data(ar_rows, trend_v2=None):
     }
 
 
+# ── Pricing tier detection from referral partner code ────────────────────────
+def get_price_type(partner):
+    """Detect pricing tier from REFERRAL_PARTNER code.
+    Post  : contains '50'  OR starts with PADPV / PPV / PV / IHPV
+    Event : starts with EV
+    Phone : everything else (default)
+    """
+    p = (partner or "").upper().strip()
+    if ("50" in p or
+        p.startswith("PADPV") or p.startswith("PPV") or
+        p.startswith("PV")    or p.startswith("IHPV")):
+        return "post"
+    if p.startswith("EV"):
+        return "event"
+    return "phone"
+
 # ── 2026 Program Down Payment Lookup ─────────────────────────────────────────
 # Keys are SKU codes as they appear in DIM_ALL_ORDERS.
-# "phone" = Phone / Affiliate / Marketing pricing; "event" = Event pricing.
+# "phone" = standard phone/affiliate pricing
+# "event" = live event pricing
+# "post"  = post-event pricing (often lower deposit; identified via referral partner code)
 # Applied to 2026+ orders. Pre-2026 orders use the 10.5% legacy rule. Unknown 2026 SKUs fall back to 10.5%.
+# TODO: fill in confirmed "post" prices from pricing sheet — currently defaults to "phone" if absent.
 LDP_DOWN_PMTS = {
     # LT — old SKU : kept for pre-migration orders; new SKU aliases below
     "BTME":               {"phone":   500, "event":   500},
@@ -2308,14 +2328,14 @@ LDP_DOWN_PMTS = {
     "BTLM VIP":           {"phone": 22500, "event": 22500},
 }
 
-def get_ldp_threshold(sku, pcat, product_name, inv_total):
+def get_ldp_threshold(sku, pcat, product_name, inv_total, partner=""):
     """Return the dollar threshold below which dep_0 qualifies a 2026+ order as LDP.
     Uses LDP_DOWN_PMTS when SKU is known; falls back to 10.5% of inv_total otherwise.
     Ambiguous SKUs (DBCA/LMCA/MYM) are resolved via product name.
+    Pricing tier is detected from REFERRAL_PARTNER (post/event/phone).
     Pre-2026 orders always use the 10.5% rule directly (not this function).
     """
-    is_event = "event" in (pcat or "").lower()
-    price_key = "event" if is_event else "phone"
+    price_type = get_price_type(partner)
     pname = (product_name or "").upper()
 
     # Resolve ambiguous SKUs that cover both 6 MO and 12 MO under one code
@@ -2327,7 +2347,9 @@ def get_ldp_threshold(sku, pcat, product_name, inv_total):
 
     entry = LDP_DOWN_PMTS.get(resolved_sku)
     if entry:
-        return float(entry[price_key])
+        # Use the detected price type; fall back to "phone" if "post"/"event" key not in entry
+        key = price_type if price_type in entry else "phone"
+        return float(entry[key])
     return float(inv_total) * 0.105  # SKU not in map — fall back to 10.5%
 
 
@@ -2360,8 +2382,9 @@ def pre_compute_ldp_ids(orders, payments_rows):
         if order_date >= "2026-01-01":
             sku      = r.get("SKU","") or ""
             pcat     = r.get("REFERRAL_PARTNER_CATEGORY","") or ""
+            partner  = r.get("REFERRAL_PARTNER","") or ""
             product  = r.get("PRODUCTS","") or r.get("NORMALIZED_PRODUCT","") or ""
-            threshold = get_ldp_threshold(sku, pcat, product, inv)
+            threshold = get_ldp_threshold(sku, pcat, product, inv, partner)
         else:
             threshold = inv * 0.105  # pre-2026: legacy 10.5% rule
         if 0 < deps[0] < threshold:
