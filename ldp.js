@@ -690,6 +690,18 @@ function ldpBuildTrackerRowHtml(r) {
     '<td>'+riskBadge+'</td>'+
     '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
     '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
+    (function(){
+      if (r[10]!=="Cancelled"||!r[36]) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
+      var d=new Date(r[36]+'T00:00:00');
+      var lbl=d.toLocaleString('en-US',{month:'short',day:'numeric',year:'2-digit'});
+      return '<td style="font-size:11px;color:#6b7280;white-space:nowrap;text-align:center">'+lbl+'</td>';
+    })()+
+    (function(){
+      if (r[10]!=="Cancelled"||r[37]<0) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
+      var d=r[37];
+      var col=d<=30?'#15803d':d<=60?'#b45309':'#b91c1c';
+      return '<td style="font-size:11px;font-weight:600;color:'+col+';text-align:center">'+d+'d</td>';
+    })()+
     '</tr>';
 }
 
@@ -726,8 +738,8 @@ function ldpRefreshTrackerRows(allRows) {
   if (tbody) tbody.innerHTML = tRows.slice(0, SHOW).map(ldpBuildTrackerRowHtml).join("");
   var countEl = document.getElementById("ldp-tracker-count");
   if (countEl) {
-    var ncShow = tRows.filter(function(r){return r[10]!=="Entry Error";}).length;
-    countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+ncShow+" records (entry errors shown but not counted) — use filters to narrow down" : "";
+    var ncShow = tRows.filter(function(r){return r[10]!=="Entry Error"&&r[10]!=="Pend";}).length;
+    countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+ncShow+" active units (entry errors & pending shown but not counted) — use filters to narrow down" : "";
   }
 }
 
@@ -755,7 +767,7 @@ function ldpRenderTracker(rows) {
     riskInv[risk]    = (riskInv[risk]    || 0) + (r[7] || 0);
     riskBal[risk]    = (riskBal[risk]    || 0) + (r[22] || 0);
   });
-  var trackerTotal = rows.filter(function(r){return r[10]!=="Entry Error";}).length;
+  var trackerTotal = rows.filter(function(r){return r[10]!=="Entry Error" && r[10]!=="Pend";}).length;
 
   // KPI summary chips
   var kpiDefs = [
@@ -768,7 +780,14 @@ function ldpRenderTracker(rows) {
     {key:"Downgrade",   label:"Downgrade",     icon:"🔽"},
   ];
 
-  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;width:100%">'
+  var unitsChip = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;text-align:center">'
+    +'<div style="font-size:20px;font-weight:700;color:#15803d">'+trackerTotal.toLocaleString()+'</div>'
+    +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#15803d;margin-top:2px">📋 Active Units</div>'
+    +'<div style="font-size:9px;color:#86efac;margin-top:2px;opacity:.85">excl. EE &amp; Pend</div>'
+    +'</div>';
+
+  var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:10px;width:100%">'
+    + unitsChip
     + kpiDefs.map(function(k) {
     var cnt  = riskCounts[k.key] || 0;
     var col  = RISK_COLOR[k.key] || {bg:"#f8fafc",txt:"#475569",border:"#e2e8f0"};
@@ -832,8 +851,8 @@ function ldpRenderTracker(rows) {
     return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:trackerTotal)+')</button>';
   }).join("");
 
-  var ldpCount = rows.filter(function(r){return r[34]===1&&r[10]!=="Entry Error";}).length;
-  var fdpCount = rows.filter(function(r){return r[34]===0&&r[10]!=="Entry Error";}).length;
+  var ldpCount = rows.filter(function(r){return r[34]===1&&r[10]!=="Entry Error"&&r[10]!=="Pend";}).length;
+  var fdpCount = rows.filter(function(r){return r[34]===0&&r[10]!=="Entry Error"&&r[10]!=="Pend";}).length;
   var typeFilterHtml = ['','LDP','FDP'].map(function(tp) {
     var active = trackerType === tp;
     var cnt = tp===''?trackerTotal:tp==='LDP'?ldpCount:fdpCount;
@@ -867,10 +886,12 @@ function ldpRenderTracker(rows) {
     +'<th style="white-space:nowrap">Nxt Pmt</th><th style="white-space:nowrap">Nxt+1 Pmt</th>'
     +'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
     +'<th>EM</th><th>Partner</th>'
+    +'<th style="white-space:nowrap">Refund Date</th>'
+    +'<th style="white-space:nowrap">Days to Cancel</th>'
     +'</tr></thead>'
     +'<tbody id="ldp-tracker-tbody">'+tbodyHtml+'</tbody>'
     +'</table>'
-    +(function(){var nc=tRows.filter(function(r){return r[10]!=="Entry Error";}).length;return'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+nc+' records (entry errors shown but not counted) — use filters to narrow down':'')+'</div>';})()
+    +(function(){var nc=tRows.filter(function(r){return r[10]!=="Entry Error"&&r[10]!=="Pend";}).length;return'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+nc+' active units (entry errors &amp; pending shown but not counted) — use filters to narrow down':'')+'</div>';})()
 
     +'</div>';
 
@@ -931,7 +952,8 @@ function ldpExportTracker() {
     "Invoice ID","Type","Client Name","Contact ID","SKU","SKU Category","Qty","Sale Date","Inv Total (Heaven)",
     "Deposit","Req. Deposit","Dep %","Total Paid","Credits","Balance",
     "Days Since Pmt","Last Pmt Date","Nxt Pmt","Nxt+1 Pmt","Days Overdue",
-    "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date"
+    "Risk","EM","Partner","PCAT","Lost Revenue","Pay Count","First Deposit Date",
+    "Refund Date","Days to Cancel"
   ];
 
   function esc(v) {
@@ -955,7 +977,8 @@ function ldpExportTracker() {
       ldpNextPmtText(r,0), ldpNextPmtText(r,1),
       r[29] != null ? r[29] : "",
       r[21] || "", r[15] || "", r[14] || "",
-      r[13] || "", r[16] != null ? r[16] : "", r[18] != null ? r[18] : "", r[28] || ""
+      r[13] || "", r[16] != null ? r[16] : "", r[18] != null ? r[18] : "", r[28] || "",
+      r[36] || "", r[37] >= 0 ? r[37] : ""
     ].map(esc).join(","));
   });
 

@@ -1004,6 +1004,8 @@ def build_ldp_data(orders, payments_rows=None, payments_csv_path=None):
             round(float(r.get("CREDITS",0) or 0), 2),            # [33] credits applied
             1 if is_ldp else 0,                                   # [34] 1=LDP, 0=FDP
             round(_thresh, 2),                                    # [35] required deposit threshold
+            str(r.get("REFUND_CREDIT_DATE","") or "")[:10] if cncl == "Cancelled" else "",  # [36] refund date YYYY-MM-DD
+            get_rd_days(r.get("REFUND_CREDIT_DATE",""), r.get("DATE","")) if cncl == "Cancelled" else -1,  # [37] days purchase→refund
         ])
 
     total   = sum(v[0] for v in by_month.values())
