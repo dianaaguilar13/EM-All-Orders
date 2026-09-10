@@ -479,8 +479,14 @@ function ldpRenderSummaryTables(rows, allRows) {
   var ldpCxRate = ldpGross > 0 ? ldpCncl / ldpGross * 100 : 0;
 
   // ── All-orders totals (filtered by active SKU/pcat selection) ─────────────
+  // allVol / allCnclVol come from allRows (already date+pcat+sku+partner filtered)
+  // so they respect every active filter, unlike the global LDP.TMV aggregate.
   var allVol = 0, allCnclVol = 0;
-  var hasTMV = !!(LDP.TMV);
+  (allRows || []).forEach(function(r) {
+    allVol     += (r[7]  || 0);   // inv total
+    allCnclVol += (r[16] || 0);   // lost revenue (non-zero only on Cancelled rows)
+  });
+  var hasTMV = true;
   var pcat_ = ldpGetPcat();
   var allArr = [];
   if (ldpSelSku.size > 0 && LDP.TMS) {
@@ -524,20 +530,18 @@ function ldpRenderSummaryTables(rows, allRows) {
   var allDwn   = allTot[LDi]  || 0;
   var allPend  = allTot[LPi]  || 0;
   var allNoPmt = allTot[LNPi] || 0;
-  if (LDP.TMV)  Object.keys(LDP.TMV).forEach(function(m)  { if (m >= df && m <= dt) allVol     += (LDP.TMV[m]  || 0); });
-  if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m >= df && m <= dt) allCnclVol += (LDP.TCLV[m] || 0); });
   // allGross = total sold minus EE/Pend (base for cancel rate); allValid = net active units (minus cancelled too)
   var allGross  = Math.max(0, (allTot[LTi] || 0) - allEE - allPend);
   var allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
   var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
-  var fdpVol      = hasTMV ? allVol - ldpVol : null;
+  var fdpVol      = allVol - ldpVol;
   var fdpGross    = allGross - ldpGross;
   var fdpValid    = allValid - ldpValid;
   var fdpCncl     = allCncl - ldpCncl;
   var fdpCxRate   = fdpGross > 0 ? fdpCncl / fdpGross * 100 : 0;
-  var fdpCnclVol  = LDP.TCLV ? allCnclVol - ldpCnclVol : null;
+  var fdpCnclVol  = allCnclVol - ldpCnclVol;
   var fdpUpg      = allUpg - ldpUpg;
   var fdpDwn      = allDwn - ldpDwn;
   var ldpVolPct   = allValid > 0 ? ldpValid / allValid * 100 : 0;
