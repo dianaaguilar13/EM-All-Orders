@@ -474,8 +474,9 @@ function ldpRenderSummaryTables(rows, allRows) {
   });
   var allAtRisk    = ldpAtRisk + fdpAtRisk;
   var allVolAtRisk = ldpVolAtRisk + fdpVolAtRisk;
-  var ldpValid = Math.max(0, rows.length - ldpEE - ldpPend - ldpNoPmt);
-  var ldpCxRate = ldpValid > 0 ? ldpCncl / ldpValid * 100 : 0;
+  var ldpGross  = Math.max(0, rows.length - ldpEE - ldpPend - ldpNoPmt);
+  var ldpValid  = Math.max(0, ldpGross - ldpCncl);
+  var ldpCxRate = ldpGross > 0 ? ldpCncl / ldpGross * 100 : 0;
 
   // ── All-orders totals (filtered by active SKU/pcat selection) ─────────────
   var allVol = 0, allCnclVol = 0;
@@ -525,16 +526,17 @@ function ldpRenderSummaryTables(rows, allRows) {
   var allNoPmt = allTot[LNPi] || 0;
   if (LDP.TMV)  Object.keys(LDP.TMV).forEach(function(m)  { if (m >= df && m <= dt) allVol     += (LDP.TMV[m]  || 0); });
   if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m >= df && m <= dt) allCnclVol += (LDP.TCLV[m] || 0); });
-  // allValid: raw total from TM — matches the tracker row count directly.
-  // (Previously subtracted EE/Pend/NoPmt, causing summary Units ≠ tracker count.)
-  var allValid  = Math.max(0, allTot[LTi] || 0);
-  var allCxRate = allValid > 0 ? allCncl / allValid * 100 : 0;
+  // allGross = total sold minus EE/Pend (base for cancel rate); allValid = net active units (minus cancelled too)
+  var allGross  = Math.max(0, (allTot[LTi] || 0) - allEE - allPend);
+  var allValid  = Math.max(0, allGross - allCncl);
+  var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
   var fdpVol      = hasTMV ? allVol - ldpVol : null;
+  var fdpGross    = allGross - ldpGross;
   var fdpValid    = allValid - ldpValid;
   var fdpCncl     = allCncl - ldpCncl;
-  var fdpCxRate   = fdpValid > 0 ? fdpCncl / fdpValid * 100 : 0;
+  var fdpCxRate   = fdpGross > 0 ? fdpCncl / fdpGross * 100 : 0;
   var fdpCnclVol  = LDP.TCLV ? allCnclVol - ldpCnclVol : null;
   var fdpUpg      = allUpg - ldpUpg;
   var fdpDwn      = allDwn - ldpDwn;
