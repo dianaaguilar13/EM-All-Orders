@@ -2238,94 +2238,95 @@ def get_price_type(partner):
 # "event" = live event pricing
 # "post"  = post-event pricing (often lower deposit; identified via referral partner code)
 # Applied to 2026+ orders. Pre-2026 orders use the 10.5% legacy rule. Unknown 2026 SKUs fall back to 10.5%.
-# TODO: fill in confirmed "post" prices from pricing sheet — currently defaults to "phone" if absent.
 LDP_DOWN_PMTS = {
     # LT — old SKU : kept for pre-migration orders; new SKU aliases below
-    "BTME":               {"phone":   500, "event":   500},
-    "BTM":                {"phone":  2637, "event":  1900},
-    "BTM-Mopp":           {"phone":   997, "event":   997},
-    "BTM MOPP":           {"phone":   997, "event":   997},   # new SKU
-    "MM-SC-KAT":          {"phone":  4700, "event":  3995},
-    "BTMPC":              {"phone":  4700, "event":  3995},   # new SKU
-    "BTMP":               {"phone":  6997, "event":  6997},
-    "BTMP-Mopp":          {"phone":  6997, "event":  6997},
-    "BTMP MOPP":          {"phone":  6997, "event":  6997},   # new SKU
-    "BTMP-Add on":        {"phone":  6997, "event":  6997},
-    "BTMP Add-On":        {"phone":  6997, "event":  6997},   # new SKU
-    "BTM BT Add-on":      {"phone":  6999, "event":  5999},
-    "BT Add-On":          {"phone":  6999, "event":  5999},   # new SKU
-    "MC-Elite":           {"phone":  7200, "event":  5999},
-    "MCE":                {"phone":  7200, "event":  5999},   # new SKU
-    "MC-Elite-Mopp":      {"phone":  6455, "event":  5999},
-    "MCE MOPP":           {"phone":  6455, "event":  5999},   # new SKU
-    "MC-Elite-MC":        {"phone":  4450, "event":  5999},
-    "MCE MC":             {"phone":  4450, "event":  5999},   # new SKU
-    "MC Elite 1 to 1":    {"phone": 10200, "event": 10425},
-    "MCE 1:1":            {"phone": 10200, "event": 10425},   # new SKU
-    "MM Mary":            {"phone": 10000, "event": 10000},
-    "Elite 1 to 1 Mary":  {"phone": 24000, "event": 24000},
-    "Diamond 1:1":        {"phone": 24000, "event": 24000},   # new SKU
+    "BTME":               {"phone":   500, "event":   500, "post":   500},
+    "BTM":                {"phone":  2637, "event":  1900, "post":  1900},
+    "BTM-Mopp":           {"phone":   997, "event":   997, "post":   997},
+    "BTM MOPP":           {"phone":   997, "event":   997, "post":   997},   # new SKU
+    "MM-SC-KAT":          {"phone":  4700, "event":  3995, "post":  4700},
+    "BTMPC":              {"phone":  4700, "event":  3995, "post":  4700},   # new SKU
+    "BTMP":               {"phone":  6997, "event":  6997, "post":  6997},
+    "BTMP-Mopp":          {"phone":  6997, "event":  6997, "post":  6997},
+    "BTMP MOPP":          {"phone":  6997, "event":  6997, "post":  6997},   # new SKU
+    "BTMP-Add on":        {"phone":  6997, "event":  6997, "post":  6997},
+    "BTMP Add-On":        {"phone":  6997, "event":  6997, "post":  6997},   # new SKU
+    "BTM BT Add-on":      {"phone":  6999, "event":  5999, "post":  6999},
+    "BT Add-On":          {"phone":  6999, "event":  5999, "post":  6999},   # new SKU
+    "MC-Elite":           {"phone":  7200, "event":  5999, "post":  7200},
+    "MCE":                {"phone":  7200, "event":  5999, "post":  7200},   # new SKU
+    "MC-Elite-Mopp":      {"phone":  6455, "event":  5999, "post":  6455},
+    "MCE MOPP":           {"phone":  6455, "event":  5999, "post":  6455},   # new SKU
+    "MC-Elite-MC":        {"phone":  4450, "event":  5999, "post":  4450},
+    "MCE MC":             {"phone":  4450, "event":  5999, "post":  4450},   # new SKU
+    "MC Elite 1 to 1":    {"phone": 10200, "event": 10425, "post": 10650},
+    "MCE 1:1":            {"phone": 10200, "event": 10425, "post": 10650},   # new SKU
+    "MM Mary":            {"phone": 10000, "event": 10000, "post": 10000},
+    "Elite 1 to 1 Mary":  {"phone": 24000, "event": 24000, "post": 24000},
+    "Diamond 1:1":        {"phone": 24000, "event": 24000, "post": 24000},   # new SKU
     # LCC
-    "DBCE":               {"phone":   997, "event":   997},
-    "DBC":                {"phone":  3999, "event":  3999},
-    "LMC":                {"phone":  7020, "event":  5999},
-    "DBCA":               {"phone":  1636, "event":  2400},   # old — 6 MO default; 12 MO resolved via product name
-    "DBCA 6":             {"phone":  1636, "event":  2400},
-    "DBCA 6MO":           {"phone":  1636, "event":  2400},   # new SKU
-    "DBCA 6MO MOPP":      {"phone":  1636, "event":  2400},   # new SKU (alumni)
-    "DBCA 12":            {"phone":  2182, "event":  3600},
-    "DBCA 12MO":          {"phone":  2182, "event":  3600},   # new SKU
-    "DBCA 12MO MOPP":     {"phone":  2182, "event":  3600},   # new SKU (alumni)
-    "LMCA":               {"phone":  1636, "event":  2400},   # old — 6 MO default
-    "LMCA 6":             {"phone":  1636, "event":  2400},
-    "LMCA 6MO":           {"phone":  1636, "event":  2400},   # new SKU
-    "LMCA 6MO MOPP":      {"phone":  1636, "event":  2400},   # new SKU (alumni)
-    "LMCA 12":            {"phone":  2182, "event":  3600},
-    "LMCA 12MO":          {"phone":  2182, "event":  3600},   # new SKU
-    "LMCA 12MO MOPP":     {"phone":  2182, "event":  3600},   # new SKU (alumni)
-    "LMCA GOLD":          {"phone":  3999, "event":  3999},
-    "ELEV":               {"phone":  7200, "event":  5999},
-    "ELEV MOPP":          {"phone":  7200, "event":  5999},   # new SKU (alumni)
-    "ELEVADD":            {"phone":  5999, "event":  5999},
-    "ELEV Add-On":        {"phone":  5999, "event":  5999},   # new SKU
-    "INTSV4ADD":          {"phone":  2999, "event":  2999},
-    "ELEV 4IM":           {"phone":  2999, "event":  2999},   # new SKU
-    "ACCLIVE":            {"phone":  3749, "event":  3749},
-    "ACC LIVE":           {"phone":  3749, "event":  3749},   # new SKU
+    "DBCE":               {"phone":   997, "event":   997, "post":   997},
+    "DBC":                {"phone":  3999, "event":  3999, "post":  3999},
+    "LMC":                {"phone":  7020, "event":  5999, "post":  7020},
+    "DBCA":               {"phone":  1636, "event":  2400, "post":  2400},   # old — 6 MO default; 12 MO resolved via product name
+    "DBCA 6":             {"phone":  1636, "event":  2400, "post":  2400},
+    "DBCA 6MO":           {"phone":  1636, "event":  2400, "post":  2400},   # new SKU
+    "DBCA 6MO MOPP":      {"phone":  1636, "event":  2400, "post":  2400},   # new SKU (alumni)
+    "DBCA 12":            {"phone":  2182, "event":  3600, "post":  3600},
+    "DBCA 12MO":          {"phone":  2182, "event":  3600, "post":  3600},   # new SKU
+    "DBCA 12MO MOPP":     {"phone":  2182, "event":  3600, "post":  3600},   # new SKU (alumni)
+    "LMCA":               {"phone":  1636, "event":  2400, "post":  2400},   # old — 6 MO default
+    "LMCA 6":             {"phone":  1636, "event":  2400, "post":  2400},
+    "LMCA 6MO":           {"phone":  1636, "event":  2400, "post":  2400},   # new SKU
+    "LMCA 6MO MOPP":      {"phone":  1636, "event":  2400, "post":  2400},   # new SKU (alumni)
+    "LMCA 12":            {"phone":  2182, "event":  3600, "post":  3600},
+    "LMCA 12MO":          {"phone":  2182, "event":  3600, "post":  3600},   # new SKU
+    "LMCA 12MO MOPP":     {"phone":  2182, "event":  3600, "post":  3600},   # new SKU (alumni)
+    "LMCA GOLD":          {"phone":  3999, "event":  3999, "post":  6180},
+    "LMCA-V GOLD":        {"phone":  3999, "event":  3999, "post":  6180},   # alias
+    "ELEV":               {"phone":  7200, "event":  5999, "post":  7200},
+    "ELEV MOPP":          {"phone":  7200, "event":  5999, "post":  5999},   # new SKU (alumni)
+    "ELEVADD":            {"phone":  5999, "event":  5999, "post":  5999},
+    "ELEV Add-On":        {"phone":  5999, "event":  5999, "post":  5999},   # new SKU
+    "INTSV4ADD":          {"phone":  2999, "event":  2999, "post":  2999},
+    "ELEV 4IM":           {"phone":  2999, "event":  2999, "post":  2999},   # new SKU
+    "ACCLIVE":            {"phone":  3749, "event":  3749, "post":  3749},
+    "ACC LIVE":           {"phone":  3749, "event":  3749, "post":  3749},   # new SKU
     # L&R
-    "MYM":                {"phone":   875, "event":   875},   # old — 6 MO default; 12 MO resolved via product name
-    "MYM 6":              {"phone":   875, "event":   875},
-    "MYM 6MO":            {"phone":   875, "event":   875},   # new SKU
-    "MYM 12":             {"phone":  1632, "event":   997},
-    "MYM 12MO":           {"phone":  1632, "event":   997},   # new SKU
-    "MYM 12MO MOPP":      {"phone":  1632, "event":   997},   # new SKU (members only pricing)
-    "MYME":               {"phone":   450, "event":   450},
-    "MYM 2.0":            {"phone":   984, "event":   984},
-    "MYM-VIP":            {"phone":  3750, "event":  3750},
-    "MYM VIP 6":          {"phone":  3750, "event":  3750},   # new SKU
-    "MYM VIP W12":        {"phone":  5999, "event":  5999},
-    "MYM VIP 12":         {"phone":  5999, "event":  5999},   # new SKU
-    "MYM VIP W24":        {"phone":  7680, "event":  7680},
-    "MYM VIP 24":         {"phone":  7680, "event":  7680},   # new SKU
-    "MYM VIP W12- Add-On":{"phone":  2280, "event":  2280},
-    "MYM VIP 12 Add-on":  {"phone":  2280, "event":  2280},   # new SKU
-    "MYM VIP W20- Add-On":{"phone":  3750, "event":  3750},
-    "MYM VIP 20 Add-on":  {"phone":  3750, "event":  3750},   # new SKU
+    "MYM":                {"phone":   875, "event":   875, "post":   875},   # old — 6 MO default; 12 MO resolved via product name
+    "MYM 6":              {"phone":   875, "event":   875, "post":   875},
+    "MYM 6MO":            {"phone":   875, "event":   875, "post":   875},   # new SKU
+    "MYM 12":             {"phone":  1632, "event":   997, "post":  1857},
+    "MYM 12MO":           {"phone":  1632, "event":   997, "post":  1857},   # new SKU
+    "MYM 12MO MOPP":      {"phone":  1632, "event":   997, "post":  1857},   # new SKU (members only pricing)
+    "MYME":               {"phone":   450, "event":   450, "post":   450},
+    "MYM 2.0":            {"phone":   984, "event":   984, "post":   984},
+    "MYM-VIP":            {"phone":  3750, "event":  3750, "post":  3750},
+    "MYM VIP 6":          {"phone":  3750, "event":  3750, "post":  3750},   # new SKU
+    "MYM VIP W12":        {"phone":  5999, "event":  5999, "post":  5999},
+    "MYM VIP 12":         {"phone":  5999, "event":  5999, "post":  5999},   # new SKU
+    "MYM VIP W24":        {"phone":  7680, "event":  7680, "post":  7680},
+    "MYM VIP 24":         {"phone":  7680, "event":  7680, "post":  7680},   # new SKU
+    "MYM VIP W12- Add-On":{"phone":  2280, "event":  2280, "post":  2280},
+    "MYM VIP 12 Add-on":  {"phone":  2280, "event":  2280, "post":  2280},   # new SKU
+    "MYM VIP W20- Add-On":{"phone":  3750, "event":  3750, "post":  3750},
+    "MYM VIP 20 Add-on":  {"phone":  3750, "event":  3750, "post":  3750},   # new SKU
     # HWB
-    "TFT-O":              {"phone":   780, "event":   780},
-    "TFTO":               {"phone":   780, "event":   780},   # new SKU
-    # VHW — Vision Has Wings (confirmed threshold from user)
-    "VHW OL 6 Mo":        {"phone":  1800, "event":  1800},
-    "VHW OL 12 Mo":       {"phone":  1800, "event":  1800},   # assumed same; confirm if different
+    "TFT-O":              {"phone":   780, "event":   780, "post":   780},
+    "TFTO":               {"phone":   780, "event":   780, "post":   780},   # new SKU
+    # VHW — Vision Has Wings (post prices from 2026 pricing PDF)
+    "VHW OL 6 Mo":        {"phone":  1800, "event":  1800, "post":  2025},
+    "VHW OL 12 Mo":       {"phone":  1800, "event":  1800, "post":  3225},
+    "VHW Expanded":       {"phone":  1800, "event":  1800, "post":  1725},   # new SKU
     # B&L
-    "BTL":                {"phone":  3600, "event":  3600},
-    "BTL MOPP":           {"phone":  1500, "event":  1500},   # new SKU
-    "BTLE":               {"phone":   750, "event":   750},
-    "HLL":                {"phone":  5999, "event":  5999},
-    "BTBPC":              {"phone":  5999, "event":  5999},
-    "BTB PC":             {"phone":  5999, "event":  5999},
-    "BTLM":               {"phone": 10500, "event": 10500},
-    "BTLM VIP":           {"phone": 22500, "event": 22500},
+    "BTL":                {"phone":  3600, "event":  3600, "post":  3600},
+    "BTL MOPP":           {"phone":  1500, "event":  1500, "post":  1500},   # new SKU
+    "BTLE":               {"phone":   750, "event":   750, "post":   750},
+    "HLL":                {"phone":  5999, "event":  5999, "post":  5999},
+    "BTBPC":              {"phone":  5999, "event":  5999, "post":  5999},
+    "BTB PC":             {"phone":  5999, "event":  5999, "post":  5999},
+    "BTLM":               {"phone": 10500, "event": 10500, "post": 10500},
+    "BTLM VIP":           {"phone": 22500, "event": 22500, "post": 22500},
 }
 
 def get_ldp_threshold(sku, pcat, product_name, inv_total, partner=""):
