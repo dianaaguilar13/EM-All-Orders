@@ -475,7 +475,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   var allAtRisk    = ldpAtRisk + fdpAtRisk;
   var allVolAtRisk = ldpVolAtRisk + fdpVolAtRisk;
   var ldpGross  = Math.max(0, rows.length - ldpEE - ldpPend - ldpNoPmt);
-  var ldpValid  = Math.max(0, ldpGross - ldpCncl);
+  var ldpValid  = Math.max(0, ldpGross - ldpCncl - ldpUpg - ldpDwn);
   var ldpCxRate = ldpGross > 0 ? ldpCncl / ldpGross * 100 : 0;
 
   // ── All-orders totals (filtered by active SKU/pcat selection) ─────────────
@@ -528,7 +528,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   if (LDP.TCLV) Object.keys(LDP.TCLV).forEach(function(m) { if (m >= df && m <= dt) allCnclVol += (LDP.TCLV[m] || 0); });
   // allGross = total sold minus EE/Pend (base for cancel rate); allValid = net active units (minus cancelled too)
   var allGross  = Math.max(0, (allTot[LTi] || 0) - allEE - allPend);
-  var allValid  = Math.max(0, allGross - allCncl);
+  var allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
   var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
@@ -740,8 +740,8 @@ function ldpRefreshTrackerRows(allRows) {
   if (tbody) tbody.innerHTML = tRows.slice(0, SHOW).map(ldpBuildTrackerRowHtml).join("");
   var countEl = document.getElementById("ldp-tracker-count");
   if (countEl) {
-    var ncShow = tRows.filter(function(r){return r[10]!=="Entry Error"&&r[10]!=="Pend"&&r[10]!=="Cancelled";}).length;
-    countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+ncShow+" active units (cancellations, EE & pending shown but not counted) — use filters to narrow down" : "";
+    var ncShow = tRows.filter(function(r){var s=r[10];return s!=="Entry Error"&&s!=="Pend"&&s!=="Cancelled"&&s!=="Upgrade"&&s!=="Downgrade";}).length;
+    countEl.textContent = tRows.length > SHOW ? "Showing "+SHOW+" of "+ncShow+" active units (cancellations, upgrades, downgrades, EE & pending not counted) — use filters to narrow down" : "";
   }
 }
 
@@ -769,7 +769,7 @@ function ldpRenderTracker(rows) {
     riskInv[risk]    = (riskInv[risk]    || 0) + (r[7] || 0);
     riskBal[risk]    = (riskBal[risk]    || 0) + (r[22] || 0);
   });
-  var trackerTotal = rows.filter(function(r){return r[10]!=="Entry Error" && r[10]!=="Pend" && r[10]!=="Cancelled";}).length;
+  var trackerTotal = rows.filter(function(r){var s=r[10];return s!=="Entry Error"&&s!=="Pend"&&s!=="Cancelled"&&s!=="Upgrade"&&s!=="Downgrade";}).length;
 
   // KPI summary chips
   var kpiDefs = [
@@ -785,7 +785,7 @@ function ldpRenderTracker(rows) {
   var unitsChip = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;text-align:center">'
     +'<div style="font-size:20px;font-weight:700;color:#15803d">'+trackerTotal.toLocaleString()+'</div>'
     +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#15803d;margin-top:2px">📋 Active Units</div>'
-    +'<div style="font-size:9px;color:#86efac;margin-top:2px;opacity:.85">excl. Cancelled, EE &amp; Pend</div>'
+    +'<div style="font-size:9px;color:#86efac;margin-top:2px;opacity:.85">excl. Cncl, DG, UPG, EE, Pend</div>'
     +'</div>';
 
   var kpiHtml = '<div style="display:grid;grid-template-columns:repeat(8,1fr);gap:10px;width:100%">'
@@ -853,8 +853,8 @@ function ldpRenderTracker(rows) {
     return '<button onclick="ldpTrackerRiskFilter(\''+rk+'\')" style="'+style+';padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer">'+label+' ('+(rk?riskCounts[rk]||0:trackerTotal)+')</button>';
   }).join("");
 
-  var ldpCount = rows.filter(function(r){return r[34]===1&&r[10]!=="Entry Error"&&r[10]!=="Pend"&&r[10]!=="Cancelled";}).length;
-  var fdpCount = rows.filter(function(r){return r[34]===0&&r[10]!=="Entry Error"&&r[10]!=="Pend"&&r[10]!=="Cancelled";}).length;
+  var ldpCount = rows.filter(function(r){var s=r[10];return r[34]===1&&s!=="Entry Error"&&s!=="Pend"&&s!=="Cancelled"&&s!=="Upgrade"&&s!=="Downgrade";}).length;
+  var fdpCount = rows.filter(function(r){var s=r[10];return r[34]===0&&s!=="Entry Error"&&s!=="Pend"&&s!=="Cancelled"&&s!=="Upgrade"&&s!=="Downgrade";}).length;
   var typeFilterHtml = ['','LDP','FDP'].map(function(tp) {
     var active = trackerType === tp;
     var cnt = tp===''?trackerTotal:tp==='LDP'?ldpCount:fdpCount;
@@ -893,7 +893,7 @@ function ldpRenderTracker(rows) {
     +'</tr></thead>'
     +'<tbody id="ldp-tracker-tbody">'+tbodyHtml+'</tbody>'
     +'</table>'
-    +(function(){var nc=tRows.filter(function(r){return r[10]!=="Entry Error"&&r[10]!=="Pend"&&r[10]!=="Cancelled";}).length;return'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+nc+' active units (cancellations, EE &amp; pending shown but not counted) — use filters to narrow down':'')+'</div>';})()
+    +(function(){var nc=tRows.filter(function(r){var s=r[10];return s!=="Entry Error"&&s!=="Pend"&&s!=="Cancelled"&&s!=="Upgrade"&&s!=="Downgrade";}).length;return'<div id="ldp-tracker-count" style="padding:8px 18px;font-size:11px;color:#94a3b8">'+(tRows.length>SHOW?'Showing '+SHOW+' of '+nc+' active units (cancellations, upgrades, downgrades, EE &amp; pending not counted) — use filters to narrow down':'')+'</div>';})()
 
     +'</div>';
 
