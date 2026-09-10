@@ -555,6 +555,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   // ── Metrics rows ────────────────────────────────────────────────────────────
   var rows1 = [
     ["Volume",                $(allVol),         $(fdpVol),        $(ldpVol),         PP(ldpVol, allVol)],
+    ["Gross Units",           N(allGross),        N(fdpGross),       N(ldpGross),       PP(ldpGross, allGross)],
     ["Units",                 N(allValid),        N(fdpValid),       N(ldpValid),       PP(ldpValid, allValid)],
     ["Cancelled",             N(allCncl),         N(fdpCncl),        N(ldpCncl),        PP(ldpCncl, allCncl)],
     ["% Cancellation",        P(allCxRate),       P(fdpCxRate),      P(ldpCxRate),      ""],
