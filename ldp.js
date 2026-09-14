@@ -28,6 +28,30 @@ function ldpEditThresh(evt, sku, curVal) {
   inp.addEventListener('blur', save);
   inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } if (e.key === 'Escape') { ldpRenderTracker(ldpGetRows()); } });
 }
+// EM override system — keyed by order ID (r[1])
+var ldpEmOverrides = {};
+try { ldpEmOverrides = JSON.parse(localStorage.getItem('ldp_em_overrides') || '{}'); } catch(e) {}
+function ldpGetEm(r) { var ov = ldpEmOverrides[r[1]]; return (ov != null) ? ov : (r[15] || ''); }
+function ldpEditEm(evt, orderId, curVal) {
+  evt.stopPropagation();
+  var td = evt.target.closest('td');
+  if (!td) return;
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = curVal || '';
+  inp.placeholder = 'EM name…';
+  inp.style.cssText = 'width:110px;font-size:11px;padding:2px 4px;border:1px solid #7c3aed;border-radius:3px;outline:none;';
+  td.innerHTML = ''; td.appendChild(inp); inp.focus(); inp.select();
+  function save() {
+    var v = inp.value.trim();
+    if (v) { ldpEmOverrides[orderId] = v; }
+    else   { delete ldpEmOverrides[orderId]; }
+    try { localStorage.setItem('ldp_em_overrides', JSON.stringify(ldpEmOverrides)); } catch(e) {}
+    ldpRenderTracker(ldpGetRows());
+  }
+  inp.addEventListener('blur', save);
+  inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); } if (e.key === 'Escape') { ldpRenderTracker(ldpGetRows()); } });
+}
 // Return deposit for row based on selected window
 function ldpDep(r){if(ldpDepWin===1)return r[25]||r[8];if(ldpDepWin===2)return r[26]||r[8];if(ldpDepWin===3)return r[27]||r[8];return r[8];}
 // Return payment % for row based on selected window
@@ -695,7 +719,18 @@ function ldpBuildTrackerRowHtml(r) {
     '<td style="font-size:11px;text-align:center">'+ldpNextPmtHtml(r,1)+'</td>'+
     '<td style="font-size:11px;color:'+dOvrColor+';font-weight:600">'+dOvrCell+'</td>'+
     '<td>'+riskBadge+'</td>'+
-    '<td style="font-size:11px;color:#64748b">'+(r[15]||'')+'</td>'+
+    (function(){
+      var em = ldpGetEm(r);
+      var isOv = ldpEmOverrides[r[1]] != null;
+      var isEmpty = !em;
+      var oidEsc = String(r[1]).replace(/'/g,"\\'");
+      var curEsc = em.replace(/'/g,"\\'");
+      var color = isOv ? '#7c3aed' : isEmpty ? '#94a3b8' : '#64748b';
+      var label = isOv ? '<span title="User override" style="font-size:8px;vertical-align:middle;margin-right:2px;opacity:.7">★</span>' + em
+                       : (isEmpty ? '<span style="opacity:.45;font-style:italic">Unknown</span>' : em);
+      return '<td style="font-size:11px;color:'+color+';white-space:nowrap">'+label
+        +'<button onclick="ldpEditEm(event,\''+oidEsc+'\',\''+curEsc+'\')" title="Edit EM" style="background:none;border:none;cursor:pointer;padding:0 0 0 4px;font-size:10px;color:#cbd5e1;line-height:1;vertical-align:middle">✏</button></td>';
+    })()+
     '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
     (function(){
       if (r[10]!=="Cancelled"||!r[36]) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
@@ -983,7 +1018,7 @@ function ldpExportTracker() {
       r[19] || "",
       ldpNextPmtText(r,0), ldpNextPmtText(r,1),
       r[29] != null ? r[29] : "",
-      r[21] || "", r[15] || "", r[14] || "",
+      r[21] || "", ldpGetEm(r) || "", r[14] || "",
       r[13] || "", r[16] != null ? r[16] : "", r[18] != null ? r[18] : "", r[28] || "",
       r[36] || "", r[37] >= 0 ? r[37] : ""
     ].map(esc).join(","));
