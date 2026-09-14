@@ -611,7 +611,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   // ── PE table from LDP rows ──────────────────────────────────────────────────
   var byEM = {};
   rows.forEach(function(r) {
-    var em = (r[15] || "").trim() || "Unknown";
+    var em = ldpGetEm(r).trim() || "Unknown";
     if (!byEM[em]) byEM[em] = {total:0, good:0, nogood:0};
     byEM[em].total++;
     var rk = r[21];
