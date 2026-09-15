@@ -435,7 +435,7 @@ function ldpRenderRecords(rows){
 // ── CSV Download ─────────────────────────────────────────
 function ldpDownloadCsv(){
   var rows=ldpGetRows();
-  var headers=["Order ID","Contact ID","SKU","SKU Category","Heaven Date","Purchase Date","Inv Total","Net Invoice","Paid","Pmt %","CNCL Status","Active Status","Refund Days","Partner Cat","Partner","EM","Lost Revenue"];
+  var headers=["Order ID","Contact ID","SKU","SKU Category","Heaven Date","Purchase Date","Heaven Invoice Total","Net Invoice","Paid","Pmt %","CNCL Status","Active Status","Refund Days","Partner Cat","Partner","EM","Lost Revenue"];
   var lines=[headers.join(",")];
   rows.forEach(function(r){
     lines.push([
@@ -444,7 +444,7 @@ function ldpDownloadCsv(){
       '"'+(r[4]||"").replace(/"/g,'""')+'"',
       r[6]||"",       // Heaven Date (effective date)
       r[23]||"",      // original purchase date
-      r[7],r[24]||0,  // Inv Total, Net Invoice
+      r[32]||0,r[24]||0,  // Heaven Invoice Total, Net Invoice
       ldpDep(r),ldpPmtPct(r).toFixed(1),r[10],r[11],r[12],
       '"'+(r[13]||"").replace(/"/g,'""')+'"',
       '"'+(r[14]||"").replace(/"/g,'""')+'"',
