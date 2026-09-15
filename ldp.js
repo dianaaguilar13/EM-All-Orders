@@ -444,7 +444,7 @@ function ldpDownloadCsv(){
       '"'+(r[4]||"").replace(/"/g,'""')+'"',
       r[6]||"",       // Heaven Date (effective date)
       r[23]||"",      // original purchase date
-      r[32]||0,r[24]||0,  // Heaven Invoice Total, Net Invoice
+      (r[31]>0?r[32]||0:0),r[24]||0,  // Heaven Invoice Total (0 when qty=0), Net Invoice
       ldpDep(r),ldpPmtPct(r).toFixed(1),r[10],r[11],r[12],
       '"'+(r[13]||"").replace(/"/g,'""')+'"',
       '"'+(r[14]||"").replace(/"/g,'""')+'"',
@@ -479,7 +479,7 @@ function ldpRenderSummaryTables(rows, allRows) {
     if (st === "Cancelled")  ldpCncl++;
     if (st === "Upgrade")    ldpUpg++;
     if (st === "Downgrade")  ldpDwn++;
-    ldpVol += (r[32] || 0);
+    ldpVol += (r[31] > 0 ? (r[32] || 0) : 0);
     ldpCnclVol += (r[16] || 0);
     if (rk === "Overdue +30" || rk === "Overdue +15" || rk === "Overdue") {
       ldpAtRisk++;
@@ -507,7 +507,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   // so they respect every active filter, unlike the global LDP.TMV aggregate.
   var allVol = 0, allCnclVol = 0;
   (allRows || []).forEach(function(r) {
-    allVol     += (r[32] || 0);   // HEAVEN_INVOICE_TOTAL
+    allVol     += (r[31] > 0 ? (r[32] || 0) : 0);   // HEAVEN_INVOICE_TOTAL (0 when qty=0)
     allCnclVol += (r[16] || 0);   // lost revenue (non-zero only on Cancelled rows)
   });
   var hasTMV = true;
@@ -713,7 +713,7 @@ function ldpBuildTrackerRowHtml(r) {
   var dOvrCell = dOvr===null ? '—' : (dOvr>0 ? '+'+dOvr+'d' : dOvr===0 ? 'Due today' : dOvr+'d');
   var dOvrColor= dOvr===null?'#94a3b8':dOvr>14?'#b91c1c':dOvr>0?'#c2410c':dOvr===0?'#b45309':'#16a34a';
   var rowBg    = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
-  var heavenInv= '$'+Math.round(r[32]||0).toLocaleString();
+  var heavenInv= (r[31]>0)?'$'+Math.round(r[32]||0).toLocaleString():'$0';
   var qty      = (r[31]!=null)?r[31]:1;
   var credits  = (r[33]!=null&&r[33]!==0)?'$'+Math.round(r[33]).toLocaleString():'—';
   var typeBadge= r[34]===1
