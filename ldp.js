@@ -554,41 +554,26 @@ function ldpRenderSummaryTables(rows, allRows) {
   var allDwn   = allTot[LDi]  || 0;
   var allPend  = allTot[LPi]  || 0;
   var allNoPmt = allTot[LNPi] || 0;
-  // allGross = total sold minus EE/Pend (base for cancel rate); allValid = net active units (minus cancelled too)
-  var allGross  = Math.max(0, (allTot[LTi] || 0) - allEE - allPend);
+  // All Month Gross: row-level filter — exclude Cancelled/DG/UPG whose status change
+  // date is after the 5th of the next month (e.g. Jul period → cut off after Aug 5).
+  // Units cancelled/downgraded/upgraded after that window are not counted in this month's gross.
+  var dt5Parts = dt.split('-');
+  var dt5MoN = parseInt(dt5Parts[1]) === 12 ? 1 : parseInt(dt5Parts[1]) + 1;
+  var dt5YrN = parseInt(dt5Parts[1]) === 12 ? parseInt(dt5Parts[0]) + 1 : parseInt(dt5Parts[0]);
+  var dt5Cutoff = dt5YrN + '-' + ('0' + dt5MoN).slice(-2) + '-05';
+  var allGross = 0, allCncl = 0, allUpg = 0, allDwn = 0;
+  (allRows || []).forEach(function(r) {
+    var st = r[10];
+    if (st === "Entry Error" || st === "Pend") return;
+    // Exclude CDU rows whose status-change date falls outside the window
+    if ((st === "Cancelled" || st === "Downgrade" || st === "Upgrade") && r[36] && r[36] > dt5Cutoff) return;
+    allGross++;
+    if (st === "Cancelled")  allCncl++;
+    else if (st === "Upgrade")   allUpg++;
+    else if (st === "Downgrade") allDwn++;
+  });
   var allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
   var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
-
-  // ── +5 day extension: pull first 5 days of next month into All Month gross ─
-  var dtParts2 = dt.split('-');
-  var ext5Mo = parseInt(dtParts2[1]) === 12 ? 1 : parseInt(dtParts2[1]) + 1;
-  var ext5Yr = parseInt(dtParts2[1]) === 12 ? parseInt(dtParts2[0]) + 1 : parseInt(dtParts2[0]);
-  var ext5MS  = ext5Yr + '-' + ('0' + ext5Mo).slice(-2);
-  var ext5Max = ext5MS + '-05';
-  var ext5Pcat = ldpGetPcat();
-  var ext5EE = 0, ext5Pend = 0, ext5Cncl = 0, ext5Upg = 0, ext5Dwn = 0, ext5Tot = 0;
-  (LDP && LDP.rows || []).forEach(function(r) {
-    if (r[5] !== ext5MS) return;
-    if (r[6] > ext5Max) return;
-    if (EXCLUDED_SKUS.has(r[3])) return;
-    if (ldpSelSku.size > 0 && !ldpSelSku.has(r[3])) return;
-    if (ext5Pcat && r[13] !== ext5Pcat) return;
-    if (ldpSelP.size > 0 && !ldpSelP.has(r[14])) return;
-    if (ldpSelDiv && ldpGetDiv(r[0]) !== ldpSelDiv) return;
-    ext5Tot++;
-    var st = r[10];
-    if (st === "Entry Error") ext5EE++;
-    else if (st === "Pend") ext5Pend++;
-    else if (st === "Cancelled") ext5Cncl++;
-    else if (st === "Upgrade") ext5Upg++;
-    else if (st === "Downgrade") ext5Dwn++;
-  });
-  allGross += Math.max(0, ext5Tot - ext5EE - ext5Pend);
-  allCncl  += ext5Cncl;
-  allUpg   += ext5Upg;
-  allDwn   += ext5Dwn;
-  allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
-  allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
   var fdpVol      = allVol - ldpVol;
