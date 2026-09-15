@@ -554,25 +554,28 @@ function ldpRenderSummaryTables(rows, allRows) {
   var allDwn   = allTot[LDi]  || 0;
   var allPend  = allTot[LPi]  || 0;
   var allNoPmt = allTot[LNPi] || 0;
-  // All Month Gross: row-level filter — exclude Cancelled/DG/UPG whose status change
-  // date is after the 5th of the next month (e.g. Jul period → cut off after Aug 5).
-  // Units cancelled/downgraded/upgraded after that window are not counted in this month's gross.
+  // All Month Gross: cutoff rule applies ONLY to the gross count.
+  // Cancelled/DG/UPG counts in the table show ALL events; only the gross (and allValid
+  // derived from it) excludes CDU events whose status-change date is after day 5 of the
+  // next month (e.g. July period → cutoff = Aug 5).
   var dt5Parts = dt.split('-');
   var dt5MoN = parseInt(dt5Parts[1]) === 12 ? 1 : parseInt(dt5Parts[1]) + 1;
   var dt5YrN = parseInt(dt5Parts[1]) === 12 ? parseInt(dt5Parts[0]) + 1 : parseInt(dt5Parts[0]);
   var dt5Cutoff = dt5YrN + '-' + ('0' + dt5MoN).slice(-2) + '-05';
+  // allCncl/allUpg/allDwn = ALL events (shown in count rows)
+  // allCnclG/allUpgG/allDwnG = only those within the window (used for gross/valid)
   var allGross = 0, allCncl = 0, allUpg = 0, allDwn = 0;
+  var allCnclG = 0, allUpgG = 0, allDwnG = 0;
   (allRows || []).forEach(function(r) {
     var st = r[10];
     if (st === "Entry Error" || st === "Pend") return;
-    // Exclude CDU rows whose status-change date falls outside the window
-    if ((st === "Cancelled" || st === "Downgrade" || st === "Upgrade") && r[36] && r[36] > dt5Cutoff) return;
-    allGross++;
-    if (st === "Cancelled")  allCncl++;
-    else if (st === "Upgrade")   allUpg++;
-    else if (st === "Downgrade") allDwn++;
+    var lateEvent = (st === "Cancelled" || st === "Downgrade" || st === "Upgrade") && r[36] && r[36] > dt5Cutoff;
+    if (!lateEvent) allGross++;
+    if (st === "Cancelled")       { allCncl++; if (!lateEvent) allCnclG++; }
+    else if (st === "Upgrade")    { allUpg++;  if (!lateEvent) allUpgG++;  }
+    else if (st === "Downgrade")  { allDwn++;  if (!lateEvent) allDwnG++;  }
   });
-  var allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
+  var allValid  = Math.max(0, allGross - allCnclG - allUpgG - allDwnG);
   var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
