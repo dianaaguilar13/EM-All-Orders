@@ -479,7 +479,7 @@ function ldpRenderSummaryTables(rows, allRows) {
     if (st === "Cancelled")  ldpCncl++;
     if (st === "Upgrade")    ldpUpg++;
     if (st === "Downgrade")  ldpDwn++;
-    ldpVol += (r[7] || 0);
+    ldpVol += (r[32] || 0);
     ldpCnclVol += (r[16] || 0);
     if (rk === "Overdue +30" || rk === "Overdue +15" || rk === "Overdue") {
       ldpAtRisk++;
@@ -507,7 +507,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   // so they respect every active filter, unlike the global LDP.TMV aggregate.
   var allVol = 0, allCnclVol = 0;
   (allRows || []).forEach(function(r) {
-    allVol     += (r[7]  || 0);   // inv total
+    allVol     += (r[32] || 0);   // HEAVEN_INVOICE_TOTAL
     allCnclVol += (r[16] || 0);   // lost revenue (non-zero only on Cancelled rows)
   });
   var hasTMV = true;
@@ -558,6 +558,37 @@ function ldpRenderSummaryTables(rows, allRows) {
   var allGross  = Math.max(0, (allTot[LTi] || 0) - allEE - allPend);
   var allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
   var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
+
+  // ── +5 day extension: pull first 5 days of next month into All Month gross ─
+  var dtParts2 = dt.split('-');
+  var ext5Mo = parseInt(dtParts2[1]) === 12 ? 1 : parseInt(dtParts2[1]) + 1;
+  var ext5Yr = parseInt(dtParts2[1]) === 12 ? parseInt(dtParts2[0]) + 1 : parseInt(dtParts2[0]);
+  var ext5MS  = ext5Yr + '-' + ('0' + ext5Mo).slice(-2);
+  var ext5Max = ext5MS + '-05';
+  var ext5Pcat = ldpGetPcat();
+  var ext5EE = 0, ext5Pend = 0, ext5Cncl = 0, ext5Upg = 0, ext5Dwn = 0, ext5Tot = 0;
+  (LDP && LDP.rows || []).forEach(function(r) {
+    if (r[5] !== ext5MS) return;
+    if (r[6] > ext5Max) return;
+    if (EXCLUDED_SKUS.has(r[3])) return;
+    if (ldpSelSku.size > 0 && !ldpSelSku.has(r[3])) return;
+    if (ext5Pcat && r[13] !== ext5Pcat) return;
+    if (ldpSelP.size > 0 && !ldpSelP.has(r[14])) return;
+    if (ldpSelDiv && ldpGetDiv(r[0]) !== ldpSelDiv) return;
+    ext5Tot++;
+    var st = r[10];
+    if (st === "Entry Error") ext5EE++;
+    else if (st === "Pend") ext5Pend++;
+    else if (st === "Cancelled") ext5Cncl++;
+    else if (st === "Upgrade") ext5Upg++;
+    else if (st === "Downgrade") ext5Dwn++;
+  });
+  allGross += Math.max(0, ext5Tot - ext5EE - ext5Pend);
+  allCncl  += ext5Cncl;
+  allUpg   += ext5Upg;
+  allDwn   += ext5Dwn;
+  allValid  = Math.max(0, allGross - allCncl - allUpg - allDwn);
+  allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
 
   // ── FDP = All − LDP ────────────────────────────────────────────────────────
   var fdpVol      = allVol - ldpVol;
@@ -656,7 +687,7 @@ function ldpNextPmtText(r, offset) {
   d.setMonth(d.getMonth() + 1 + offset);
   var expYM = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
   var todayD = new Date(); var todayYM = todayD.getFullYear() + '-' + ('0'+(todayD.getMonth()+1)).slice(-2);
-  var label = d.toLocaleString('en-US',{month:'short'}) + " '" + d.getFullYear().toString().slice(-2);
+  var label = d.toLocaleString('en-US',{month:'short',day:'numeric'}) + " '" + d.getFullYear().toString().slice(-2);
   if (expYM > todayYM) return '↗ ' + label;
   return '✗ ' + label;
 }
@@ -692,7 +723,7 @@ function ldpBuildTrackerRowHtml(r) {
   var dOvrCell = dOvr===null ? '—' : (dOvr>0 ? '+'+dOvr+'d' : dOvr===0 ? 'Due today' : dOvr+'d');
   var dOvrColor= dOvr===null?'#94a3b8':dOvr>14?'#b91c1c':dOvr>0?'#c2410c':dOvr===0?'#b45309':'#16a34a';
   var rowBg    = risk==="Overdue +30"?"#fff5f5":risk==="Overdue +15"?"#fffdf0":risk==="Overdue"?"#fff7ed":"";
-  var heavenInv= (r[32]!=null&&r[32]>0)?'$'+Math.round(r[32]).toLocaleString():'$'+(r[7]||0).toLocaleString();
+  var heavenInv= '$'+Math.round(r[32]||0).toLocaleString();
   var qty      = (r[31]!=null)?r[31]:1;
   var credits  = (r[33]!=null&&r[33]!==0)?'$'+Math.round(r[33]).toLocaleString():'—';
   var typeBadge= r[34]===1
@@ -733,13 +764,15 @@ function ldpBuildTrackerRowHtml(r) {
     })()+
     '<td style="font-size:11px;color:#64748b">'+(r[14]||'').slice(0,22)+'</td>'+
     (function(){
-      if (r[10]!=="Cancelled"||!r[36]) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
+      var isEv=r[10]==="Cancelled"||r[10]==="Downgrade"||r[10]==="Upgrade";
+      if (!isEv||!r[36]) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
       var d=new Date(r[36]+'T00:00:00');
       var lbl=d.toLocaleString('en-US',{month:'short',day:'numeric',year:'2-digit'});
       return '<td style="font-size:11px;color:#6b7280;white-space:nowrap;text-align:center">'+lbl+'</td>';
     })()+
     (function(){
-      if (r[10]!=="Cancelled"||r[37]<0) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
+      var isEv=r[10]==="Cancelled"||r[10]==="Downgrade"||r[10]==="Upgrade";
+      if (!isEv||r[37]<0) return '<td style="font-size:11px;color:#94a3b8;text-align:center">—</td>';
       var d=r[37];
       var col=d<=30?'#15803d':d<=60?'#b45309':'#b91c1c';
       return '<td style="font-size:11px;font-weight:600;color:'+col+';text-align:center">'+d+'d</td>';
@@ -928,8 +961,8 @@ function ldpRenderTracker(rows) {
     +'<th style="white-space:nowrap">Nxt Pmt</th><th style="white-space:nowrap">Nxt+1 Pmt</th>'
     +'<th style="cursor:pointer" onclick="ldpSort(29)">Days Overdue ▼</th><th>Risk</th>'
     +'<th>EM</th><th>Partner</th>'
-    +'<th style="white-space:nowrap">Refund Date</th>'
-    +'<th style="white-space:nowrap">Days to Cancel</th>'
+    +'<th style="white-space:nowrap">Status Date</th>'
+    +'<th style="white-space:nowrap">Days to Change</th>'
     +'</tr></thead>'
     +'<tbody id="ldp-tracker-tbody">'+tbodyHtml+'</tbody>'
     +'</table>'
