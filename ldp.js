@@ -1031,9 +1031,9 @@ function ldpExportTracker() {
   filtered.forEach(function(r) {
     lines.push([
       r[1], r[34]===1?"LDP":"FDP", r[30]||"", r[2], r[3], r[4],
-      r[31]!=null?r[31]:1,
+      r[31]!=null?r[31]:0,
       r[6],
-      r[32]>0?r[32]:r[7], ldpDep(r), ldpGetThresh(r)!=null?ldpGetThresh(r):"", ldpPmtPct(r).toFixed(1)+"%",
+      (r[31]>0?r[32]||0:0), ldpDep(r), ldpGetThresh(r)!=null?ldpGetThresh(r):"", ldpPmtPct(r).toFixed(1)+"%",
       r[17] != null ? r[17] : "",
       r[33] != null ? r[33] : "",
       r[22] != null ? r[22] : "",
