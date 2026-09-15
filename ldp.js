@@ -485,7 +485,7 @@ function ldpRenderSummaryTables(rows, allRows) {
       ldpAtRisk++;
       ldpVolAtRisk += (r[22] || 0);
     }
-    if (st === "Downgrade") ldpVolLost += (r[16] || 0);
+    if (st === "Downgrade") ldpVolLost += Math.max(0, (r[32] || 0) - (r[24] || 0));
   });
   var fdpAtRisk = 0, fdpVolAtRisk = 0;
   (allRows || []).forEach(function(r) {
@@ -566,6 +566,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   // allCnclG/allUpgG/allDwnG = only those within the window (used for gross/valid)
   var allGross = 0, allCncl = 0, allUpg = 0, allDwn = 0;
   var allCnclG = 0, allUpgG = 0, allDwnG = 0;
+  var allVolLost = 0;
   (allRows || []).forEach(function(r) {
     var st = r[10];
     if (st === "Entry Error" || st === "Pend") return;
@@ -573,7 +574,7 @@ function ldpRenderSummaryTables(rows, allRows) {
     if (!lateEvent) allGross++;
     if (st === "Cancelled")       { allCncl++; if (!lateEvent) allCnclG++; }
     else if (st === "Upgrade")    { allUpg++;  if (!lateEvent) allUpgG++;  }
-    else if (st === "Downgrade")  { allDwn++;  if (!lateEvent) allDwnG++;  }
+    else if (st === "Downgrade")  { allDwn++;  if (!lateEvent) allDwnG++; allVolLost += Math.max(0, (r[32]||0) - (r[24]||0)); }
   });
   var allValid  = Math.max(0, allGross - allCnclG - allUpgG - allDwnG);
   var allCxRate = allGross > 0 ? allCncl / allGross * 100 : 0;
@@ -587,6 +588,7 @@ function ldpRenderSummaryTables(rows, allRows) {
   var fdpCnclVol  = allCnclVol - ldpCnclVol;
   var fdpUpg      = allUpg - ldpUpg;
   var fdpDwn      = allDwn - ldpDwn;
+  var fdpVolLost  = allVolLost - ldpVolLost;
   var ldpVolPct   = allValid > 0 ? ldpValid / allValid * 100 : 0;
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -606,7 +608,7 @@ function ldpRenderSummaryTables(rows, allRows) {
     ["At Risk",               N(allAtRisk),       N(fdpAtRisk),      N(ldpAtRisk),  ""],
     ["Volume at Risk",        $(allVolAtRisk),    $(fdpVolAtRisk),   $(ldpVolAtRisk),""],
     ["Downgrade",             N(allDwn),          N(fdpDwn),         N(ldpDwn),         PP(ldpDwn, allDwn)],
-    ["Volume Lost",           '<span style="color:#94a3b8">—</span>','<span style="color:#94a3b8">—</span>',$(ldpVolLost),""],
+    ["Volume Lost",           $(allVolLost),      $(fdpVolLost),     $(ldpVolLost),     ""],
     ["Upgrade",               N(allUpg),          N(fdpUpg),         N(ldpUpg),         PP(ldpUpg, allUpg)],
   ];
 
