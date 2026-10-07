@@ -998,6 +998,18 @@ function isInCohortWindow(row,win,rangeEndMs){
   return cancelMs<=cutoff;
 }
 
+function getCohortDivDisplay(sku,divRaw){
+  if(divRaw==="LT/LCC"){
+    var s=(sku||"").toUpperCase();
+    if(/^(DBC|LMC|DBCA|LMCA|DBCP|LMCP|DB|LM)/.test(s))return"LCC";
+    return"LT";
+  }
+  if(divRaw==="MYM"||divRaw==="L&R"||divRaw==="LR")return"LR";
+  if(divRaw==="B&L"||divRaw==="BL")return"BL";
+  if(divRaw==="HWB")return"HWB";
+  return divRaw||"Other";
+}
+
 function renderCohort(){
   var sec=document.getElementById("cohortSection");
   if(!sec||!D)return;
@@ -1087,7 +1099,7 @@ function renderCohort(){
   var totalNetInv=0;
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
-    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0,progName:row[9]||""};
+    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0,progName:row[9]||"",div:getCohortDivDisplay(sku,D.sku_div?D.sku_div[sku]:""),divRaw:D.sku_div?D.sku_div[sku]:""};
     skuMap[sku].total++;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)skuMap[sku].cancelled++;
@@ -1119,28 +1131,69 @@ function renderCohort(){
   var hardCutoffLabel=formatCutoffDate(hardCutoffMs);
   var windowNote=win<0?"all cancelled orders":"cancelled on or before "+hardCutoffLabel+" ("+rangeEndLabel+" + "+winLabel+")";
 
-  // SKU table rows
+  // SKU table rows — grouped by division
+  var DIV_ORDER_COHORT=["LT","LCC","BL","HWB","LR","Other"];
+  var DIV_CFG_COHORT={
+    LT:{label:"\uD83D\uDD35 LT \u2014 Life &amp; Transformation",hBg:"#dbeafe",hColor:"#1d4ed8",hBorder:"#2563eb",tBg:"#bfdbfe",tColor:"#1e40af"},
+    LCC:{label:"\uD83D\uDFE1 LCC \u2014 Life Coaching Certification",hBg:"#fef9c3",hColor:"#854d0e",hBorder:"#ca8a04",tBg:"#fde68a",tColor:"#78350f"},
+    BL:{label:"\uD83D\uDEA6 B&amp;L \u2014 Business &amp; Leadership",hBg:"#cffafe",hColor:"#0e7490",hBorder:"#0891b2",tBg:"#a5f3fc",tColor:"#155e75"},
+    HWB:{label:"\uD83D\uDFE3 HWB \u2014 Health &amp; Well Being",hBg:"#ede9fe",hColor:"#5b21b6",hBorder:"#7c3aed",tBg:"#ddd6fe",tColor:"#4c1d95"},
+    LR:{label:"\uD83D\uDC97 L&amp;R \u2014 Love &amp; Relationships",hBg:"#fce7f3",hColor:"#9d174d",hBorder:"#db2777",tBg:"#fbcfe8",tColor:"#831843"},
+    Other:{label:"\u26AA Other",hBg:"#f8fafc",hColor:"#475569",hBorder:"#94a3b8",tBg:"#e2e8f0",tColor:"#334155"}
+  };
+  var divGroups={};
+  DIV_ORDER_COHORT.forEach(function(d){divGroups[d]=[];});
+  skuArr.forEach(function(e){var dv=e[1].div||"Other";if(!divGroups[dv])divGroups[dv]=[];divGroups[dv].push(e);});
+
   var tRows='';
-  skuArr.forEach(function(e){
-    var s=e[0],d=e[1];
-    var rate=d.total>0?(d.cancelled/d.total*100):0;
-    var ldpR=d.ldp>0?(d.ldpCancelled/d.ldp*100):0;
-    var barW=Math.min(100,Math.round(rate));
-    var sEsc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-    var safeId=s.replace(/[^a-zA-Z0-9]/g,"_");
-    var niDisp=d.netInv>0?'$'+Math.round(d.netInv).toLocaleString():'—';
-    tRows+='<tr class="cohort-sku-row" style="cursor:pointer" onclick="toggleCohortSkuDetail(event,\''+s.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
-      +'<td style="text-align:left"><span class="cohort-arrow-'+safeId+'" style="font-size:11px;color:#94a3b8;margin-right:6px">▶</span>'+sEsc+'</td>'
-      +'<td style="text-align:left;font-size:11px;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.progName.replace(/"/g,"&quot;")+'">'+d.progName+'</td>'
-      +'<td style="text-align:center">'+d.total.toLocaleString()+'</td>'
-      +'<td style="text-align:center">'+d.cancelled.toLocaleString()+'</td>'
-      +'<td style="text-align:center">'+d.ldp.toLocaleString()+'</td>'
-      +'<td style="text-align:center">'+d.ldpCancelled.toLocaleString()+'</td>'
-      +'<td style="text-align:center">'+rate.toFixed(1)+'%</td>'
-      +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+barW+'%;height:100%;background:#f85149;border-radius:3px"></div></div><span style="font-size:10px;color:#64748b">'+rate.toFixed(1)+'%</span></div></td>'
-      +'<td style="text-align:center;color:#7c3aed;font-weight:600">'+niDisp+'</td>'
-      +'</tr>'
-      +'<tr id="cohort-detail-'+safeId+'" style="display:none"><td colspan="8" style="padding:0"></td></tr>';
+  DIV_ORDER_COHORT.forEach(function(divKey){
+    var entries=divGroups[divKey];
+    var cfg=DIV_CFG_COHORT[divKey];
+    if(!cfg)return;
+    tRows+='<tr style="background:'+cfg.hBg+';border-top:2px solid '+cfg.hBorder+'">'
+      +'<td colspan="9" style="padding:7px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:'+cfg.hColor+'">'+cfg.label+'</td>'
+      +'</tr>';
+    if(entries.length===0){
+      tRows+='<tr><td colspan="9" style="padding:7px 12px 7px 22px;font-size:11px;color:#94a3b8;font-style:italic">No SKUs in cohort for selected date range</td></tr>';
+    }
+    var dvTot=0,dvCan=0,dvLdp=0,dvLdpCan=0,dvNI=0;
+    entries.forEach(function(e){
+      var s=e[0],d=e[1];
+      var rate=d.total>0?(d.cancelled/d.total*100):0;
+      var barW=Math.min(100,Math.round(rate));
+      var sEsc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      var safeId=s.replace(/[^a-zA-Z0-9]/g,"_");
+      var niDisp=d.netInv>0?'$'+Math.round(d.netInv).toLocaleString():'—';
+      dvTot+=d.total;dvCan+=d.cancelled;dvLdp+=d.ldp;dvLdpCan+=d.ldpCancelled;dvNI+=d.netInv;
+      tRows+='<tr class="cohort-sku-row" style="cursor:pointer" onclick="toggleCohortSkuDetail(event,\''+s.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
+        +'<td style="text-align:left;padding-left:18px"><span class="cohort-arrow-'+safeId+'" style="font-size:11px;color:#94a3b8;margin-right:6px">▶</span>'+sEsc+'</td>'
+        +'<td style="text-align:left;font-size:11px;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.progName.replace(/"/g,"&quot;")+'">'+d.progName+'</td>'
+        +'<td style="text-align:center">'+d.total.toLocaleString()+'</td>'
+        +'<td style="text-align:center">'+d.cancelled.toLocaleString()+'</td>'
+        +'<td style="text-align:center">'+d.ldp.toLocaleString()+'</td>'
+        +'<td style="text-align:center">'+d.ldpCancelled.toLocaleString()+'</td>'
+        +'<td style="text-align:center">'+rate.toFixed(1)+'%</td>'
+        +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden"><div style="width:'+barW+'%;height:100%;background:#f85149;border-radius:3px"></div></div><span style="font-size:10px;color:#64748b">'+rate.toFixed(1)+'%</span></div></td>'
+        +'<td style="text-align:center;color:#7c3aed;font-weight:600">'+niDisp+'</td>'
+        +'</tr>'
+        +'<tr id="cohort-detail-'+safeId+'" style="display:none"><td colspan="9" style="padding:0"></td></tr>';
+    });
+    if(entries.length>0){
+      var dvRate=dvTot>0?(dvCan/dvTot*100):0;
+      var dvBarW=Math.min(100,Math.round(dvRate));
+      var dvNIDisp=dvNI>0?'$'+Math.round(dvNI).toLocaleString():'—';
+      tRows+='<tr style="background:'+cfg.tBg+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
+        +'<td style="font-weight:700;font-size:11px;padding:7px 12px;color:'+cfg.tColor+'">'+divKey+' Total</td>'
+        +'<td></td>'
+        +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvTot.toLocaleString()+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvCan.toLocaleString()+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvLdp.toLocaleString()+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvLdpCan.toLocaleString()+'</td>'
+        +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvRate.toFixed(1)+'%</td>'
+        +'<td style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:6px"><div style="width:60px;height:6px;background:#ffffff88;border-radius:3px;overflow:hidden"><div style="width:'+dvBarW+'%;height:100%;background:'+cfg.hBorder+';border-radius:3px"></div></div><span style="font-size:10px;color:'+cfg.tColor+'">'+dvRate.toFixed(1)+'%</span></div></td>'
+        +'<td style="text-align:center;font-weight:700;color:#7c3aed">'+dvNIDisp+'</td>'
+        +'</tr>';
+    }
   });
   var totBarW=Math.min(100,Math.round(cohortRate));
   var totalNIDisp=totalNetInv>0?'$'+Math.round(totalNetInv).toLocaleString():'—';
