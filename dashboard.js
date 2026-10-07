@@ -1309,9 +1309,11 @@ function renderCohort(){
     // Table
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
     +'<div class="ct" style="margin-bottom:0">SKU Cohort Summary</div>'
+    +'<div style="display:flex;align-items:center;gap:8px">'
     +'<div style="font-size:11px;color:#8b949e">Click a row to see individual orders</div>'
-    +'</div>'
-    +'<div class="tbl-wrap"><table><thead><tr>'
+    +'<button onclick="downloadCohortDivPng()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ PNG</button>'
+    +'</div></div>'
+    +'<div id="cohortDivTableWrap"><div class="tbl-wrap"><table><thead><tr>'
     +'<th style="text-align:left">SKU</th>'
     +'<th style="text-align:left">Program Name</th>'
     +'<th style="text-align:center">Purchases</th>'
@@ -1322,7 +1324,7 @@ function renderCohort(){
     +'<th style="text-align:center">Cancel Rate</th>'
     +'<th style="text-align:center;color:#7c3aed">Net Invoice</th>'
     +'</tr></thead><tbody>'+tRows+'</tbody>'
-    +'<tfoot>'+tFoot+'</tfoot></table></div>'
+    +'<tfoot>'+tFoot+'</tfoot></table></div></div>'
     +'</div>';
 
   // Render bucket chart
@@ -1589,6 +1591,25 @@ function downloadNaCsv(){
   var blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
   var a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="cancelled_no_refund_date_"+r2.df+"_"+r2.dt+".csv";a.click();
+}
+
+function downloadCohortDivPng(){
+  var el=document.getElementById("cohortDivTableWrap");
+  if(!el){alert("Table not found.");return;}
+  if(typeof html2canvas==="undefined"){alert("html2canvas library not loaded.");return;}
+  var btn=event&&event.target;
+  if(btn){btn.textContent="Generating…";btn.disabled=true;}
+  html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false}).then(function(canvas){
+    var link=document.createElement("a");
+    var r=getRange();
+    link.download="cohort-sku-by-division-"+r.df+"-to-"+r.dt+".png";
+    link.href=canvas.toDataURL("image/png");
+    link.click();
+    if(btn){btn.textContent="⬇ PNG";btn.disabled=false;}
+  }).catch(function(){
+    if(btn){btn.textContent="⬇ PNG";btn.disabled=false;}
+    alert("PNG export failed. Please try again.");
+  });
 }
 
 function downloadCohortCsv(){
