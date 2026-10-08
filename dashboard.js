@@ -856,62 +856,126 @@ function renderRefundSkuTable(){
   var totalCount=0,totalLR=0;
   skus.forEach(function(sku){bySkuRows[sku].forEach(function(item){totalCount++;totalLR+=(item.row[10]||0);});});
   if(totalCount===0){sec.innerHTML="";return;}
+
+  var DIV_ORDER=["LT","LCC","BL","HWB","LR","Other"];
+  var DIV_CFG={
+    LT:{label:"🔵 LT — Life &amp; Transformation",hBg:"#dbeafe",hColor:"#1d4ed8",hBorder:"#2563eb",tBg:"#bfdbfe",tColor:"#1e40af"},
+    LCC:{label:"🟡 LCC — Life Coaching Certification",hBg:"#fef9c3",hColor:"#854d0e",hBorder:"#ca8a04",tBg:"#fde68a",tColor:"#78350f"},
+    BL:{label:"🚦 B&amp;L — Business &amp; Leadership",hBg:"#cffafe",hColor:"#0e7490",hBorder:"#0891b2",tBg:"#a5f3fc",tColor:"#155e75"},
+    HWB:{label:"🟣 HWB — Health &amp; Well Being",hBg:"#ede9fe",hColor:"#5b21b6",hBorder:"#7c3aed",tBg:"#ddd6fe",tColor:"#4c1d95"},
+    LR:{label:"💗 L&amp;R — Love &amp; Relationships",hBg:"#fce7f3",hColor:"#9d174d",hBorder:"#db2777",tBg:"#fbcfe8",tColor:"#831843"},
+    Other:{label:"⚪ Other",hBg:"#f8fafc",hColor:"#475569",hBorder:"#94a3b8",tBg:"#e2e8f0",tColor:"#334155"}
+  };
+  var divGroups={};
+  DIV_ORDER.forEach(function(d){divGroups[d]=[];});
+  skus.forEach(function(sku){
+    var divRaw=D.sku_div?D.sku_div[sku]:"";
+    var dv=getCohortDivDisplay(sku,divRaw);
+    if(dv==="LR")dv="LR";
+    if(!divGroups[dv])dv="Other";
+    divGroups[dv].push(sku);
+  });
+
   var html='<div class="card full" style="margin-top:0">';
   html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
   html+='<div><div class="ct">Refunds in Period — SKU Summary</div><div class="cs">Cancellations where refund/credit date falls in the selected range · any purchase date</div></div>';
-  html+='<div style="font-size:11px;color:#8b949e">'+skus.length+' SKUs &nbsp;'+totalCount.toLocaleString()+' refunds &nbsp;';
-  html+='<button onclick="downloadRefundSkuCsv()" style="margin-left:6px;color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">&#11015; Download CSV</button></div>';
-  html+='</div>';
-  html+='<div class="tbl-wrap"><table><thead><tr>';
-  ['SKU','Count','Avg Refund Days','Lost Revenue'].forEach(function(h){
-    html+='<th>'+h+'</th>';
-  });
+  html+='<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#8b949e">'+skus.length+' SKUs &nbsp;'+totalCount.toLocaleString()+' refunds';
+  html+='<button onclick="downloadRefundSkuCsv()" style="color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">⬇ CSV</button>';
+  html+='<button onclick="downloadRefundDivPng()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ PNG</button>';
+  html+='</div></div>';
+  html+='<div id="refundDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead><tr>';
+  ['SKU','Count','Avg Refund Days','Lost Revenue'].forEach(function(h){html+='<th>'+h+'</th>';});
   html+='</tr></thead><tbody>';
-  skus.forEach(function(sku,idx){
-    var items=bySkuRows[sku];
-    var count=items.length;
-    var lr=items.reduce(function(s,i){return s+(i.row[10]||0);},0);
-    var avgRd=count>0?Math.round(items.reduce(function(s,i){return s+i.rdDays;},0)/count):0;
-    var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
-    html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
-    html+='<td><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
-    html+='<td class="num" style="color:#ef4444">'+count.toLocaleString()+'</td>';
-    html+='<td class="num">'+avgRd+'d</td>';
-    html+='<td class="num" style="color:#ef4444">$'+Math.round(lr).toLocaleString()+'</td>';
-    html+='</tr>';
-    // Detail rows
-    html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="4" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
-    html+='<div style="padding:10px 16px 12px 24px">';
-    html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' refunds in period</div>';
-    html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">';
-    html+='<thead><tr style="background:#f1f5f9">';
-    ['Order ID','Contact ID','Client Name','Purchase Date','Refund Date','Refund Days','Product Name','Invoice Total','Lost Revenue','Partner Category'].forEach(function(h){
-      html+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
-    });
-    html+='</tr></thead><tbody>';
-    items.forEach(function(item,di){
-      var row=item.row;
-      var bg=di%2===0?"#ffffff":"#f8fafc";
-      html+='<tr style="background:'+bg+'">';
-      html+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+row[0]+'</td>';
-      html+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+row[1]+'</td>';
-      html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap;font-weight:500">'+(row[21]||'—')+'</td>';
-      html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+row[2]+'</td>';
-      html+='<td style="padding:5px 10px;color:#ef4444;font-weight:600;white-space:nowrap">'+item.refDateStr+'</td>';
-      html+='<td style="padding:5px 10px;color:#2563eb;font-weight:600;text-align:right">'+item.rdDays+'d</td>';
-      html+='<td style="padding:5px 10px;color:#374151;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(row[9]||'')+'">'+( row[9]||'—')+'</td>';
-      html+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(row[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
-      var lr2=row[10]||0;
-      html+='<td style="padding:5px 10px;text-align:right;color:'+(lr2>0?"#ef4444":"#94a3b8")+'">'+(lr2>0?'$'+lr2.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
-      html+='<td style="padding:5px 10px;color:#64748b">'+( row[7]||'—')+'</td>';
+
+  DIV_ORDER.forEach(function(divKey){
+    var cfg=DIV_CFG[divKey];
+    var divSkus=divGroups[divKey];
+    if(!divSkus||divSkus.length===0){
+      html+='<tr><td colspan="4" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+      html+='<tr><td colspan="4" style="padding:6px 20px;font-size:11px;color:#94a3b8;font-style:italic">No refunds for this division in selected range</td></tr>';
+      return;
+    }
+    html+='<tr><td colspan="4" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+    var dvCount=0,dvLR=0;
+    divSkus.forEach(function(sku){
+      var items=bySkuRows[sku];
+      var count=items.length;
+      var lr=items.reduce(function(s,i){return s+(i.row[10]||0);},0);
+      var avgRd=count>0?Math.round(items.reduce(function(s,i){return s+i.rdDays;},0)/count):0;
+      dvCount+=count;dvLR+=lr;
+      var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
+      html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
+      html+='<td style="padding-left:18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
+      html+='<td class="num" style="color:#ef4444">'+count.toLocaleString()+'</td>';
+      html+='<td class="num">'+avgRd+'d</td>';
+      html+='<td class="num" style="color:#ef4444">$'+Math.round(lr).toLocaleString()+'</td>';
       html+='</tr>';
+      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="4" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
+      html+='<div style="padding:10px 16px 12px 24px">';
+      html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' refunds in period</div>';
+      html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9">';
+      ['Order ID','Contact ID','Client Name','Purchase Date','Refund Date','Refund Days','Product Name','Invoice Total','Lost Revenue','Partner Category'].forEach(function(h){
+        html+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
+      });
+      html+='</tr></thead><tbody>';
+      items.forEach(function(item,di){
+        var row=item.row;var bg=di%2===0?"#ffffff":"#f8fafc";
+        html+='<tr style="background:'+bg+'">';
+        html+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+row[0]+'</td>';
+        html+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+row[1]+'</td>';
+        html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap;font-weight:500">'+(row[21]||'—')+'</td>';
+        html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+row[2]+'</td>';
+        html+='<td style="padding:5px 10px;color:#ef4444;font-weight:600;white-space:nowrap">'+item.refDateStr+'</td>';
+        html+='<td style="padding:5px 10px;color:#2563eb;font-weight:600;text-align:right">'+item.rdDays+'d</td>';
+        html+='<td style="padding:5px 10px;color:#374151;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(row[9]||'')+'">'+( row[9]||'—')+'</td>';
+        html+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(row[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
+        var lr2=row[10]||0;
+        html+='<td style="padding:5px 10px;text-align:right;color:'+(lr2>0?"#ef4444":"#94a3b8")+'">'+(lr2>0?'$'+lr2.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
+        html+='<td style="padding:5px 10px;color:#64748b">'+(row[7]||'—')+'</td>';
+        html+='</tr>';
+      });
+      html+='</tbody></table></div></div></td></tr>';
     });
-    html+='</tbody></table></div></div></td></tr>';
+    var dvLRDisp=dvLR>0?'$'+Math.round(dvLR).toLocaleString():'—';
+    html+='<tr style="background:'+cfg.tBg+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
+      +'<td style="font-weight:700;font-size:11px;padding:7px 12px;color:'+cfg.tColor+'">'+divKey+' Total</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvCount.toLocaleString()+'</td>'
+      +'<td style="text-align:center;color:'+cfg.tColor+'">—</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvLRDisp+'</td>'
+      +'</tr>';
   });
-  // Footer
+
   html+='<tr class="tfoot"><td>Total</td><td class="num" style="color:#ff7b72">'+totalCount.toLocaleString()+'</td><td class="num">—</td><td class="num" style="color:#ff7b72">$'+Math.round(totalLR).toLocaleString()+'</td></tr>';
-  html+='</tbody></table></div></div>';
+  html+='</tbody></table></div></div></div>';
   sec.innerHTML=html;
+}
+
+function downloadRefundDivPng(){
+  var el=document.getElementById("refundDivTableWrap");
+  if(!el){alert("Table not found.");return;}
+  if(typeof html2canvas==="undefined"){alert("html2canvas not loaded.");return;}
+  var btn=event&&event.target;
+  if(btn){btn.textContent="Generating…";btn.disabled=true;}
+  var clone=el.cloneNode(true);
+  clone.style.cssText="position:absolute;top:0;left:0;overflow:visible;pointer-events:none;";
+  document.body.appendChild(clone);
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    var w=clone.scrollWidth,h=clone.scrollHeight;
+    html2canvas(clone,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false,width:w,height:h,x:0,y:0,scrollX:0,scrollY:0})
+    .then(function(canvas){
+      if(document.body.contains(clone))document.body.removeChild(clone);
+      var link=document.createElement("a");
+      var r=getRange();
+      link.download="refunds-by-division-"+r.df+"-to-"+r.dt+".png";
+      link.href=canvas.toDataURL("image/png");
+      link.click();
+      if(btn){btn.textContent="⬇ PNG";btn.disabled=false;}
+    }).catch(function(){
+      if(document.body.contains(clone))document.body.removeChild(clone);
+      if(btn){btn.textContent="⬇ PNG";btn.disabled=false;}
+      alert("PNG export failed.");
+    });
+  });});
 }
 
 // ── CSV Download ───────────────────────────────────────────
