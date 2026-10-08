@@ -1599,7 +1599,24 @@ function downloadCohortDivPng(){
   if(typeof html2canvas==="undefined"){alert("html2canvas library not loaded.");return;}
   var btn=event&&event.target;
   if(btn){btn.textContent="Generating…";btn.disabled=true;}
-  html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false}).then(function(canvas){
+  // Temporarily strip overflow constraints on el and all ancestors so
+  // html2canvas can see the full table, not just the visible scroll area
+  var saved=[];
+  var node=el;
+  while(node&&node!==document.body){
+    var cs=window.getComputedStyle(node);
+    if(cs.overflow!=="visible"||cs.overflowX!=="visible"||cs.overflowY!=="visible"){
+      saved.push({n:node,ov:node.style.overflow,ox:node.style.overflowX,oy:node.style.overflowY,mh:node.style.maxHeight,h:node.style.height});
+      node.style.overflow="visible";node.style.overflowX="visible";node.style.overflowY="visible";
+      node.style.maxHeight="none";
+    }
+    node=node.parentElement;
+  }
+  var fullW=el.scrollWidth,fullH=el.scrollHeight;
+  html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false,
+    width:fullW,height:fullH,windowWidth:fullW,windowHeight:fullH,scrollX:0,scrollY:0
+  }).then(function(canvas){
+    saved.forEach(function(o){o.n.style.overflow=o.ov;o.n.style.overflowX=o.ox;o.n.style.overflowY=o.oy;o.n.style.maxHeight=o.mh;o.n.style.height=o.h;});
     var link=document.createElement("a");
     var r=getRange();
     link.download="cohort-sku-by-division-"+r.df+"-to-"+r.dt+".png";
@@ -1607,6 +1624,7 @@ function downloadCohortDivPng(){
     link.click();
     if(btn){btn.textContent="⬇ PNG";btn.disabled=false;}
   }).catch(function(){
+    saved.forEach(function(o){o.n.style.overflow=o.ov;o.n.style.overflowX=o.ox;o.n.style.overflowY=o.oy;o.n.style.maxHeight=o.mh;o.n.style.height=o.h;});
     if(btn){btn.textContent="⬇ PNG";btn.disabled=false;}
     alert("PNG export failed. Please try again.");
   });
