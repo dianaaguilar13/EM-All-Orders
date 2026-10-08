@@ -1319,7 +1319,7 @@ function renderCohort(){
     +'<div style="font-size:11px;color:#8b949e">Click a row to see individual orders</div>'
     +'<button onclick="downloadCohortDivPng()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ PNG</button>'
     +'</div></div>'
-    +'<div id="cohortDivTableWrap"><div class="tbl-wrap"><table><thead><tr>'
+    +'<div id="cohortDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead><tr>'
     +'<th style="text-align:left">SKU</th>'
     +'<th style="text-align:left">Program Name</th>'
     +'<th style="text-align:center">Purchases</th>'
