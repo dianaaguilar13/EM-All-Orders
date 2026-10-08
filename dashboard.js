@@ -809,7 +809,8 @@ function getRefundPeriodSkuData(){
     if(EXCLUDED_SKUS.has(sku))return;
     if(effSkus&&!effSkus.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
-      if(row[4]!=="Cancelled")return;
+      var st=row[4];
+      if(st==="Sale"||st==="Pend"||st==="No Pmt")return;
       if(pcats&&pcats.indexOf(row[7])<0)return;
       if(selP.size>0&&!selP.has(row[8]))return;
       if(fDiv&&row[15]!==fDiv)return;
@@ -821,7 +822,7 @@ function getRefundPeriodSkuData(){
       if(refM<r.df||refM>r.dt)return;
       var refDateStr=refDate.getFullYear()+"-"+String(refDate.getMonth()+1).padStart(2,"0")+"-"+String(refDate.getDate()).padStart(2,"0");
       if(!bySkuRows[sku])bySkuRows[sku]=[];
-      bySkuRows[sku].push({row:row,refDateStr:refDateStr,rdDays:rdDays});
+      bySkuRows[sku].push({row:row,refDateStr:refDateStr,rdDays:rdDays,status:st});
     });
   });
   return bySkuRows;
@@ -853,8 +854,8 @@ function renderRefundSkuTable(){
   if(!sec||!D)return;
   var bySkuRows=getRefundPeriodSkuData();
   var skus=Object.keys(bySkuRows).sort();
-  var totalCount=0,totalLR=0;
-  skus.forEach(function(sku){bySkuRows[sku].forEach(function(item){totalCount++;totalLR+=(item.row[10]||0);});});
+  var totalCount=0,totalCancelled=0,totalEE=0,totalUpg=0,totalDwn=0,totalSwitch=0,totalLR=0;
+  skus.forEach(function(sku){bySkuRows[sku].forEach(function(item){totalCount++;totalLR+=(item.row[10]||0);var st=item.status;if(st==="Cancelled")totalCancelled++;else if(st==="Entry Error")totalEE++;else if(st==="Upgrade")totalUpg++;else if(st==="Downgrade")totalDwn++;else if(st==="Switch")totalSwitch++;});});
   if(totalCount===0){sec.innerHTML="";return;}
 
   var DIV_ORDER=["LT","LCC","BL","HWB","LR","Other"];
@@ -884,7 +885,7 @@ function renderRefundSkuTable(){
   html+='<button onclick="downloadRefundDivPng()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ PNG</button>';
   html+='</div></div>';
   html+='<div id="refundDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead><tr>';
-  ['SKU','Count','Avg Refund Days','Lost Revenue'].forEach(function(h){html+='<th>'+h+'</th>';});
+  ['SKU','Total','Cancelled','Entry Error','Upgrade','Downgrade','Switch','Avg Refund Days','Lost Revenue'].forEach(function(h){html+='<th>'+h+'</th>';});
   html+='</tr></thead><tbody>';
 
   DIV_ORDER.forEach(function(divKey){
@@ -895,22 +896,32 @@ function renderRefundSkuTable(){
       html+='<tr><td colspan="4" style="padding:6px 20px;font-size:11px;color:#94a3b8;font-style:italic">No refunds for this division in selected range</td></tr>';
       return;
     }
-    html+='<tr><td colspan="4" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
-    var dvCount=0,dvLR=0;
+    html+='<tr><td colspan="9" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+    var dvCount=0,dvCancelled=0,dvEE=0,dvUpg=0,dvDwn=0,dvSwitch=0,dvLR=0;
     divSkus.forEach(function(sku){
       var items=bySkuRows[sku];
       var count=items.length;
+      var cncl=items.filter(function(i){return i.status==="Cancelled";}).length;
+      var ee=items.filter(function(i){return i.status==="Entry Error";}).length;
+      var upg=items.filter(function(i){return i.status==="Upgrade";}).length;
+      var dwn=items.filter(function(i){return i.status==="Downgrade";}).length;
+      var swt=items.filter(function(i){return i.status==="Switch";}).length;
       var lr=items.reduce(function(s,i){return s+(i.row[10]||0);},0);
       var avgRd=count>0?Math.round(items.reduce(function(s,i){return s+i.rdDays;},0)/count):0;
-      dvCount+=count;dvLR+=lr;
+      dvCount+=count;dvCancelled+=cncl;dvEE+=ee;dvUpg+=upg;dvDwn+=dwn;dvSwitch+=swt;dvLR+=lr;
       var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
       html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
       html+='<td style="padding-left:18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
       html+='<td class="num" style="color:#ef4444">'+count.toLocaleString()+'</td>';
+      html+='<td class="num">'+(cncl>0?cncl.toLocaleString():'—')+'</td>';
+      html+='<td class="num">'+(ee>0?ee.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="color:#f59e0b">'+(upg>0?upg.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="color:#8b5cf6">'+(dwn>0?dwn.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="color:#06b6d4">'+(swt>0?swt.toLocaleString():'—')+'</td>';
       html+='<td class="num">'+avgRd+'d</td>';
       html+='<td class="num" style="color:#ef4444">$'+Math.round(lr).toLocaleString()+'</td>';
       html+='</tr>';
-      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="4" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
+      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="9" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
       html+='<div style="padding:10px 16px 12px 24px">';
       html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' refunds in period</div>';
       html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9">';
@@ -940,12 +951,17 @@ function renderRefundSkuTable(){
     html+='<tr style="background:'+cfg.tBg+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
       +'<td style="font-weight:700;font-size:11px;padding:7px 12px;color:'+cfg.tColor+'">'+divKey+' Total</td>'
       +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvCount.toLocaleString()+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvCancelled>0?dvCancelled.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvEE>0?dvEE.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvUpg>0?dvUpg.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvDwn>0?dvDwn.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvSwitch>0?dvSwitch.toLocaleString():'—')+'</td>'
       +'<td style="text-align:center;color:'+cfg.tColor+'">—</td>'
       +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvLRDisp+'</td>'
       +'</tr>';
   });
 
-  html+='<tr class="tfoot"><td>Total</td><td class="num" style="color:#ff7b72">'+totalCount.toLocaleString()+'</td><td class="num">—</td><td class="num" style="color:#ff7b72">$'+Math.round(totalLR).toLocaleString()+'</td></tr>';
+  html+='<tr class="tfoot"><td>Total</td><td class="num" style="color:#ff7b72">'+totalCount.toLocaleString()+'</td><td class="num" style="color:#ff7b72">'+(totalCancelled>0?totalCancelled.toLocaleString():'—')+'</td><td class="num">'+(totalEE>0?totalEE.toLocaleString():'—')+'</td><td class="num" style="color:#f59e0b">'+(totalUpg>0?totalUpg.toLocaleString():'—')+'</td><td class="num" style="color:#8b5cf6">'+(totalDwn>0?totalDwn.toLocaleString():'—')+'</td><td class="num" style="color:#06b6d4">'+(totalSwitch>0?totalSwitch.toLocaleString():'—')+'</td><td class="num">—</td><td class="num" style="color:#ff7b72">$'+Math.round(totalLR).toLocaleString()+'</td></tr>';
   html+='</tbody></table></div></div></div>';
   sec.innerHTML=html;
 }
