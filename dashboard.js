@@ -17,10 +17,10 @@ var EXCLUDED_SKUS=new Set(["5DC","CAP-2022-06-VIP Upgrade","CAP-Catapult","CAP-2
 // Any SKU whose name contains one of these substrings (case-insensitive) is also excluded
 var EXCLUDED_SKU_PATTERNS=["dblv","ticket","kit","gift"];
 // Division groupings shown in the SKU dropdown
-var LT_SKUS=new Set(["BTM BT Add-on","BTM","BTM-Mopp","BTM Mopp","BTM MOPP","BTMP","BTMP-Mopp","BTMP Mopp","BTMP MOPP","BTMPC","BTME","BT Add-on","BT Add-On","MCE","MCE MOPP","MC-Elite","MC-Elite-Mopp","MC-Elite-MC","MM-SC-KAT"]);
-var LCC_SKUS=new Set(["DBC","LMC","DBCA","DBCE","ELEVADD","LMCA","ELEV","ELEV Add-On","Elev Add-on","Elev Add-On","ELEV MOPP","Elev Mopp","LCC"]);
-var BL_SKUS=new Set(["HLL","BTLM","BTL Mopp"]);
-var LR_SKUS=new Set(["MYM","MYM 2.0","MYME","MYM VIP 6","MYM VIP 12","CTMC"]);
+var LT_SKUS=new Set(["BTM","BTM MOPP","BTMP","BTMP MOPP","MCE","MCE MOPP","BTMPC","BT Add-On"]);
+var LCC_SKUS=new Set(["DBC","DBCA","DBCE","LMC","LMCA","ELEV Add-On","ELEV MOPP"]);
+var BL_SKUS=new Set(["HLL","BTLM","BTL","BTL MOPP"]);
+var LR_SKUS=new Set(["MYM","MYM 2.0","MYME","MYM VIP 6","MYM VIP 12","MYM VIP 24","CTMC"]);
 var HWB_SKUS=new Set(["TFT","TLV","TBV","TTR","VHW OL 6 Mo","VHW OL 12 Mo","TFTO","VHW VIP Coach"]);
 // Lookup tables built after data loads: pcat/partner → Set of SKU names present in that segment
 var PCAT_SKUS={},PARTNER_SKUS={};
