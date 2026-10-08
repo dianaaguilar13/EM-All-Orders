@@ -507,9 +507,15 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
 
         # Order-level detail row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner,product,
         #   order_lr,order_rd,rd_days,is_ldp,dep_0,division,heaven_date,invoice_actual,dep_1,dep_2,dep_3]
-        order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2) if cncl == "Cancelled" else 0.0
-        order_rd = get_rd(rdate, date) if cncl == "Cancelled" else "—"
-        rd_days  = get_rd_days(rdate, date) if cncl == "Cancelled" else -1
+        credits_val = float(r.get("CREDITS",0) or 0)
+        if cncl == "Cancelled":
+            order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2)
+        elif cncl == "Downgrade":
+            order_lr = round(credits_val, 2)
+        else:
+            order_lr = 0.0
+        order_rd = get_rd(rdate, date) if cncl in ("Cancelled","Downgrade") else "—"
+        rd_days  = get_rd_days(rdate, date) if cncl in ("Cancelled","Downgrade") else -1
         _ldp_d   = ldp_first_pay.get(oid, (0.0,0.0,0.0,0.0)) if ldp_first_pay else (0.0,0.0,0.0,0.0)
         ldp_dep0 = round(_ldp_d[0], 2) if is_ldp else 0.0
         ldp_dep1 = round(_ldp_d[1], 2) if is_ldp else 0.0
