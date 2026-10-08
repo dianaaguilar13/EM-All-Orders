@@ -17,8 +17,11 @@ var EXCLUDED_SKUS=new Set(["5DC","CAP-2022-06-VIP Upgrade","CAP-Catapult","CAP-2
 // Any SKU whose name contains one of these substrings (case-insensitive) is also excluded
 var EXCLUDED_SKU_PATTERNS=["dblv","ticket","kit","gift"];
 // Division groupings shown in the SKU dropdown
-var LT_SKUS=new Set(["BTM BT Add-on","BTM","BTM-Mopp","BTMP","BTMP-Mopp","BTME","MC-Elite","MC-Elite-Mopp","MC-Elite-MC","MM-SC-KAT","BTMP-MOPP"]);
-var LCC_SKUS=new Set(["DBC","LMC","DBCA","DBCE","ELEVADD","LMCA","ELEV"]);
+var LT_SKUS=new Set(["BTM BT Add-on","BTM","BTM-Mopp","BTMP","BTMP-Mopp","BTME","MC-Elite","MC-Elite-Mopp","MC-Elite-MC","MM-SC-KAT","BTMP-MOPP","BTM Mopp","BTMP Mopp","MCE","BTMPC","BT Add-on"]);
+var LCC_SKUS=new Set(["DBC","LMC","DBCA","DBCE","ELEVADD","LMCA","ELEV","Elev Add-on","Elev Mopp"]);
+var BL_SKUS=new Set(["HLL","BTLM","BTL Mopp"]);
+var LR_SKUS=new Set(["MYM","MYM 2.0","MYME","MYM VIP 6","MYM VIP 12","CTMC"]);
+var HWB_SKUS=new Set(["TFT","TLV","TBV","TTR","VHW OL 6 Mo","VHW OL 12 Mo","TFTO","VHW VIP Coach"]);
 // Lookup tables built after data loads: pcat/partner → Set of SKU names present in that segment
 var PCAT_SKUS={},PARTNER_SKUS={};
 function buildExcludedAndMappings(){
@@ -82,15 +85,18 @@ function renderMsSkuItems(){if(!D)return;var q=document.getElementById("msSkuQ")
   var excl=allVis.filter(function(s){return EXCLUDED_SKUS.has(s);});
   var ltG=incl.filter(function(s){return LT_SKUS.has(s);});
   var lccG=incl.filter(function(s){return LCC_SKUS.has(s);});
-  var othG=incl.filter(function(s){return!LT_SKUS.has(s)&&!LCC_SKUS.has(s);});
+  var blG=incl.filter(function(s){return BL_SKUS.has(s);});
+  var lrG=incl.filter(function(s){return LR_SKUS.has(s);});
+  var hwbG=incl.filter(function(s){return HWB_SKUS.has(s);});
+  var othG=incl.filter(function(s){return!LT_SKUS.has(s)&&!LCC_SKUS.has(s)&&!BL_SKUS.has(s)&&!LR_SKUS.has(s)&&!HWB_SKUS.has(s);});
   function mkItems(grp){var r="";grp.forEach(function(s){var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");r+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)"><input type="checkbox" '+ck+' onclick="return false"><span>'+esc+"</span></div>";});return r;}
   function mkHdr(label,color,grpId,grp){if(!grp.length)return"";var allSel=grp.every(function(s){return selSku.has(s);});return'<div style="padding:4px 10px 3px;font-size:10px;font-weight:700;color:'+color+';background:#f1f5f9;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none" onclick="togSkuGroup(event,\''+grpId+'\')"><span style="text-transform:uppercase">'+label+'</span><span style="font-size:9px;opacity:.75">'+(allSel?'✓ deselect all':'+ select all')+'</span></div>';}
-  var h=mkHdr("⚡ LT","#0ea5e9","LT",ltG)+mkItems(ltG)+mkHdr("🎯 LCC","#8b5cf6","LCC",lccG)+mkItems(lccG)+(othG.length?'<div style="padding:4px 10px 3px;font-size:10px;font-weight:700;color:#64748b;background:#f1f5f9;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px">Other</div>'+mkItems(othG):"");
+  var h=mkHdr("⚡ LT","#0ea5e9","LT",ltG)+mkItems(ltG)+mkHdr("🎯 LCC","#8b5cf6","LCC",lccG)+mkItems(lccG)+mkHdr("💼 B&L","#06b6d4","BL",blG)+mkItems(blG)+mkHdr("💕 L&R","#ec4899","LR",lrG)+mkItems(lrG)+mkHdr("🌿 HWB","#a855f7","HWB",hwbG)+mkItems(hwbG)+(othG.length?'<div style="padding:4px 10px 3px;font-size:10px;font-weight:700;color:#64748b;background:#f1f5f9;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px">Other</div>'+mkItems(othG):"");
   if(excl.length>0){h+='<div style="padding:5px 10px 3px;font-size:10px;color:#94a3b8;background:#f8fafc;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;text-transform:uppercase;letter-spacing:.5px;margin-top:2px">⚠ Excluded by default</div>';for(var i=0;i<excl.length;i++){var s=excl[i];var ck=selSku.has(s)?"checked":"";var esc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");h+='<div class="ms-item" data-p="'+esc+'" onclick="togSku(event,this)" style="opacity:0.65"><input type="checkbox" '+ck+' onclick="return false"><span style="color:#94a3b8">'+esc+"</span></div>";}}document.getElementById("msSkuItems").innerHTML=h;}
 function togSku(ev,el){ev.stopPropagation();var s=el.getAttribute("data-p");if(selSku.has(s))selSku.delete(s);else selSku.add(s);updateMsSkuBtn();renderMsSkuItems();}
 function skuAll(){var q=document.getElementById("msSkuQ").value.toLowerCase();D.FL.skus.filter(function(s){return!EXCLUDED_SKUS.has(s)&&s.toLowerCase().indexOf(q)>=0;}).forEach(function(s){selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
 function skuClear(){selSku.clear();updateMsSkuBtn();renderMsSkuItems();}
-function togSkuGroup(ev,grp){ev.stopPropagation();var base=grp==="LT"?LT_SKUS:grp==="LCC"?LCC_SKUS:new Set();var vis=(D?D.FL.skus:[]).filter(function(s){return base.has(s)&&!EXCLUDED_SKUS.has(s);});var allSel=vis.length>0&&vis.every(function(s){return selSku.has(s);});vis.forEach(function(s){if(allSel)selSku.delete(s);else selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
+function togSkuGroup(ev,grp){ev.stopPropagation();var base=grp==="LT"?LT_SKUS:grp==="LCC"?LCC_SKUS:grp==="BL"?BL_SKUS:grp==="LR"?LR_SKUS:grp==="HWB"?HWB_SKUS:new Set();var vis=(D?D.FL.skus:[]).filter(function(s){return base.has(s)&&!EXCLUDED_SKUS.has(s);});var allSel=vis.length>0&&vis.every(function(s){return selSku.has(s);});vis.forEach(function(s){if(allSel)selSku.delete(s);else selSku.add(s);});updateMsSkuBtn();renderMsSkuItems();}
 function updateMsSkuBtn(){var btn=document.getElementById("msSkuBtn");var cnt=document.getElementById("msSkuCnt");if(selSku.size===0){btn.textContent="All SKUs";cnt.style.display="none";}else{btn.textContent=selSku.size===1?Array.from(selSku)[0].slice(0,22):selSku.size+" SKUs selected";cnt.textContent=selSku.size;cnt.style.display="inline";}}
 
 // ── PCat Multi-select ──────────────────────────────────────────
