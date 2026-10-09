@@ -854,8 +854,8 @@ function renderRefundSkuTable(){
   if(!sec||!D)return;
   var bySkuRows=getRefundPeriodSkuData();
   var skus=Object.keys(bySkuRows).sort();
-  var totalCount=0,totalCancelled=0,totalDwn=0,totalLR=0;
-  skus.forEach(function(sku){bySkuRows[sku].forEach(function(item){totalCount++;totalLR+=(item.row[10]||0);var st=item.status;if(st==="Cancelled")totalCancelled++;else if(st==="Downgrade")totalDwn++;});});
+  var totalCount=0,totalCancelled=0,totalDwn=0,totalCnclLR=0,totalDwnLR=0,totalLR=0;
+  skus.forEach(function(sku){bySkuRows[sku].forEach(function(item){totalCount++;var lr=item.row[10]||0;totalLR+=lr;var st=item.status;if(st==="Cancelled"){totalCancelled++;totalCnclLR+=lr;}else if(st==="Downgrade"){totalDwn++;totalDwnLR+=lr;}});});
   if(totalCount===0){sec.innerHTML="";return;}
 
   var DIV_ORDER=["LT","LCC","BL","HWB","LR","Other"];
@@ -879,78 +879,112 @@ function renderRefundSkuTable(){
 
   var html='<div class="card full" style="margin-top:0">';
   html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-  html+='<div><div class="ct">Refunds in Period — SKU Summary</div><div class="cs">Cancellations where refund/credit date falls in the selected range · any purchase date</div></div>';
+  html+='<div><div class="ct">Refunds in Period — SKU Summary</div><div class="cs">Cancellations &amp; Downgrades where credit date falls in the selected range · any purchase date · Downgrade lost revenue = CREDITS − replacement order value</div></div>';
   html+='<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#8b949e">'+skus.length+' SKUs &nbsp;'+totalCount.toLocaleString()+' refunds';
   html+='<button onclick="downloadRefundSkuCsv()" style="color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">⬇ CSV</button>';
   html+='<button onclick="downloadRefundDivPng()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ PNG</button>';
   html+='</div></div>';
-  html+='<div id="refundDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead><tr>';
-  ['SKU','Cancelled','Downgrade','Avg Refund Days','Lost Revenue'].forEach(function(h){html+='<th>'+h+'</th>';});
+  var thSt='padding:5px 10px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #dde3ea;white-space:nowrap';
+  html+='<div id="refundDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead>';
+  html+='<tr style="background:#f8fafc">';
+  html+='<th style="'+thSt+';text-align:left" rowspan="2">SKU</th>';
+  html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b;border-left:2px solid #fca5a5" colspan="2">CANCELLED</th>';
+  html+='<th style="'+thSt+';background:#ede9fe;color:#5b21b6;border-left:2px solid #c4b5fd" colspan="2">DOWNGRADE</th>';
+  html+='<th style="'+thSt+'" rowspan="2">AVG REFUND DAYS</th>';
+  html+='<th style="'+thSt+';background:#f0fdf4;color:#166534;border-left:2px solid #86efac" colspan="2">TOTAL</th>';
+  html+='</tr><tr style="background:#f8fafc">';
+  html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b;border-left:2px solid #fca5a5">UNITS</th>';
+  html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b">LOST REVENUE</th>';
+  html+='<th style="'+thSt+';background:#ede9fe;color:#5b21b6;border-left:2px solid #c4b5fd">UNITS</th>';
+  html+='<th style="'+thSt+';background:#ede9fe;color:#5b21b6">LOST REVENUE</th>';
+  html+='<th style="'+thSt+';background:#f0fdf4;color:#166534;border-left:2px solid #86efac">UNITS</th>';
+  html+='<th style="'+thSt+';background:#f0fdf4;color:#166534">LOST REVENUE</th>';
   html+='</tr></thead><tbody>';
 
   DIV_ORDER.forEach(function(divKey){
     var cfg=DIV_CFG[divKey];
     var divSkus=divGroups[divKey];
     if(!divSkus||divSkus.length===0){
-      html+='<tr><td colspan="4" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
-      html+='<tr><td colspan="4" style="padding:6px 20px;font-size:11px;color:#94a3b8;font-style:italic">No refunds for this division in selected range</td></tr>';
+      html+='<tr><td colspan="8" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+      html+='<tr><td colspan="8" style="padding:6px 20px;font-size:11px;color:#94a3b8;font-style:italic">No refunds for this division in selected range</td></tr>';
       return;
     }
-    html+='<tr><td colspan="5" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
-    var dvCount=0,dvCancelled=0,dvDwn=0,dvLR=0;
+    html+='<tr><td colspan="8" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+    var dvCancelled=0,dvCnclLR=0,dvDwn=0,dvDwnLR=0;
     divSkus.forEach(function(sku){
       var items=bySkuRows[sku];if(!items||!items.length)return;
       var count=items.length;
-      var cncl=items.filter(function(i){return i.status==="Cancelled";}).length;
-      var dwn=items.filter(function(i){return i.status==="Downgrade";}).length;
-      var lr=items.reduce(function(s,i){return s+(i.row[10]||0);},0);
+      var cnclItems=items.filter(function(i){return i.status==="Cancelled";});
+      var dwnItems=items.filter(function(i){return i.status==="Downgrade";});
+      var cncl=cnclItems.length, dwn=dwnItems.length;
+      var cnclLR=cnclItems.reduce(function(s,i){return s+(i.row[10]||0);},0);
+      var dwnLR=dwnItems.reduce(function(s,i){return s+(i.row[10]||0);},0);
+      var lr=cnclLR+dwnLR;
       var avgRd=count>0?Math.round(items.reduce(function(s,i){return s+i.rdDays;},0)/count):0;
-      dvCount+=count;dvCancelled+=cncl;dvDwn+=dwn;dvLR+=lr;
+      dvCancelled+=cncl;dvCnclLR+=cnclLR;dvDwn+=dwn;dvDwnLR+=dwnLR;
       var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
       html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
       html+='<td style="padding-left:18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
-      html+='<td class="num">'+(cncl>0?cncl.toLocaleString():'—')+'</td>';
-      html+='<td class="num" style="color:#8b5cf6">'+(dwn>0?dwn.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="border-left:2px solid #fca5a5">'+(cncl>0?cncl.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="color:#ef4444">'+(cnclLR>0?'$'+Math.round(cnclLR).toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="border-left:2px solid #c4b5fd">'+(dwn>0?dwn.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="color:#7c3aed">'+(dwnLR>0?'$'+Math.round(dwnLR).toLocaleString():'—')+'</td>';
       html+='<td class="num">'+avgRd+'d</td>';
-      html+='<td class="num" style="color:#ef4444">$'+Math.round(lr).toLocaleString()+'</td>';
+      html+='<td class="num" style="font-weight:700;border-left:2px solid #86efac">'+(count>0?count.toLocaleString():'—')+'</td>';
+      html+='<td class="num" style="font-weight:700;color:#ef4444">'+(lr>0?'$'+Math.round(lr).toLocaleString():'—')+'</td>';
       html+='</tr>';
-      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="5" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
+      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="8" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
       html+='<div style="padding:10px 16px 12px 24px">';
-      html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' refunds in period</div>';
+      html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' records in period</div>';
       html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9">';
-      ['Order ID','Contact ID','Client Name','Purchase Date','Refund Date','Refund Days','Product Name','Invoice Total','Lost Revenue','Partner Category'].forEach(function(h){
+      ['Order ID','Contact ID','Client Name','Purchase Date','Credit Date','Days','Product Name','Invoice Total','Lost Revenue','Status','Partner Category'].forEach(function(h){
         html+='<th style="padding:6px 10px;text-align:left;font-weight:600;color:#374151;border-bottom:1px solid #dde3ea;white-space:nowrap">'+h+'</th>';
       });
       html+='</tr></thead><tbody>';
       items.forEach(function(item,di){
         var row=item.row;var bg=di%2===0?"#ffffff":"#f8fafc";
+        var isCncl=item.status==="Cancelled";
         html+='<tr style="background:'+bg+'">';
         html+='<td style="padding:5px 10px;color:#2563eb;font-family:monospace;font-size:11px">'+row[0]+'</td>';
         html+='<td style="padding:5px 10px;color:#64748b;font-family:monospace;font-size:11px">'+row[1]+'</td>';
         html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap;font-weight:500">'+(row[21]||'—')+'</td>';
         html+='<td style="padding:5px 10px;color:#374151;white-space:nowrap">'+row[2]+'</td>';
-        html+='<td style="padding:5px 10px;color:#ef4444;font-weight:600;white-space:nowrap">'+item.refDateStr+'</td>';
+        html+='<td style="padding:5px 10px;color:'+(isCncl?"#ef4444":"#7c3aed")+';font-weight:600;white-space:nowrap">'+item.refDateStr+'</td>';
         html+='<td style="padding:5px 10px;color:#2563eb;font-weight:600;text-align:right">'+item.rdDays+'d</td>';
         html+='<td style="padding:5px 10px;color:#374151;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(row[9]||'')+'">'+( row[9]||'—')+'</td>';
         html+='<td style="padding:5px 10px;text-align:right;color:#374151">$'+(row[5]||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>';
         var lr2=row[10]||0;
         html+='<td style="padding:5px 10px;text-align:right;color:'+(lr2>0?"#ef4444":"#94a3b8")+'">'+(lr2>0?'$'+lr2.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}):'—')+'</td>';
+        html+='<td style="padding:5px 10px;font-size:11px;color:'+(isCncl?"#ef4444":"#7c3aed")+';font-weight:600">'+item.status+'</td>';
         html+='<td style="padding:5px 10px;color:#64748b">'+(row[7]||'—')+'</td>';
         html+='</tr>';
       });
       html+='</tbody></table></div></div></td></tr>';
     });
-    var dvLRDisp=dvLR>0?'$'+Math.round(dvLR).toLocaleString():'—';
-    html+='<tr style="background:'+cfg.tBg+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
-      +'<td style="font-weight:700;font-size:11px;padding:7px 12px;color:'+cfg.tColor+'">'+divKey+' Total</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvCancelled>0?dvCancelled.toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+(dvDwn>0?dvDwn.toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;color:'+cfg.tColor+'">—</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+cfg.tColor+'">'+dvLRDisp+'</td>'
+    var dvTot=dvCancelled+dvDwn,dvTotLR=dvCnclLR+dvDwnLR;
+    var tC=cfg.tColor,tB=cfg.tBg;
+    html+='<tr style="background:'+tB+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
+      +'<td style="font-weight:700;font-size:11px;padding:7px 12px;color:'+tC+'">'+divKey+' Total</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+tC+';border-left:2px solid #fca5a5">'+(dvCancelled>0?dvCancelled.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:#b91c1c">'+(dvCnclLR>0?'$'+Math.round(dvCnclLR).toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+tC+';border-left:2px solid #c4b5fd">'+(dvDwn>0?dvDwn.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:#6d28d9">'+(dvDwnLR>0?'$'+Math.round(dvDwnLR).toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;color:'+tC+'">—</td>'
+      +'<td style="text-align:center;font-weight:700;color:'+tC+';border-left:2px solid #86efac">'+(dvTot>0?dvTot.toLocaleString():'—')+'</td>'
+      +'<td style="text-align:center;font-weight:700;color:#b91c1c">'+(dvTotLR>0?'$'+Math.round(dvTotLR).toLocaleString():'—')+'</td>'
       +'</tr>';
   });
 
-  html+='<tr class="tfoot"><td>Total</td><td class="num" style="color:#ff7b72">'+(totalCancelled>0?totalCancelled.toLocaleString():'—')+'</td><td class="num" style="color:#8b5cf6">'+(totalDwn>0?totalDwn.toLocaleString():'—')+'</td><td class="num">—</td><td class="num" style="color:#ff7b72">$'+Math.round(totalLR).toLocaleString()+'</td></tr>';
+  html+='<tr class="tfoot">'
+    +'<td>Total</td>'
+    +'<td class="num" style="border-left:2px solid #fca5a5">'+(totalCancelled>0?totalCancelled.toLocaleString():'—')+'</td>'
+    +'<td class="num" style="color:#ff7b72">'+(totalCnclLR>0?'$'+Math.round(totalCnclLR).toLocaleString():'—')+'</td>'
+    +'<td class="num" style="border-left:2px solid #c4b5fd">'+(totalDwn>0?totalDwn.toLocaleString():'—')+'</td>'
+    +'<td class="num" style="color:#a78bfa">'+(totalDwnLR>0?'$'+Math.round(totalDwnLR).toLocaleString():'—')+'</td>'
+    +'<td class="num">—</td>'
+    +'<td class="num" style="font-weight:700;border-left:2px solid #86efac">'+totalCount.toLocaleString()+'</td>'
+    +'<td class="num" style="color:#ff7b72;font-weight:700">'+(totalLR>0?'$'+Math.round(totalLR).toLocaleString():'—')+'</td>'
+    +'</tr>';
   html+='</tbody></table></div></div></div>';
   sec.innerHTML=html;
 }

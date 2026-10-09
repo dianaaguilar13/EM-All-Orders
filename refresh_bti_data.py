@@ -415,8 +415,106 @@ def pif_classify(row):
 #  BUILD data.json  (Cancellation Dashboard)
 # ─────────────────────────────────────────────
 
+def _normalize_name(name):
+    """Lowercase, strip, remove accents for cross-platform client matching."""
+    import unicodedata
+    n = (name or "").lower().strip()
+    n = unicodedata.normalize("NFKD", n)
+    return "".join(c for c in n if not unicodedata.combining(c))
+
+
+def _build_downgrade_lr(orders):
+    """
+    For every Downgrade order, compute lost revenue =
+        max(0, CREDITS − SUM(ACTUAL_INV_SALE_TOTAL) of matched replacement orders).
+
+    Replacement order criteria:
+      - Same client: same CONTACTID, OR same normalized FULL_NAME across platforms.
+      - Status = Sale / not a cancel/downgrade/error.
+      - INV_TOTAL < original INV_TOTAL and INV_TOTAL >= 1000.
+      - DATE = original purchase DATE (backdated replacement),
+        OR DATE within 0–7 days after REFUND_CREDIT_DATE.
+      - Not the downgrade order itself.
+
+    Returns dict: order_id → downgrade_lr (float).
+    """
+    from datetime import date as _date
+
+    # Build candidate lookup (sale orders that could be a replacement)
+    cands_by_contact = defaultdict(list)
+    cands_by_name    = defaultdict(list)
+    for r in orders:
+        cncl = get_cncl(r.get("CREDIT_STATUS",""))
+        if cncl in ("Cancelled","Downgrade","Entry Error","Switch","Pend","No Pmt","Upgrade"):
+            continue
+        inv = float(r.get("INV_TOTAL",0) or 0)
+        if inv < 1000:
+            continue
+        rec = {
+            "id":         r.get("ID",""),
+            "inv":        inv,
+            "actual_inv": float(r.get("ACTUAL_INV_SALE_TOTAL",0) or 0),
+            "date":       str(r.get("DATE",""))[:10],
+        }
+        cid = r.get("CONTACTID","")
+        nm  = _normalize_name(r.get("FULL_NAME",""))
+        if cid:
+            cands_by_contact[cid].append(rec)
+        if nm:
+            cands_by_name[nm].append(rec)
+
+    result = {}
+    for r in orders:
+        cncl = get_cncl(r.get("CREDIT_STATUS",""))
+        if cncl != "Downgrade":
+            continue
+        oid         = r.get("ID","")
+        credits_val = float(r.get("CREDITS",0) or 0)
+        orig_inv    = float(r.get("INV_TOTAL",0) or 0)
+        orig_date   = str(r.get("DATE",""))[:10]
+        refund_date = str(r.get("REFUND_CREDIT_DATE","") or "")[:10]
+        cid         = r.get("CONTACTID","")
+        nm          = _normalize_name(r.get("FULL_NAME",""))
+
+        # Collect candidates (contact match + name-matched extras)
+        seen = set()
+        cands = []
+        for c in cands_by_contact.get(cid, []):
+            seen.add(c["id"]); cands.append(c)
+        for c in cands_by_name.get(nm, []):
+            if c["id"] not in seen:
+                seen.add(c["id"]); cands.append(c)
+
+        # Parse refund date once
+        try:
+            rd_obj = _date.fromisoformat(refund_date) if refund_date >= "2000" else None
+        except Exception:
+            rd_obj = None
+
+        matched_actual = 0.0
+        for c in cands:
+            if c["id"] == oid or c["inv"] >= orig_inv:
+                continue
+            date_ok = (c["date"] == orig_date)
+            if not date_ok and rd_obj:
+                try:
+                    cd = _date.fromisoformat(c["date"])
+                    days_after = (cd - rd_obj).days
+                    date_ok = 0 <= days_after <= 7
+                except Exception:
+                    pass
+            if date_ok:
+                matched_actual += c["actual_inv"]
+
+        result[oid] = round(max(0.0, credits_val - matched_actual), 2)
+
+    return result
+
+
 def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
     print("⏳ Building data.json (Cancellation)...")
+    dg_lr_by_id = _build_downgrade_lr(orders)
+    print(f"   → Downgrade LR computed for {len(dg_lr_by_id)} orders")
 
     # b[0]=Total  b[1]=Cancelled  b[2]=EntryError  b[3]=Upgrade  b[4]=Downgrade
     # b[5]=Active b[6]=Inactive   b[7]=LostRev     b[8]=Switch   b[9]=Pend  b[10]=NoPmt  b[11]=LDP_Cancelled
@@ -507,11 +605,10 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
 
         # Order-level detail row: [id,contactid,date,active,cncl,inv_total,refunds,pcat,partner,product,
         #   order_lr,order_rd,rd_days,is_ldp,dep_0,division,heaven_date,invoice_actual,dep_1,dep_2,dep_3]
-        credits_val = float(r.get("CREDITS",0) or 0)
         if cncl == "Cancelled":
             order_lr = round(max(0.0, inv_total_val - payments_val + refunds_val), 2)
         elif cncl == "Downgrade":
-            order_lr = round(credits_val, 2)
+            order_lr = dg_lr_by_id.get(oid, 0.0)
         else:
             order_lr = 0.0
         order_rd = get_rd(rdate, date) if cncl in ("Cancelled","Downgrade") else "—"
