@@ -963,9 +963,9 @@ function renderRefundSkuTable(){
     });
     var dvTot=dvCancelled+dvDwn,dvTotLR=dvCnclLR+dvDwnLR;
     var tC=cfg.tColor,tB=cfg.tBg;
-    var std='padding:7px 12px;text-align:center;font-weight:700;font-size:12px;';
+    var std='padding:7px 10px;font-weight:700;font-size:11px;font-variant-numeric:tabular-nums;font-family:"DM Mono",monospace;';
     html+='<tr style="background:'+tB+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
-      +'<td style="'+std+'text-align:left;color:'+tC+'">'+divKey+' Total</td>'
+      +'<td style="padding:7px 10px;font-weight:700;font-size:11px;color:'+tC+'">'+divKey+' Total</td>'
       +'<td style="'+std+'color:'+tC+';border-left:2px solid #fca5a5">'+(dvCancelled>0?dvCancelled.toLocaleString():'—')+'</td>'
       +'<td style="'+std+'color:#b91c1c">'+(dvCnclLR>0?'$'+Math.round(dvCnclLR).toLocaleString():'—')+'</td>'
       +'<td style="'+std+'color:'+tC+';border-left:2px solid #c4b5fd">'+(dvDwn>0?dvDwn.toLocaleString():'—')+'</td>'
