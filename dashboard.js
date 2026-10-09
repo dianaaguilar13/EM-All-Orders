@@ -963,15 +963,16 @@ function renderRefundSkuTable(){
     });
     var dvTot=dvCancelled+dvDwn,dvTotLR=dvCnclLR+dvDwnLR;
     var tC=cfg.tColor,tB=cfg.tBg;
+    var std='padding:7px 12px;text-align:center;font-weight:700;font-size:12px;';
     html+='<tr style="background:'+tB+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
-      +'<td style="font-weight:700;font-size:11px;padding:7px 12px;color:'+tC+'">'+divKey+' Total</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+tC+';border-left:2px solid #fca5a5">'+(dvCancelled>0?dvCancelled.toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:#b91c1c">'+(dvCnclLR>0?'$'+Math.round(dvCnclLR).toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+tC+';border-left:2px solid #c4b5fd">'+(dvDwn>0?dvDwn.toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:#6d28d9">'+(dvDwnLR>0?'$'+Math.round(dvDwnLR).toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;color:'+tC+'">—</td>'
-      +'<td style="text-align:center;font-weight:700;color:'+tC+';border-left:2px solid #86efac">'+(dvTot>0?dvTot.toLocaleString():'—')+'</td>'
-      +'<td style="text-align:center;font-weight:700;color:#b91c1c">'+(dvTotLR>0?'$'+Math.round(dvTotLR).toLocaleString():'—')+'</td>'
+      +'<td style="'+std+'text-align:left;color:'+tC+'">'+divKey+' Total</td>'
+      +'<td style="'+std+'color:'+tC+';border-left:2px solid #fca5a5">'+(dvCancelled>0?dvCancelled.toLocaleString():'—')+'</td>'
+      +'<td style="'+std+'color:#b91c1c">'+(dvCnclLR>0?'$'+Math.round(dvCnclLR).toLocaleString():'—')+'</td>'
+      +'<td style="'+std+'color:'+tC+';border-left:2px solid #c4b5fd">'+(dvDwn>0?dvDwn.toLocaleString():'—')+'</td>'
+      +'<td style="'+std+'color:#6d28d9">'+(dvDwnLR>0?'$'+Math.round(dvDwnLR).toLocaleString():'—')+'</td>'
+      +'<td style="'+std+'color:'+tC+'">—</td>'
+      +'<td style="'+std+'color:'+tC+';border-left:2px solid #86efac">'+(dvTot>0?dvTot.toLocaleString():'—')+'</td>'
+      +'<td style="'+std+'color:#b91c1c">'+(dvTotLR>0?'$'+Math.round(dvTotLR).toLocaleString():'—')+'</td>'
       +'</tr>';
   });
 
