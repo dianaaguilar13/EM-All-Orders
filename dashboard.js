@@ -1571,6 +1571,7 @@ function toggleCohortSkuDetail(e,sku){
     +'<th style="padding:5px 8px;text-align:center;color:#7c3aed;font-weight:600;border-bottom:1px solid #e2e8f0">Net Invoice</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Refunds</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Days to Cancel</th>'
+    +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">Cancel/Refund Date</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">LDP</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#1d4ed8;font-weight:600;border-bottom:1px solid #e2e8f0">LDP Deposit</th>'
     +'<th style="padding:5px 8px;text-align:center;color:#64748b;font-weight:600;border-bottom:1px solid #e2e8f0">In Window</th>'
@@ -1579,6 +1580,8 @@ function toggleCohortSkuDetail(e,sku){
     var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var rdDisp=rdD>=0?rdD+"d":"N/A";
+    var refDateStr="—";
+    if(rdD>=0&&row[2]){var rd=new Date(row[2]);rd.setDate(rd.getDate()+rdD);refDateStr=rd.getFullYear()+"-"+String(rd.getMonth()+1).padStart(2,"0")+"-"+String(rd.getDate()).padStart(2,"0");}
     var isLdp=isLdpRow(row);
     var ldpDep=getDepByWin(row);
     var ldpDepDisp=isLdp&&ldpDep>0?'$'+ldpDep.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
@@ -1598,6 +1601,7 @@ function toggleCohortSkuDetail(e,sku){
       +'<td style="padding:4px 8px;text-align:center;color:#7c3aed;font-weight:600">'+netInvDisp+'</td>'
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">$'+((row[6]||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))+'</td>'
       +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+rdDisp+'</td>'
+      +'<td style="padding:4px 8px;text-align:center;color:#64748b">'+refDateStr+'</td>'
       +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;background:'+(isLdp?"#dbeafe":"#f1f5f9")+';color:'+(isLdp?"#1d4ed8":"#64748b")+'">'+(isLdp?"Yes":"No")+'</span></td>'
       +'<td style="padding:4px 8px;text-align:center;color:#1d4ed8;font-weight:600">'+ldpDepDisp+'</td>'
       +'<td style="padding:4px 8px;text-align:center"><span style="padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:'+(inWin?"#dcfce7":"#f1f5f9")+';color:'+(inWin?"#166534":"#64748b")+'">'+(inWin?"✓ Yes":"No")+'</span></td>'
