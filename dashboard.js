@@ -1421,6 +1421,7 @@ function renderCohort(){
     +'<div class="ct" style="margin-bottom:0">SKU Cohort Summary</div>'
     +'<div style="display:flex;align-items:center;gap:8px">'
     +'<div style="font-size:11px;color:#8b949e">Click a row to see individual orders</div>'
+    +'<button onclick="downloadCohortCsv()" style="color:#2563eb;border:1px solid #2563eb44;background:transparent;padding:3px 10px;border-radius:16px;font-size:11px;cursor:pointer">⬇ CSV</button>'
     +'<button onclick="downloadCohortDivPng()" style="font-size:11px;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#1e293b;cursor:pointer">⬇ PNG</button>'
     +'</div></div>'
     +'<div id="cohortDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead><tr>'
@@ -1742,17 +1743,19 @@ function downloadCohortCsv(){
   var r2=getRange();
   var allRows=getCohortRows();
   var cutoffStr=cutoffMs?"by "+formatCutoffDate(cutoffMs):"All time";
-  var csvRows=[["SKU","Order ID","Contact ID","Heaven Date","Purchase Date","Active Status","Cancel Status","Invoice Total","Net Invoice","Refunds","Days to Cancel","LDP","Cancelled ("+cutoffStr+")","Partner Category","Partner","Product"]];
+  var csvRows=[["SKU","Order ID","Contact ID","Client Name","Program Name","Heaven Date","Purchase Date","Active Status","Cancel Status","Invoice Total","Net Invoice","Refunds","Days to Cancel","LDP","LDP Deposit","Cancelled in Window ("+cutoffStr+")","Partner Category","Partner"]];
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     var rdD=(row[12]!==undefined)?row[12]:-1;
     var isLdp=isLdpRow(row);
+    var ldpDep=isLdp?(getDepByWin(row)||0):0;
     csvRows.push([
-      sku,row[0]||"",row[1]||"",row[16]||"",row[2]||"",row[3]||"",row[4]||"",
+      sku,row[0]||"",row[1]||"",row[21]||"",row[9]||"",
+      row[16]||"",row[2]||"",row[3]||"",row[4]||"",
       row[5]||0,row[17]||0,row[6]||0,rdD>=0?rdD:"N/A",
-      isLdp?"Yes":"No",inWin?"Yes":"No",
-      row[7]||"",row[8]||"",row[9]||""
+      isLdp?"Yes":"No",ldpDep>0?ldpDep:"",inWin?"Yes":"No",
+      row[7]||"",row[8]||""
     ]);
   });
   var csv=csvRows.map(function(r){return r.map(function(v){
