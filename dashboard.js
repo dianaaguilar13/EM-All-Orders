@@ -1065,9 +1065,8 @@ function getCohortRows(){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
-      // Cohort is defined by PURCHASE DATE (row[2]) — "orders bought in this range"
-      // Compare full YYYY-MM-DD so day selection is respected (not just month)
-      var rowDate=row[2].slice(0,10);
+      // Use HEAVEN_DATE (row[16]) if available, fall back to DATE (row[2]) — matches Cancellation Report
+      var rowDate=(row[16]||row[2]).slice(0,10);
       if(rowDate<dfFull||rowDate>dtFull)return;
       // Exclude same statuses as top KPI "Net Units" (Entry Error, Pend, No Pmt)
       if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
@@ -1688,7 +1687,7 @@ function downloadNaCsv(){
     if(EXCLUDED_SKUS.has(sku))return;
     if(selSku.size>0&&!selSku.has(sku))return;
     (D.order_rows[sku]||[]).forEach(function(row){
-      var dateM=row[2].slice(0,7);
+      var dateM=(row[16]||row[2]).slice(0,7);
       if(dateM<r2.df||dateM>r2.dt)return;
       if(row[4]==="Entry Error"||row[4]==="Pend"||row[4]==="No Pmt")return;
       if(fAct&&row[3]!==fAct)return;
