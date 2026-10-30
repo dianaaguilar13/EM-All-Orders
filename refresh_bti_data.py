@@ -2041,6 +2041,8 @@ def fetch_weekly_ar_flows(conn):
           AND REFUND_CREDIT_DATE IS NOT NULL
           AND (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%cncl%'
             OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%lrev%')
+          AND NOT (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%entry error%'
+               OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%error%')
         GROUP BY 1
     """, "AMT")
 
