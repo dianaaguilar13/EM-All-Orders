@@ -2075,6 +2075,8 @@ def fetch_weekly_ar_flows(conn):
           AND p.PAYDATE <= CURRENT_DATE()
           AND p.PAYTYPE NOT IN ({valid_types})
           AND p.PAYTYPE NOT LIKE 'CNCL-%'
+          AND p.PAYTYPE NOT LIKE 'Refund%'
+          AND p.PAYTYPE NOT IN ('Void', 'Chargeback')
         GROUP BY 1
     """, "AMT")
 
