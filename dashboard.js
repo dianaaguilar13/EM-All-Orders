@@ -1167,8 +1167,8 @@ function renderCohort(){
     if(c==="Upgrade"){upgradeCount++;if(isLdp)ldpUpgrades++;else fpUpgrades++;}
     else if(c==="Downgrade"){downgradeCount++;if(isLdp)ldpDowngrades++;else fpDowngrades++;}
   });
-  var upgradeRate=cohortPurchases>0?(upgradeCount/cohortPurchases*100):0;
-  var downgradeRate=cohortPurchases>0?(downgradeCount/cohortPurchases*100):0;
+  var upgradeRate=cohortNet>0?(upgradeCount/cohortNet*100):0;
+  var downgradeRate=cohortNet>0?(downgradeCount/cohortNet*100):0;
   var ldpUpgradeRate=ldpInCohort>0?(ldpUpgrades/ldpInCohort*100):0;
   var ldpDowngradeRate=ldpInCohort>0?(ldpDowngrades/ldpInCohort*100):0;
   var fpUpgradeRate=fullPayInCohort>0?(fpUpgrades/fullPayInCohort*100):0;
@@ -1342,7 +1342,7 @@ function renderCohort(){
     +'<div style="border-radius:8px;padding:14px 16px;border:1px solid #ef444455;background:#fff8f8">'
     +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#991b1b;margin-bottom:12px">🚫 COHORT CANCEL METRICS</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'
-    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Purchases</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Net Orders</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortNet.toLocaleString()+'</div><div class="ks muted">purchases − entry errors ('+entryErrorInCohort+')</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cancelled in Window</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"on or before "+hardCutoffLabel)+'</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ (purchases − entry errors)</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04);border-top:3px solid #7c3aed"><div class="kl">Net Invoice</div><div class="kv" style="font-size:20px;letter-spacing:-0.5px;color:#7c3aed">'+(totalNetInv>0?'$'+Math.round(totalNetInv).toLocaleString():'—')+'</div><div class="ks" style="color:#7c3aed">sum of INVOICE_ACTUAL</div></div>'
