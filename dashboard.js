@@ -887,7 +887,7 @@ function renderRefundSkuTable(){
   var thSt='padding:5px 10px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #dde3ea;white-space:nowrap';
   html+='<div id="refundDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead>';
   html+='<tr style="background:#f8fafc">';
-  html+='<th style="'+thSt+';text-align:left" rowspan="2">SKU / CANCEL TYPES</th>';
+  html+='<th style="'+thSt+';text-align:left" rowspan="2">SKU</th>';
   html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b;border-left:2px solid #fca5a5" colspan="2">CANCELLED</th>';
   html+='<th style="'+thSt+';background:#ede9fe;color:#5b21b6;border-left:2px solid #c4b5fd" colspan="2">DOWNGRADE</th>';
   html+='<th style="'+thSt+'" rowspan="2">AVG REFUND DAYS</th>';
@@ -923,14 +923,9 @@ function renderRefundSkuTable(){
       var avgRd=count>0?Math.round(items.reduce(function(s,i){return s+i.rdDays;},0)/count):0;
       dvCancelled+=cncl;dvCnclLR+=cnclLR;dvDwn+=dwn;dvDwnLR+=dwnLR;
       // Cancel type breakdown
-      var ctMap={};
-      items.forEach(function(item){var ct=item.row[22];if(ct)ctMap[ct]=(ctMap[ct]||0)+1;});
-      var ctStr=Object.keys(ctMap).sort().map(function(k){return '<span style="display:inline-block;background:#fef9c3;color:#713f12;border:1px solid #fde047;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:600;margin:1px">'+k+' ('+ctMap[k]+')</span>';}).join(' ');
       var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
       html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
-      html+='<td style="padding:6px 8px 6px 18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span>';
-      if(ctStr)html+='<div style="margin-top:4px;padding-left:18px;line-height:1.8">'+ctStr+'</div>';
-      html+='</td>';
+      html+='<td style="padding-left:18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
       html+='<td class="num" style="border-left:2px solid #fca5a5">'+(cncl>0?cncl.toLocaleString():'—')+'</td>';
       html+='<td class="num" style="color:#ef4444">'+(cnclLR>0?'$'+Math.round(cnclLR).toLocaleString():'—')+'</td>';
       html+='<td class="num" style="border-left:2px solid #c4b5fd">'+(dwn>0?dwn.toLocaleString():'—')+'</td>';
