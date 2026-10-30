@@ -2074,7 +2074,6 @@ def fetch_weekly_ar_flows(conn):
           AND p.PAYDATE >= '{start}'
           AND p.PAYDATE <= CURRENT_DATE()
           AND p.PAYTYPE NOT IN ({valid_types})
-          AND p.PAYTYPE != 'Discount for Payment in Full'
           AND p.PAYTYPE NOT LIKE 'CNCL-%'
         GROUP BY 1
     """, "AMT")
