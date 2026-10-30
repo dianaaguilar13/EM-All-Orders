@@ -1133,13 +1133,12 @@ function renderCohort(){
   var allRows=getCohortRows();
 
   var cohortPurchases=allRows.length;
-  var cancelledInWindow=0,ldpInCohort=0,ldpCancelledInWindow=0,entryErrorInCohort=0;
+  var cancelledInWindow=0,ldpInCohort=0,ldpCancelledInWindow=0;
   var ldpNetInv=0,fpNetInv=0;
   allRows.forEach(function(item){
     var row=item.row;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)cancelledInWindow++;
-    if(row[4]==="Entry Error")entryErrorInCohort++;
     var ni=(row[17]!==undefined&&row[17]>0)?row[17]:0;
     if(isLdpRow(row)){
       ldpInCohort++;
@@ -1149,8 +1148,7 @@ function renderCohort(){
       fpNetInv+=ni;
     }
   });
-  var cohortNet=cohortPurchases-entryErrorInCohort;
-  var cohortRate=cohortNet>0?(cancelledInWindow/cohortNet*100):0;
+  var cohortRate=cohortPurchases>0?(cancelledInWindow/cohortPurchases*100):0;
   // LDP cancel rate = LDP cancelled ÷ LDP in cohort
   var ldpRate=ldpInCohort>0?(ldpCancelledInWindow/ldpInCohort*100):0;
   var ldpPct=cohortPurchases>0?(ldpInCohort/cohortPurchases*100):0;
@@ -1167,8 +1165,8 @@ function renderCohort(){
     if(c==="Upgrade"){upgradeCount++;if(isLdp)ldpUpgrades++;else fpUpgrades++;}
     else if(c==="Downgrade"){downgradeCount++;if(isLdp)ldpDowngrades++;else fpDowngrades++;}
   });
-  var upgradeRate=cohortNet>0?(upgradeCount/cohortNet*100):0;
-  var downgradeRate=cohortNet>0?(downgradeCount/cohortNet*100):0;
+  var upgradeRate=cohortPurchases>0?(upgradeCount/cohortPurchases*100):0;
+  var downgradeRate=cohortPurchases>0?(downgradeCount/cohortPurchases*100):0;
   var ldpUpgradeRate=ldpInCohort>0?(ldpUpgrades/ldpInCohort*100):0;
   var ldpDowngradeRate=ldpInCohort>0?(ldpDowngrades/ldpInCohort*100):0;
   var fpUpgradeRate=fullPayInCohort>0?(fpUpgrades/fullPayInCohort*100):0;
@@ -1212,9 +1210,8 @@ function renderCohort(){
   var totalNetInv=0;
   allRows.forEach(function(item){
     var sku=item.sku,row=item.row;
-    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,entryError:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0,progName:row[9]||"",div:getCohortDivDisplay(sku,D.sku_div?D.sku_div[sku]:""),divRaw:D.sku_div?D.sku_div[sku]:""};
+    if(!skuMap[sku])skuMap[sku]={total:0,cancelled:0,ldp:0,ldpCancelled:0,sumDays:0,countDays:0,netInv:0,progName:row[9]||"",div:getCohortDivDisplay(sku,D.sku_div?D.sku_div[sku]:""),divRaw:D.sku_div?D.sku_div[sku]:""};
     skuMap[sku].total++;
-    if(row[4]==="Entry Error")skuMap[sku].entryError++;
     var inWin=isInCohortWindow(row,win,cutoffMs);
     if(inWin)skuMap[sku].cancelled++;
     if(isLdpRow(row)){
@@ -1270,16 +1267,15 @@ function renderCohort(){
     if(entries.length===0){
       tRows+='<tr><td colspan="9" style="padding:7px 12px 7px 22px;font-size:11px;color:#94a3b8;font-style:italic">No SKUs in cohort for selected date range</td></tr>';
     }
-    var dvTot=0,dvCan=0,dvEE=0,dvLdp=0,dvLdpCan=0,dvNI=0;
+    var dvTot=0,dvCan=0,dvLdp=0,dvLdpCan=0,dvNI=0;
     entries.forEach(function(e){
       var s=e[0],d=e[1];
-      var net=d.total-d.entryError;
-      var rate=net>0?(d.cancelled/net*100):0;
+      var rate=d.total>0?(d.cancelled/d.total*100):0;
       var barW=Math.min(100,Math.round(rate));
       var sEsc=s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       var safeId=s.replace(/[^a-zA-Z0-9]/g,"_");
       var niDisp=d.netInv>0?'$'+Math.round(d.netInv).toLocaleString():'—';
-      dvTot+=d.total;dvCan+=d.cancelled;dvEE+=d.entryError;dvLdp+=d.ldp;dvLdpCan+=d.ldpCancelled;dvNI+=d.netInv;
+      dvTot+=d.total;dvCan+=d.cancelled;dvLdp+=d.ldp;dvLdpCan+=d.ldpCancelled;dvNI+=d.netInv;
       tRows+='<tr class="cohort-sku-row" style="cursor:pointer" onclick="toggleCohortSkuDetail(event,\''+s.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'
         +'<td style="text-align:left;padding-left:18px"><span class="cohort-arrow-'+safeId+'" style="font-size:11px;color:#94a3b8;margin-right:6px">▶</span>'+sEsc+'</td>'
         +'<td style="text-align:left;font-size:11px;color:#475569;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.progName.replace(/"/g,"&quot;")+'">'+d.progName+'</td>'
@@ -1294,7 +1290,7 @@ function renderCohort(){
         +'<tr id="cohort-detail-'+safeId+'" style="display:none"><td colspan="9" style="padding:0"></td></tr>';
     });
     if(entries.length>0){
-      var dvRate=(dvTot-dvEE)>0?(dvCan/(dvTot-dvEE)*100):0;
+      var dvRate=dvTot>0?(dvCan/dvTot*100):0;
       var dvBarW=Math.min(100,Math.round(dvRate));
       var dvNIDisp=dvNI>0?'$'+Math.round(dvNI).toLocaleString():'—';
       tRows+='<tr style="background:'+cfg.tBg+';border-top:1px solid '+cfg.hBorder+';border-bottom:2px solid '+cfg.hBorder+'">'
@@ -1342,9 +1338,9 @@ function renderCohort(){
     +'<div style="border-radius:8px;padding:14px 16px;border:1px solid #ef444455;background:#fff8f8">'
     +'<div style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#991b1b;margin-bottom:12px">🚫 COHORT CANCEL METRICS</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'
-    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Net Orders</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortNet.toLocaleString()+'</div><div class="ks muted">purchases − entry errors ('+entryErrorInCohort+')</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Purchases</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px">'+cohortPurchases.toLocaleString()+'</div><div class="ks muted">orders in date range</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cancelled in Window</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cancelledInWindow.toLocaleString()+'</div><div class="ks red">'+(win<0?"all time":"on or before "+hardCutoffLabel)+'</div></div>'
-    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ (purchases − entry errors)</div></div>'
+    +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04)"><div class="kl">Cohort Cancel Rate</div><div class="kv" style="font-size:22px;letter-spacing:-0.5px;color:#ef4444">'+cohortRate.toFixed(1)+'%</div><div class="ks red">cancelled ÷ purchases</div></div>'
     +'<div class="kpi" style="padding:10px 12px;background:#fff;border-radius:6px;border:1px solid #f1f5f9;box-shadow:0 1px 2px rgba(0,0,0,.04);border-top:3px solid #7c3aed"><div class="kl">Net Invoice</div><div class="kv" style="font-size:20px;letter-spacing:-0.5px;color:#7c3aed">'+(totalNetInv>0?'$'+Math.round(totalNetInv).toLocaleString():'—')+'</div><div class="ks" style="color:#7c3aed">sum of INVOICE_ACTUAL</div></div>'
     +'</div></div>'
     // Upgrades & Downgrades group
