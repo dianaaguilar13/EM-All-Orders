@@ -641,6 +641,7 @@ def build_cancellation_data(orders, ldp_order_ids=None, ldp_first_pay=None):
             ldp_dep2,                      # index 19: dep_2 — deposit through +2 days
             ldp_dep3,                      # index 20: dep_3 — deposit through +3 days
             r.get("FULL_NAME",""),         # index 21: client name
+            cs_raw,                        # index 22: raw CREDIT_STATUS (e.g. CNCL-No Refund)
         ])
 
         # Cancel reasons
