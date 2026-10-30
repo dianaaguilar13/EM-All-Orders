@@ -2131,7 +2131,7 @@ def fetch_weekly_ar_flows(conn):
         FROM ANALYTICS.MART.stg_inf_payments_combined p
         JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
           AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
-        WHERE p.PAYAMT != 0
+        WHERE p.PAYAMT > 0
           AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
           AND o.SKU IS NOT NULL AND o.SKU != ''
           AND p.PAYDATE >= '{start}'
