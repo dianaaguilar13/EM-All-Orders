@@ -2095,6 +2095,67 @@ def fetch_weekly_ar_flows(conn):
     for d in recent:
         f = flows[d]
         print(f"      {d}: sold={f['sold']}, pmts={f['pmts']}, disc={f['disc']}, cncl={f['cncl']}")
+
+    # ── Per-week PAYTYPE/CREDIT_STATUS breakdown for row-level CSV download ──
+    def run_grouped_query(sql, key_col, val_col):
+        """Run a query returning (date, key, amount), snap dates to Friday."""
+        c = conn.cursor()
+        c.execute(sql)
+        result = {}  # {friday: {key: amount}}
+        for r in sf_fetch_rows(c):
+            ds = r.get("PAY_DATE") or r.get("pay_date") or ""
+            if not ds: continue
+            wf = _snap_to_friday(ds)
+            key = r.get(key_col) or r.get(key_col.lower()) or "(blank)"
+            amt = _flow_val(r.get(val_col) or r.get(val_col.lower()))
+            if amt is not None:
+                result.setdefault(wf, {})
+                result[wf][key] = round(result[wf].get(key, 0.0) + amt, 2)
+        return result
+
+    cncl_detail = run_grouped_query(f"""
+        SELECT REFUND_CREDIT_DATE AS pay_date, CREDIT_STATUS, SUM(INV_TOTAL) AS amt
+        FROM ANALYTICS.MART.DIM_ALL_ORDERS
+        WHERE DATE >= '{start}' AND SKU IS NOT NULL AND SKU != ''
+          AND REFUND_CREDIT_DATE IS NOT NULL
+          AND (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%cncl%'
+            OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%lrev%')
+          AND NOT (LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%entry error%'
+               OR LOWER(COALESCE(CREDIT_STATUS,'')) LIKE '%error%')
+        GROUP BY 1, 2
+    """, "CREDIT_STATUS", "AMT")
+
+    disc_detail = run_grouped_query(f"""
+        SELECT TO_CHAR(TO_DATE(p.PAYDATE), 'YYYY-MM-DD') AS pay_date,
+               p.PAYTYPE, SUM(p.PAYAMT) AS amt
+        FROM ANALYTICS.MART.stg_inf_payments_combined p
+        JOIN ANALYTICS.MART.DIM_ALL_ORDERS o ON p.INVOICEID = o.ID
+          AND p.PAYDATE >= DATEADD(day, -30, o.DATE)
+        WHERE p.PAYAMT != 0
+          AND (p._CHECK_IF_DELETED = 0 OR p._CHECK_IF_DELETED IS NULL)
+          AND o.SKU IS NOT NULL AND o.SKU != ''
+          AND p.PAYDATE >= '{start}'
+          AND p.PAYDATE <= CURRENT_DATE()
+          AND p.PAYTYPE NOT IN ({valid_types})
+          AND p.PAYTYPE NOT LIKE 'CNCL-%'
+          AND p.PAYTYPE NOT LIKE 'Refund%'
+          AND p.PAYTYPE NOT IN ('Void', 'Chargeback')
+        GROUP BY 1, 2
+    """, "PAYTYPE", "AMT")
+
+    all_bkd_weeks = set(cncl_detail) | set(disc_detail)
+    breakdown = {
+        wf: {
+            "cncl": cncl_detail.get(wf, {}),
+            "disc": disc_detail.get(wf, {}),
+        }
+        for wf in all_bkd_weeks
+    }
+    bkd_path = os.path.join(CONFIG["output_dir"], "ar2_flows_breakdown.json")
+    with open(bkd_path, "w", encoding="utf-8") as fh:
+        json.dump(breakdown, fh, separators=(",", ":"))
+    print(f"   → {len(breakdown)} weeks of flow breakdown saved to ar2_flows_breakdown.json")
+
     return flows
 
 

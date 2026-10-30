@@ -299,6 +299,7 @@ function ar2RenderTrendTable(data){
         "<td style='text-align:right;"+gs+"'>" + fmt$(cw.disc) + "</td>",
         "<td style='text-align:center;"+gs+"'>Q" + Math.ceil(mo/3) + "</td>",
         "<td style='text-align:center;"+gs+"'>FY'" + String(cw.y||"").toString().slice(-2) + "</td>",
+        "<td style='text-align:center'><button onclick=\"ar2DownloadWeekBreakdown('"+cw.week_fri+"')\" style='font-size:10px;padding:2px 7px;border:1px solid #0d9488;border-radius:4px;background:#fff;color:#0d9488;cursor:pointer' title='Download cancellation & discount breakdown'>⬇</button></td>",
       ].join("");
       cwRow = "<tr style='background:#f8fafc;border-bottom:1px dashed #cbd5e1'>" + cwCells + "</tr>";
     }
@@ -325,6 +326,7 @@ function ar2RenderTrendTable(data){
       "<td style='text-align:right;color:#b45309'>" + fmt$(pt.disc) + "</td>" +
       "<td style='text-align:center'>" + (pt.q || "") + "</td>" +
       "<td style='text-align:center'>" + (pt.y ? "FY'" + String(pt.y).slice(-2) : "") + "</td>" +
+      "<td style='text-align:center'><button onclick=\"ar2DownloadWeekBreakdown('"+pt.d+"')\" style='font-size:10px;padding:2px 7px;border:1px solid #0d9488;border-radius:4px;background:#fff;color:#0d9488;cursor:pointer' title='Download cancellation & discount breakdown'>⬇</button></td>" +
     "</tr>";
   }).join("");
 
@@ -378,6 +380,7 @@ function ar2RenderTrendTable(data){
           th("Discounts / Adj") +
           th("Quarter","center") +
           th("Fiscal Year","center") +
+          th("","center") +
         "</tr></thead>" +
         "<tbody>" + tbodyHtml + "</tbody>" +
       "</table>" +
@@ -1206,21 +1209,51 @@ function ar2RenderFilters(){
 }
 
 // ── Load data ─────────────────────────────────────────────────────────────────
+var AR2_BREAKDOWN = {};
+
 // Load ar2_data.json (invoice snapshot) + ar2_trend.json (weekly history) in parallel.
 // ar2_trend.json is always authoritative for trend_v2 — it updates on every Run.bat
 // independently of the full data rebuild.
 Promise.all([
   fetch("ar2_data.json").then(function(r){ return r.json(); }),
-  fetch("ar2_trend.json?v=" + Date.now()).then(function(r){ return r.json(); }).catch(function(){ return null; })
+  fetch("ar2_trend.json?v=" + Date.now()).then(function(r){ return r.json(); }).catch(function(){ return null; }),
+  fetch("ar2_flows_breakdown.json?v=" + Date.now()).then(function(r){ return r.json(); }).catch(function(){ return {}; })
 ]).then(function(results){
   AR2 = results[0];
   if(results[1] && results[1].length) AR2.trend_v2 = results[1];
+  if(results[2]) AR2_BREAKDOWN = results[2];
   ar2RenderFilters();
   if(document.getElementById("ar2-panel").style.display !== "none") ar2Render();
 }).catch(function(err){
   document.getElementById("ar2-loading").innerHTML =
     '<div style="color:#ef4444;padding:20px">Failed to load ar2_data.json — run Run.bat to generate: '+err+'</div>';
 });
+
+function ar2DownloadWeekBreakdown(weekDate){
+  var bkd = AR2_BREAKDOWN[weekDate] || {};
+  var cncl = bkd.cncl || {};
+  var disc = bkd.disc || {};
+  var rows = [];
+  rows.push(["Section","Label","Amount"]);
+  // Cancellations
+  var cnclEntries = Object.entries(cncl).sort(function(a,b){ return b[1]-a[1]; });
+  cnclEntries.forEach(function(e){ rows.push(["Cancellations", e[0], e[1].toFixed(2)]); });
+  var cnclTotal = cnclEntries.reduce(function(s,e){ return s+e[1]; }, 0);
+  rows.push(["Cancellations","TOTAL",cnclTotal.toFixed(2)]);
+  rows.push([]);
+  // Discounts / Adj
+  var discEntries = Object.entries(disc).sort(function(a,b){ return b[1]-a[1]; });
+  discEntries.forEach(function(e){ rows.push(["Discounts / Adj", e[0], e[1].toFixed(2)]); });
+  var discTotal = discEntries.reduce(function(s,e){ return s+e[1]; }, 0);
+  rows.push(["Discounts / Adj","TOTAL",discTotal.toFixed(2)]);
+
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+(c||"").toString().replace(/"/g,'""')+'"'; }).join(","); }).join("\r\n");
+  var blob = new Blob([csv], {type:"text/csv"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "AR_Flow_Breakdown_" + weekDate + ".csv";
+  a.click();
+}
 
 document.addEventListener("click", function(e){
   var menu = document.getElementById("ar2-sku-menu");
