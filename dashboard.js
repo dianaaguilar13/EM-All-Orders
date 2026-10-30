@@ -887,12 +887,11 @@ function renderRefundSkuTable(){
   var thSt='padding:5px 10px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #dde3ea;white-space:nowrap';
   html+='<div id="refundDivTableWrap"><div class="tbl-wrap" style="max-height:none;overflow-y:visible"><table><thead>';
   html+='<tr style="background:#f8fafc">';
-  html+='<th style="'+thSt+';text-align:left" rowspan="2">SKU</th>';
+  html+='<th style="'+thSt+';text-align:left" rowspan="2">SKU / CANCEL TYPES</th>';
   html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b;border-left:2px solid #fca5a5" colspan="2">CANCELLED</th>';
   html+='<th style="'+thSt+';background:#ede9fe;color:#5b21b6;border-left:2px solid #c4b5fd" colspan="2">DOWNGRADE</th>';
   html+='<th style="'+thSt+'" rowspan="2">AVG REFUND DAYS</th>';
   html+='<th style="'+thSt+';background:#f0fdf4;color:#166534;border-left:2px solid #86efac" colspan="2">TOTAL</th>';
-  html+='<th style="'+thSt+';background:#fefce8;color:#854d0e;border-left:2px solid #fde047" rowspan="2">CANCEL TYPES</th>';
   html+='</tr><tr style="background:#f8fafc">';
   html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b;border-left:2px solid #fca5a5">UNITS</th>';
   html+='<th style="'+thSt+';background:#fee2e2;color:#991b1b">LOST REVENUE</th>';
@@ -906,11 +905,11 @@ function renderRefundSkuTable(){
     var cfg=DIV_CFG[divKey];
     var divSkus=divGroups[divKey];
     if(!divSkus||divSkus.length===0){
-      html+='<tr><td colspan="9" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
-      html+='<tr><td colspan="9" style="padding:6px 20px;font-size:11px;color:#94a3b8;font-style:italic">No refunds for this division in selected range</td></tr>';
+      html+='<tr><td colspan="8" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+      html+='<tr><td colspan="8" style="padding:6px 20px;font-size:11px;color:#94a3b8;font-style:italic">No refunds for this division in selected range</td></tr>';
       return;
     }
-    html+='<tr><td colspan="9" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
+    html+='<tr><td colspan="8" style="padding:8px 14px;font-size:11px;font-weight:700;background:'+cfg.hBg+';color:'+cfg.hColor+';border-top:2px solid '+cfg.hBorder+';border-bottom:1px solid '+cfg.hBorder+'">'+cfg.label+'</td></tr>';
     var dvCancelled=0,dvCnclLR=0,dvDwn=0,dvDwnLR=0;
     divSkus.forEach(function(sku){
       var items=bySkuRows[sku];if(!items||!items.length)return;
@@ -929,7 +928,9 @@ function renderRefundSkuTable(){
       var ctStr=Object.keys(ctMap).sort().map(function(k){return '<span style="display:inline-block;background:#fef9c3;color:#713f12;border:1px solid #fde047;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:600;margin:1px">'+k+' ('+ctMap[k]+')</span>';}).join(' ');
       var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
       html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
-      html+='<td style="padding-left:18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span></td>';
+      html+='<td style="padding:6px 8px 6px 18px"><span style="font-size:10px;color:#2563eb;margin-right:4px" id="icon_'+safeId+'">&#9654;</span><span class="pill">'+sku+'</span>';
+      if(ctStr)html+='<div style="margin-top:4px;padding-left:18px;line-height:1.8">'+ctStr+'</div>';
+      html+='</td>';
       html+='<td class="num" style="border-left:2px solid #fca5a5">'+(cncl>0?cncl.toLocaleString():'—')+'</td>';
       html+='<td class="num" style="color:#ef4444">'+(cnclLR>0?'$'+Math.round(cnclLR).toLocaleString():'—')+'</td>';
       html+='<td class="num" style="border-left:2px solid #c4b5fd">'+(dwn>0?dwn.toLocaleString():'—')+'</td>';
@@ -937,9 +938,8 @@ function renderRefundSkuTable(){
       html+='<td class="num">'+avgRd+'d</td>';
       html+='<td class="num" style="font-weight:700;border-left:2px solid #86efac">'+(count>0?count.toLocaleString():'—')+'</td>';
       html+='<td class="num" style="font-weight:700;color:#ef4444">'+(lr>0?'$'+Math.round(lr).toLocaleString():'—')+'</td>';
-      html+='<td style="padding:4px 8px;border-left:2px solid #fde047;vertical-align:middle">'+ctStr+'</td>';
       html+='</tr>';
-      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="9" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
+      html+='<tr id="reasons_'+safeId+'" style="display:none"><td colspan="8" style="padding:0;background:#f8fafc;border-top:1px solid #dde3ea">';
       html+='<div style="padding:10px 16px 12px 24px">';
       html+='<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">'+sku+' — '+count.toLocaleString()+' records in period</div>';
       html+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f1f5f9">';
@@ -980,7 +980,6 @@ function renderRefundSkuTable(){
       +'<td style="'+std+'color:'+tC+'">—</td>'
       +'<td style="'+std+'color:'+tC+';border-left:2px solid #86efac">'+(dvTot>0?dvTot.toLocaleString():'—')+'</td>'
       +'<td style="'+std+'color:#b91c1c">'+(dvTotLR>0?'$'+Math.round(dvTotLR).toLocaleString():'—')+'</td>'
-      +'<td style="'+std+'color:'+tC+'">—</td>'
       +'</tr>';
   });
 
@@ -993,7 +992,6 @@ function renderRefundSkuTable(){
     +'<td class="num">—</td>'
     +'<td class="num" style="font-weight:700;border-left:2px solid #86efac">'+totalCount.toLocaleString()+'</td>'
     +'<td class="num" style="color:#ff7b72;font-weight:700">'+(totalLR>0?'$'+Math.round(totalLR).toLocaleString():'—')+'</td>'
-    +'<td class="num">—</td>'
     +'</tr>';
   html+='</tbody></table></div></div></div>';
   sec.innerHTML=html;
