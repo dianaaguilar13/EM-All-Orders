@@ -924,7 +924,7 @@ function renderRefundSkuTable(){
       dvCancelled+=cncl;dvCnclLR+=cnclLR;dvDwn+=dwn;dvDwnLR+=dwnLR;
       // Cancel type breakdown
       var ctMap={};
-      items.forEach(function(item){var ct=item.row[22]||item.status;ctMap[ct]=(ctMap[ct]||0)+1;});
+      items.forEach(function(item){var ct=item.row[22];if(ct)ctMap[ct]=(ctMap[ct]||0)+1;});
       var ctStr=Object.keys(ctMap).sort().map(function(k){return '<span style="display:inline-block;background:#fef9c3;color:#713f12;border:1px solid #fde047;border-radius:3px;padding:1px 5px;font-size:9px;font-weight:600;margin:1px">'+k+' ('+ctMap[k]+')</span>';}).join(' ');
       var safeId="rsku_"+sku.replace(/[^a-zA-Z0-9]/g,"_");
       html+='<tr style="cursor:pointer" onclick="toggleSkuReasons(\''+safeId+'\')">';
