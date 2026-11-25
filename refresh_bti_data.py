@@ -2640,6 +2640,16 @@ def main():
     save_json(ar2_data, "ar2_data.json")
     ar_trend_v2 = None; ar2_data = None; ar_invoices = None; gc.collect()
 
+    # EVENTS — event/post budget vs results (Google Sheet) + programs sold by event referral code.
+    # Never stops the run: on any problem the previous events_data.json is kept.
+    print()
+    try:
+        import events_build
+        events_build.refresh_events(orders, get_cncl, save_json, CONFIG["output_dir"])
+    except Exception as e:
+        print(f"   ⚠️  EVENTS step failed: {e} — all other data saved")
+    gc.collect()
+
     # Asana / CRS last — most memory freed by now, only orders remains
     print()
     try:
