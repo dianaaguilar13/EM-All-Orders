@@ -245,6 +245,7 @@ function pwCheck(){
     <div class="sep"></div>
     <button class="btn" id="ldp-tab-btn" onclick="showLdpTab()" style="color:#7c3aed;border-color:#7c3aed33;background:transparent;font-weight:500">&#128178; LDP</button>
     <button class="btn" id="pif-tab-btn" onclick="showPifTab()" style="color:#16a34a;border-color:#16a34a33;background:transparent;font-weight:500">&#128200; PIF/PP</button>
+    <button class="btn" id="events-tab-btn" onclick="showEventsTab()" style="color:#ea580c;border-color:#ea580c33;background:transparent;font-weight:500">&#127914; EVENTS</button>
     <button class="btn" id="cr-tab-btn" onclick="showCrTab()" style="color:#ef4444;border-color:#ef444433;background:transparent;font-weight:500">&#128203; CRS</button>
       <button onclick="showAr2Tab()" style="color:#0d9488;border-color:#0d948833;background:transparent;border:1px solid;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;font-weight:500">&#128176; AR</button>
     <button class="btn" id="cohort-tab-btn" onclick="showCohortTab()" style="color:#7c3aed;border-color:#7c3aed33;background:transparent;font-weight:500">&#128200; Cohort</button>
@@ -572,6 +573,12 @@ function showPifTab(){
   document.getElementById("pif-panel").style.display="block";
   document.getElementById("cancel-tab-btn").style.display="inline";
 }
+function showEventsTab(){
+  hideAllPanels();
+  document.getElementById("events-panel").style.display="block";
+  document.getElementById("cancel-tab-btn").style.display="inline";
+  if(typeof evLoad==="function")evLoad();
+}
 function showCrTab(){
   hideAllPanels();
   document.getElementById("cr-panel").style.display="block";
@@ -584,6 +591,7 @@ function showCohortTab(){
   document.getElementById("cohortWindowFg").style.display="";
   document.getElementById("ldp-tab-btn").style.display="inline";
   document.getElementById("pif-tab-btn").style.display="inline";
+  document.getElementById("events-tab-btn").style.display="inline";
   document.getElementById("cr-tab-btn").style.display="inline";
   document.getElementById("cancel-tab-btn").style.display="inline";
   if(typeof renderCohortPanel==="function")renderCohortPanel();
@@ -595,20 +603,73 @@ function showCancelTab(){
   document.getElementById("cohortWindowFg").style.display="none";
   document.getElementById("ldp-tab-btn").style.display="inline";
   document.getElementById("pif-tab-btn").style.display="inline";
+  document.getElementById("events-tab-btn").style.display="inline";
   document.getElementById("cr-tab-btn").style.display="inline";
   document.getElementById("cohort-tab-btn").style.display="inline";
   document.getElementById("cancel-tab-btn").style.display="none";
 }
 function hideAllPanels(){
-  ["mainContent","ldp-panel","pif-panel","cr-panel","ar2-panel","cohort-panel"].forEach(function(id){
+  ["mainContent","ldp-panel","pif-panel","events-panel","cr-panel","ar2-panel","cohort-panel"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
   document.querySelector(".filters").style.display="none";
-  ["ldp-tab-btn","pif-tab-btn","cr-tab-btn","cohort-tab-btn","cancel-tab-btn"].forEach(function(id){
+  ["ldp-tab-btn","pif-tab-btn","events-tab-btn","cr-tab-btn","cohort-tab-btn","cancel-tab-btn"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
 }
 </script>
+<!-- EVENTS Panel -->
+<div id="events-panel" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#ffffff;border-bottom:1px solid #dde3ea;position:sticky;top:57px;z-index:100">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:14px;font-weight:600;color:#ea580c">&#127914; EVENTS</span>
+      <span style="font-size:11px;color:#8b949e"><span class="dot"></span><span id="events-rcLbl">Loading...</span></span>
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;padding:12px 20px;background:#ffffff;border-bottom:1px solid #dde3ea">
+    <div class="fg"><span class="fl">Date From</span><input type="date" id="events-df" value="2022-01-01"></div>
+    <div class="fg"><span class="fl">Date To</span><input type="date" id="events-dt" value="2026-12-31"></div>
+    <div class="sep"></div>
+    <div class="fg">
+      <span class="fl">SKU <span id="events-skuCnt" class="ms-cnt" style="display:none"></span></span>
+      <div class="ms-wrap" id="events-skuWrap">
+        <button class="ms-btn" id="events-skuBtn" onclick="evToggleDrop('sku',event)">All SKUs</button>
+        <div class="ms-drop" id="events-skuDrop">
+          <div class="ms-sticky">
+            <div class="ms-search"><input type="text" id="events-skuQ" placeholder="Search SKU..." oninput="evRenderSkuItems()"></div>
+            <div class="ms-actions"><button class="ms-act" onclick="evSkuAll()">Select all</button><button class="ms-act" onclick="evSkuClear()">Clear all</button></div>
+          </div>
+          <div id="events-skuItems"></div>
+        </div>
+      </div>
+    </div>
+    <div class="fg">
+      <span class="fl">Event <span id="events-evCnt" class="ms-cnt" style="display:none"></span></span>
+      <div class="ms-wrap" id="events-evWrap">
+        <button class="ms-btn" id="events-evBtn" onclick="evToggleDrop('ev',event)">All events</button>
+        <div class="ms-drop" id="events-evDrop" style="width:340px">
+          <div class="ms-sticky">
+            <div class="ms-search"><input type="text" id="events-evQ" placeholder="Search events..." oninput="evRenderEvItems()"></div>
+            <div class="ms-actions"><button class="ms-act" onclick="evEvAll()">Select all</button><button class="ms-act" onclick="evEvClear()">Clear all</button></div>
+          </div>
+          <div id="events-evItems"></div>
+        </div>
+      </div>
+    </div>
+    <div class="fg"><span class="fl">Event Type</span>
+      <select id="events-type"><option value="">All types</option><option value="Virtual">Virtual</option><option value="IN-PERSON">In person</option></select>
+    </div>
+    <div class="fg"><span class="fl">Post Status</span>
+      <select id="events-post"><option value="">All</option><option value="reported">Post reported</option><option value="pending">Post not reported yet</option></select>
+    </div>
+    <button class="btn btn-p" onclick="evApply()">&#8635; Apply</button>
+    <button class="btn btn-g" onclick="evReset()">Reset</button>
+    <button class="btn" onclick="evCsv()" style="color:#ea580c;border-color:#ea580c33;background:transparent">&#11015; CSV</button>
+  </div>
+  <div style="padding:10px 24px;background:#fff7ed;border-bottom:1px solid #fed7aa"><span style="font-size:10px;color:#9a3412;background:#ffedd5;padding:2px 8px;border-radius:10px">EVENT &amp; POST sheet + orders by event referral code</span> <span style="font-size:11px;color:#64748b">Budgets and results are the ones typed in your EVENT &amp; POST sheet. Programs sold come from the orders.</span></div>
+  <div id="events-loading" class="loading"><div class="spinner"></div><div>Loading events...</div></div>
+  <div id="events-main" style="display:none"><div id="events-body"></div></div>
+</div>
 <!-- Cancel Cohort Panel -->
 <div id="cohort-panel" style="display:none">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#ffffff;border-bottom:1px solid #dde3ea;position:sticky;top:57px;z-index:100">
@@ -800,6 +861,7 @@ function hideAllPanels(){
   </div>
 </div>
 <script src="pif.js?v=1780000003"></script>
+<script src="events.js?v=1790000200"></script>
 <script src="cr.js?v=1780000007"></script>
 
 
@@ -989,7 +1051,7 @@ function hideAllPanels(){
 function showAr2Tab(){
   var mc=document.getElementById("mainContent");if(mc)mc.style.display="none";
   var fi=document.querySelector(".filters");if(fi)fi.style.display="none";
-  ["ldp-panel","pif-panel","cr-panel"].forEach(function(id){
+  ["ldp-panel","pif-panel","events-panel","cr-panel"].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display="none";
   });
   document.getElementById("ar2-panel").style.display="block";
